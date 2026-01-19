@@ -1,0 +1,67 @@
+server:
+  port: 8888
+
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: "http://keycloak:8080/realms/master/protocol/openid-connect/certs"
+  application:
+    name: gatewayserver
+
+  cloud:
+    config:
+      enabled: false     # No config server
+    discovery:
+      enabled: true
+    gateway:
+      discovery:
+        locator:
+          enabled: false
+          lowerCaseServiceId: true
+
+
+    #gateway:
+#      routes:
+#        - id: institut-ms
+#          uri: lb://institut
+#          predicates:
+#            - Path=/api/ins/**
+#        - id: etudiants-ms
+#          uri: lb://etudiant
+#          predicates:
+#            - Path=/api/etudiants/**
+#        - id: institut-ms2
+#          uri: lb://institut
+#          predicates:
+#            - Path=/api/ins/**
+
+
+# Eureka configuration should be at ROOT level, not under spring
+eureka:
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: ${DISCOVERY_SERVICE_URL:http://eurekaserver:8761/eureka}
+  instance:
+    prefer-ip-address: true    # Set to false for Docker
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: '*'     # Expose actuator endpoints
+  endpoint:
+    gateway:
+      access : unrestricted
+
+
+resilience4j.circuitbreaker:
+  configs:
+    default:
+      slidingWindowSize: 10
+      permittedNumberOfCallsInHalfOpenState: 2
+      failureRateThreshold: 50
+      waitDurationInOpenState: 10000
