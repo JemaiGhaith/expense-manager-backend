@@ -6,13 +6,7 @@ spring:
     enabled: false
   stream:
     enabled: false
-  autoconfigure:
-    exclude:
-      - org.springframework.cloud.bus.BusAutoConfiguration
-      - org.springframework.cloud.bus.jackson.BusJacksonAutoConfiguration
-      - org.springframework.cloud.stream.config.BindingServiceConfiguration
-      - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
-      - org.springframework.cloud.stream.function.FunctionConfiguration
+
 
   application:
     name: configserver
