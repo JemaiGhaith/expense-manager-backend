@@ -2,66 +2,59 @@ server:
   port: 8888
 
 spring:
+  application:
+    name: gatewayserver
   security:
     oauth2:
       resourceserver:
         jwt:
           jwk-set-uri: "http://keycloak:8080/realms/master/protocol/openid-connect/certs"
-  application:
-    name: gatewayserver
-
   cloud:
     config:
-      enabled: false     # No config server
-    discovery:
-      enabled: true
-    gateway:
+      enabled: false
       discovery:
-        locator:
-          enabled: false
-          lowerCaseServiceId: true
+        enabled: true
+      gateway:
+        discovery:
+          locator:
+            enabled: true
+            lower-case-service-id: true
+        routes:
+          - id: auth-ms
+            uri: lb://auth_microservice
+            predicates:
+              - Path=/api/auth/**
+          - id: expense-ms
+            uri: lb://expense_management_microservice
+            predicates:
+              - Path=/api/expenses/**
 
-
-    #gateway:
-#      routes:
-#        - id: institut-ms
-#          uri: lb://institut
-#          predicates:
-#            - Path=/api/ins/**
-#        - id: etudiants-ms
-#          uri: lb://etudiant
-#          predicates:
-#            - Path=/api/etudiants/**
-#        - id: institut-ms2
-#          uri: lb://institut
-#          predicates:
-#            - Path=/api/ins/**
-
-
-# Eureka configuration should be at ROOT level, not under spring
+# Eureka configuration
 eureka:
   client:
     register-with-eureka: true
     fetch-registry: true
     service-url:
-      defaultZone: ${DISCOVERY_SERVICE_URL:http://eurekaserver:8761/eureka}
+      defaultZone: http://localhost:8761/eureka/
   instance:
-    prefer-ip-address: true    # Set to false for Docker
+    prefer-ip-address: true
 
+# Actuator management
 management:
   endpoints:
     web:
       exposure:
-        include: '*'     # Expose actuator endpoints
+        include: '*'   # Expose all actuator endpoints
   endpoint:
     gateway:
-      access : unrestricted
+      access: unrestricted
 
-
-resilience4j.circuitbreaker:
-  configs:
-    default:
-      slidingWindowSize: 10
-      permittedNumberOfCallsInHalfOpenState: 2
-      failureRateThreshold: 50
-      waitDurationInOpenState: 10000
+# Circuit Breaker configuration
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        slidingWindowSize: 10
+        permittedNumberOfCallsInHalfOpenState: 2
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10000
