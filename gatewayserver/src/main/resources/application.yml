@@ -4,32 +4,37 @@ server:
 spring:
   application:
     name: gatewayserver
+
   security:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: "http://keycloak:8080/realms/master/protocol/openid-connect/certs"
+          jwk-set-uri: http://localhost:8090/realms/master/protocol/openid-connect/certs
+
   cloud:
     config:
       enabled: false
-      discovery:
-        enabled: true
-      gateway:
-        discovery:
-          locator:
-            enabled: true
-            lower-case-service-id: true
-        routes:
-          - id: auth-ms
-            uri: lb://auth_microservice
-            predicates:
-              - Path=/api/auth/**
-          - id: expense-ms
-            uri: lb://expense_management_microservice
-            predicates:
-              - Path=/api/expenses/**
 
-# Eureka configuration
+    discovery:
+      enabled: true
+
+    gateway:
+      discovery:
+        locator:
+          enabled: false   # 🔴 IMPORTANT
+      routes:
+        - id: auth-ms
+          uri: lb://auth_microservice
+          predicates:
+            - Path=/api/auth/**
+
+        - id: expense-ms
+          uri: lb://expense_management_microservice
+          predicates:
+            - Path=/api/expenses/**
+          filters:
+            - StripPrefix=1
+
 eureka:
   client:
     register-with-eureka: true
@@ -39,22 +44,6 @@ eureka:
   instance:
     prefer-ip-address: true
 
-# Actuator management
-management:
-  endpoints:
-    web:
-      exposure:
-        include: '*'   # Expose all actuator endpoints
-  endpoint:
-    gateway:
-      access: unrestricted
-
-# Circuit Breaker configuration
-resilience4j:
-  circuitbreaker:
-    configs:
-      default:
-        slidingWindowSize: 10
-        permittedNumberOfCallsInHalfOpenState: 2
-        failureRateThreshold: 50
-        waitDurationInOpenState: 10000
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG

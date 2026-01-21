@@ -12,14 +12,14 @@ public class GatewayserverApplication {
     public static void main(String[] args) {
         SpringApplication.run(GatewayserverApplication.class, args);
     }
-    @Bean
+/*@Bean
     public RouteLocator MyRouteConfig(RouteLocatorBuilder routeLocatorBuilder) {
         return routeLocatorBuilder.routes()
                 .route(p -> p.path("/api/expenses/**")
-                        .uri("lb://expense_management_microservice"))
+                        .uri("lb://EXPENSE_MANAGEMENT_MICROSERVICE"))
                 .route(p -> p.path("/api/auth/**")
-                        .uri("lb://auth_microservice"))
+                        .uri("lb://AUTH_MICROSERVICE"))
                 .build();
     }
-
+*/
 }
