@@ -30,4 +30,9 @@ public class ExpenseLine {
 
     @Column(name = "expense_date")
     private LocalDate expenseDate;
-    private String description;}
+    private String description;
+
+    @Column(name = "justificatif_path")
+    private String justificatifPath;
+
+}
