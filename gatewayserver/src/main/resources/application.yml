@@ -1,0 +1,45 @@
+server:
+  port: 8888
+
+spring:
+  application:
+    name: gatewayserver
+
+  # Keep security disabled for now
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8090/realms/coral-io_realm
+
+  cloud:
+    config:
+      enabled: false
+
+    gateway:
+      discovery:
+        locator:
+          enabled: false  # We'll define routes manually
+
+      routes:
+        - id: expense-ms
+          uri: lb://EXPENSE-MANAGEMENT-MICROSERVICE  # Use Eureka service name
+          predicates:
+            - Path=/api/expenses/**
+
+eureka:
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true
+
+
+logging:
+  level:
+    org.springframework.security: DEBUG
+    org.springframework.security.oauth2: DEBUG
+    org.springframework.security.oauth2.jwt: DEBUG
+    org.springframework.web: DEBUG

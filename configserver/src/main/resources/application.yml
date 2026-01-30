@@ -1,0 +1,39 @@
+server:
+  port: 9999
+
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8090/realms/coral-io_realm
+  bus:
+    enabled: false
+  stream:
+    enabled: false
+
+
+  application:
+    name: configserver
+
+  profiles:
+    #active: native
+    active: git
+
+  cloud:
+    config:
+      server:
+        git:
+          uri: https://github.com/manelboulares8/config-repo.git
+          default-label: main
+          clone-on-start: true
+          #native:
+          #search-locations: classpath:/config
+          #search-locations: file:///C:\Users\MSI\Desktop\odc\nadhim 3eme\fatma-spring-cloud\config_repo
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+
