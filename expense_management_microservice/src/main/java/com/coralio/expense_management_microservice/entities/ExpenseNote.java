@@ -21,7 +21,7 @@ public class ExpenseNote {
     private Long id;
 
     @Column(name = "employee_id")
-    private Long employeeId;// L'employé qui crée la note
+    private String employeeId; // L'employé qui crée la note (Keycloak ID)
 
     @Column(name = "project_id")
     private Long projectId;
@@ -39,4 +39,5 @@ public class ExpenseNote {
     private LocalDateTime createdAt = LocalDateTime.now();
 
     @Column(name = "updated_at")
-    private LocalDateTime updatedAt;}
+    private LocalDateTime updatedAt;
+}

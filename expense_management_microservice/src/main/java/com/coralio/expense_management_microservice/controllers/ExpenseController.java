@@ -25,9 +25,13 @@ public class ExpenseController {
         List<ExpenseLine> lines = request.getLines();
         return ResponseEntity.ok(expenseService.createExpenseNote(note, lines));
     }
+    @GetMapping
+    public ResponseEntity<List<ExpenseNote>> getAllNotes() {
+        return ResponseEntity.ok(expenseService.getAllNotes());
+    }
 
     @GetMapping("/employee/{employeeId}")
-    public ResponseEntity<List<ExpenseNote>> getNotesByEmployee(@PathVariable Long employeeId) {
+    public ResponseEntity<List<ExpenseNote>> getNotesByEmployee(@PathVariable String employeeId) {
         return ResponseEntity.ok(expenseService.getNotesByEmployee(employeeId));
     }
 

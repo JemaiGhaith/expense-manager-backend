@@ -7,6 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface ExpenseNoteRepository extends JpaRepository<ExpenseNote, Long> {
-    List<ExpenseNote> findByEmployeeId(Long employeeId);
+    List<ExpenseNote> findByEmployeeId(String employeeId);
     List<ExpenseNote> findByStatus(ExpenseStatus status);
 }

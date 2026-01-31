@@ -50,10 +50,9 @@ public class ExpenseService {
 
 
     // Récupérer toutes les notes d’un employé
-    public List<ExpenseNote> getNotesByEmployee(Long employeeId) {
+    public List<ExpenseNote> getNotesByEmployee(String employeeId) {
         return noteRepository.findByEmployeeId(employeeId);
     }
-
     // Récupérer toutes les notes par status
     public List<ExpenseNote> getNotesByStatus(ExpenseStatus status) {
         return noteRepository.findByStatus(status);
@@ -65,6 +64,10 @@ public class ExpenseService {
         note.setUpdatedAt(LocalDateTime.now()); // <-- met à jour la date
         note.setStatus(ExpenseStatus.VALIDEE);
         return noteRepository.save(note);
+    }
+
+    public List<ExpenseNote> getAllNotes() {
+        return noteRepository.findAll();
     }
 
     // Refuser une note (manager)
