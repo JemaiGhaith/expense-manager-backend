@@ -6,6 +6,7 @@ import com.coralio.expense_management_microservice.repos.ExpenseLineRepository;
 import com.coralio.expense_management_microservice.repos.ExpenseNoteRepository;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -23,7 +24,7 @@ public class ExpenseService {
     // Créer une note avec ses lignes
     public ExpenseNote createExpenseNote(ExpenseNote note, List<ExpenseLine> lines) {
 
-        // 🚀 Forcer les valeurs par défaut
+        // 🚀 Forcer les valeurs par défaut sur la note
         if (note.getStatus() == null) {
             note.setStatus(ExpenseStatus.EN_ATTENTE);
         }
@@ -35,8 +36,16 @@ public class ExpenseService {
         // Sauvegarde de la note
         ExpenseNote savedNote = noteRepository.save(note);
 
-        // Lier les lignes à la note
-        lines.forEach(line -> line.setExpenseNoteId(savedNote.getId()));
+        // 🚀 Forcer expenseDate sur les lignes si null et lier les lignes à la note
+        LocalDateTime today = LocalDateTime.now();
+        for (ExpenseLine line : lines) {
+            if (line.getExpenseDate() == null) {
+                line.setExpenseDate(LocalDate.from(today)); // met la date du jour
+            }
+            line.setExpenseNoteId(savedNote.getId());
+        }
+
+        // Sauvegarde des lignes
         lineRepository.saveAll(lines);
 
         // Calcul du total
@@ -47,6 +56,7 @@ public class ExpenseService {
         savedNote.setUpdatedAt(LocalDateTime.now());
         return noteRepository.save(savedNote);
     }
+
 
 
     // Récupérer toutes les notes d’un employé

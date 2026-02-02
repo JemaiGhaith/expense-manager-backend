@@ -25,7 +25,7 @@ spring:
         - id: expense-ms
           uri: lb://EXPENSE-MANAGEMENT-MICROSERVICE  # Use Eureka service name
           predicates:
-            - Path=/api/expenses/**
+            - Path=/api/expenses/**, /api/categories/** , /api/projects/**
 
 eureka:
   client:
