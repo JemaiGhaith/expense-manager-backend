@@ -3,12 +3,21 @@ spring:
     enabled: false  # Add this to disable ALL security
   application:
     name: expense-management-microservice
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+  web:
+    resources:
+      static-locations: file:./uploads/,classpath:/static/
   config:
     import: optional:configserver:${CONFIG_SERVICE_URL:http://localhost:9999}
   datasource:
     url: jdbc:postgresql://localhost:5432/expense_app
     username: postgres
-    password: postgres
+    password: 112004
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -50,7 +59,8 @@ build:
   version: 1.0
 
 
-
+file:
+  upload-dir: ./uploads
 logging:
   level:
     org.springframework.security: DEBUG
