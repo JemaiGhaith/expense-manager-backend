@@ -26,6 +26,10 @@ spring:
           uri: lb://EXPENSE-MANAGEMENT-MICROSERVICE  # Use Eureka service name
           predicates:
             - Path=/api/expenses/**, /api/categories/** , /api/projects/**
+        - id: user-ms
+          uri: lb://USER-MICROSERVICE  # Use Eureka service name
+          predicates:
+            - Path=/api/users/**
 
 eureka:
   client:
@@ -43,3 +47,4 @@ logging:
     org.springframework.security.oauth2: DEBUG
     org.springframework.security.oauth2.jwt: DEBUG
     org.springframework.web: DEBUG
+

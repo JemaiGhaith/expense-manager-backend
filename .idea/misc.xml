@@ -10,6 +10,8 @@
         <option value="$PROJECT_DIR$/auth_microservice/pom.xml" />
         <option value="$PROJECT_DIR$/expense_management_microservice/pom.xml" />
         <option value="$PROJECT_DIR$/gatewayserver/pom.xml" />
+        <option value="$PROJECT_DIR$/expense_management_microservice/user_microservice/pom.xml" />
+        <option value="$PROJECT_DIR$/user_microservice/pom.xml" />
       </list>
     </option>
   </component>
