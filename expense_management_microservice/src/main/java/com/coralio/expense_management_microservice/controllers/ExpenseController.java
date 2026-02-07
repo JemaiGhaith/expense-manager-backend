@@ -12,6 +12,7 @@ import com.coralio.expense_management_microservice.services.ProjectService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.file.Files;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -72,7 +74,11 @@ public class ExpenseController {
                     expenseService.createExpenseNoteWithFiles(note, lines, fileNames);
 
             return ResponseEntity.status(HttpStatus.CREATED).body(createdNote);
-
+        } catch (IllegalArgumentException e) {
+            // ✅ ERREUR MÉTIER (date invalide)
+            return ResponseEntity
+                    .badRequest()
+                    .body(Map.of("message", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -118,9 +124,16 @@ public class ExpenseController {
 
     @PostMapping
     public ResponseEntity<ExpenseNote> createNote(@RequestBody ExpenseRequest request) {
-        ExpenseNote note = request.getNote();
-        List<ExpenseLine> lines = request.getLines();
-        return ResponseEntity.ok(expenseService.createExpenseNote(note, lines));
+        try {
+            ExpenseNote note = request.getNote();
+            List<ExpenseLine> lines = request.getLines();
+            return ResponseEntity.ok(expenseService.createExpenseNote(note, lines));
+
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity
+                    .badRequest()
+                    .body((ExpenseNote) Map.of("message", e.getMessage()));
+        }
     }
     @GetMapping
     public ResponseEntity<List<ExpenseNote>> getAllNotes() {
@@ -228,4 +241,8 @@ public class ExpenseController {
                 contentType.equals("application/msword") ||
                 contentType.equals("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
     }
+
+
+
+
 }

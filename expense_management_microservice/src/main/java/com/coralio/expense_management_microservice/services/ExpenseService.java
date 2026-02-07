@@ -8,15 +8,31 @@ import com.coralio.expense_management_microservice.repos.ExpenseNoteRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class ExpenseService {
 
     private final ExpenseNoteRepository noteRepository;
     private final ExpenseLineRepository lineRepository;
+
+
+    private static final Set<String> TUNISIA_HOLIDAYS = Set.of(
+            "01-01",
+            "14-01",
+            "20-03",
+            "09-04",
+            "01-05",
+            "25-07",
+            "13-08",
+            "15-10",
+            "17-12"
+    );
 
     @Autowired
     private FileStorageService fileStorageService;
@@ -45,14 +61,20 @@ public class ExpenseService {
         note.setCreatedAt(LocalDateTime.now());
         note.setUpdatedAt(LocalDateTime.now());
 
-        ExpenseNote savedNote = noteRepository.save(note);
-
-        for (int i = 0; i < lines.size(); i++) {
-            ExpenseLine line = lines.get(i);
+        // 🔴 VALIDATION DES DATES AVANT TOUTE SAUVEGARDE
+        for (ExpenseLine line : lines) {
 
             if (line.getExpenseDate() == null) {
                 line.setExpenseDate(LocalDate.now());
             }
+
+
+        }
+
+        ExpenseNote savedNote = noteRepository.save(note);
+
+        for (int i = 0; i < lines.size(); i++) {
+            ExpenseLine line = lines.get(i);
 
             line.setExpenseNoteId(savedNote.getId());
 
@@ -72,6 +94,7 @@ public class ExpenseService {
 
         return noteRepository.save(savedNote);
     }
+
 
     // Récupérer toutes les notes d'un employé
     public List<ExpenseNote> getNotesByEmployee(String employeeId) {
@@ -122,4 +145,34 @@ public class ExpenseService {
         // ou créer un DTO pour retourner note + lines
         return note;
     }
+
+
+
+    private void validateExpenseDate(LocalDate date) {
+
+        // 1️⃣ Week-end
+        DayOfWeek day = date.getDayOfWeek();
+        if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
+            throw new IllegalArgumentException(
+                    "Les dépenses ne sont pas autorisées le week-end"
+            );
+        }
+
+        // 2️⃣ Jour férié
+        String formatted = String.format("%02d-%02d",
+                date.getDayOfMonth(),
+                date.getMonthValue()
+        );
+
+        if (TUNISIA_HOLIDAYS.contains(formatted)) {
+            throw new IllegalArgumentException(
+                    "Les dépenses ne sont pas autorisées pendant les jours fériés"
+            );
+        }
+    }
+
+
+
+
+
 }
