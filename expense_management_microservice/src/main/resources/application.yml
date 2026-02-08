@@ -17,7 +17,8 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/expense_app
     username: postgres
-    password: postgres
+    password: 112004
+    #    password: postgres
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -35,6 +36,9 @@ spring:
       enabled: true
     discovery:
       enabled: true
+  sql:
+    init:
+      mode: always
 
 server:
   port: 8082
@@ -57,7 +61,6 @@ management:
 
 build:
   version: 1.0
-
 
 file:
   upload-dir: ./uploads
