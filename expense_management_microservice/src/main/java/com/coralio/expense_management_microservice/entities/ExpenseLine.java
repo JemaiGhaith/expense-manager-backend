@@ -35,4 +35,24 @@ public class ExpenseLine {
     @Column(name = "justificatif_path")
     private String justificatifPath;
 
+    // Transport
+    private String depart;
+    private String destination;
+    private String transportType;
+
+    // Hébergement
+    private Integer nombreNuits;
+    private String hotelName;
+
+    // Restauration
+    private Integer nombrePersonnes;
+    private String repasType;
+
+    // Carburant
+    private Double kilometrage;
+    private String vehicule;
+
+    // Divers
+    private String detail;
+
 }
