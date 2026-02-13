@@ -10,6 +10,7 @@ import com.coralio.expense_management_microservice.repos.CategoryRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -75,27 +76,60 @@ public class CategoryService {
 
         Category updatedCategory = categoryRepository.save(category);
 
-        // Supprimer les anciens champs
-        categoryFieldRepository.deleteByCategoryId(id);
+        // 🔥 FIX: Récupérer les champs existants pour les comparer
+        List<CategoryField> existingFields = categoryFieldRepository.findByCategoryId(id);
 
-        // Ajouter les nouveaux champs
+        // 🔥 FIX: Créer une map des champs existants par nom pour une recherche rapide
+        Map<String, CategoryField> existingFieldsMap = existingFields.stream()
+                .collect(Collectors.toMap(CategoryField::getFieldName, field -> field));
+
+        // 🔥 FIX: Traiter les nouveaux champs
         if (request.getFields() != null && !request.getFields().isEmpty()) {
             for (CategoryFieldDTO fieldDTO : request.getFields()) {
-                CategoryField field = CategoryField.builder()
-                        .fieldName(fieldDTO.getFieldName())
-                        .fieldType(fieldDTO.getFieldType())
-                        .fieldOptions(fieldDTO.getFieldOptions())
-                        .required(fieldDTO.isRequired())
-                        .displayOrder(fieldDTO.getDisplayOrder())
-                        .category(updatedCategory)
-                        .build();
+                CategoryField field;
+
+                // Vérifier si le champ existe déjà
+                if (existingFieldsMap.containsKey(fieldDTO.getFieldName())) {
+                    // 🔥 MISE À JOUR: Récupérer et mettre à jour le champ existant
+                    field = existingFieldsMap.get(fieldDTO.getFieldName());
+                    field.setFieldType(fieldDTO.getFieldType());
+                    field.setFieldOptions(fieldDTO.getFieldOptions());
+                    field.setRequired(fieldDTO.isRequired());
+                    field.setDisplayOrder(fieldDTO.getDisplayOrder());
+                    // Ne pas changer la catégorie
+                } else {
+                    // 🔥 CRÉATION: Nouveau champ
+                    field = CategoryField.builder()
+                            .fieldName(fieldDTO.getFieldName())
+                            .fieldType(fieldDTO.getFieldType())
+                            .fieldOptions(fieldDTO.getFieldOptions())
+                            .required(fieldDTO.isRequired())
+                            .displayOrder(fieldDTO.getDisplayOrder())
+                            .category(updatedCategory)
+                            .build();
+                }
+
                 categoryFieldRepository.save(field);
+
+                // 🔥 IMPORTANT: Retirer de la map pour savoir ce qui reste à supprimer
+                existingFieldsMap.remove(fieldDTO.getFieldName());
             }
         }
 
-        return convertToDTO(updatedCategory);
-    }
+        // 🔥 FIX: Supprimer les champs qui ne sont plus dans la requête
+        if (!existingFieldsMap.isEmpty()) {
+            List<Long> fieldIdsToDelete = existingFieldsMap.values().stream()
+                    .map(CategoryField::getId)
+                    .collect(Collectors.toList());
+            categoryFieldRepository.deleteAllByIdInBatch(fieldIdsToDelete);
+        }
 
+        // 🔥 Recharger la catégorie avec ses champs mis à jour
+        Category refreshedCategory = categoryRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Catégorie non trouvée après mise à jour"));
+
+        return convertToDTO(refreshedCategory);
+    }
     /**
      * ✅ Vérifie et crée les colonnes manquantes dans expense_lines
      */
@@ -127,11 +161,42 @@ public class CategoryService {
 
     @Transactional
     public void deleteCategory(Long id) {
-        // 🗑️ TOUJOURS supprimer les champs AVANT la catégorie
-        categoryFieldRepository.deleteByCategoryId(id);
-        categoryRepository.deleteById(id);
-    }
+        try {
+            System.out.println("🗑️ Début suppression catégorie ID: " + id);
 
+            // 1️⃣ Vérifier que la catégorie existe
+            Category category = categoryRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Catégorie non trouvée avec id: " + id));
+
+            System.out.println("📋 Catégorie trouvée: " + category.getName());
+
+            // 2️⃣ IMPORTANT: Dissocier tous les champs de la catégorie
+            List<CategoryField> fields = categoryFieldRepository.findByCategoryId(id);
+            System.out.println("📊 " + fields.size() + " champs associés trouvés");
+
+            // 3️⃣ Supprimer tous les champs UN PAR UN pour éviter les problèmes de cache
+            for (CategoryField field : fields) {
+                // Dissocier le champ de la catégorie
+                field.setCategory(null);
+                // Supprimer le champ
+                categoryFieldRepository.delete(field);
+            }
+
+            // 4️⃣ Forcer la suppression en base
+            categoryFieldRepository.flush();
+
+            // 5️⃣ Maintenant supprimer la catégorie
+            categoryRepository.delete(category);
+            categoryRepository.flush();
+
+            System.out.println("✅ Catégorie " + id + " supprimée avec succès");
+
+        } catch (Exception e) {
+            System.err.println("❌ Erreur lors de la suppression: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Erreur lors de la suppression de la catégorie: " + e.getMessage(), e);
+        }
+    }
     // ==================== MÉTHODES DE LECTURE ====================
 
     public List<CategoryDTO> getAllCategories() {
