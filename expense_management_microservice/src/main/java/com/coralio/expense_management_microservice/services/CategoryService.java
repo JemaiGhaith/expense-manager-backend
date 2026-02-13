@@ -14,22 +14,25 @@ import java.util.stream.Collectors;
 
 @Service
 public class CategoryService {
-
     private final CategoryRepository categoryRepository;
-    private final CategoryFieldRepository categoryFieldRepository;  // ✅ AJOUTER
+    private final CategoryFieldRepository categoryFieldRepository;
+    private final DatabaseMigrationService migrationService;
 
-    // ✅ MODIFIER LE CONSTRUCTEUR
-    public CategoryService(CategoryRepository categoryRepository,
-                           CategoryFieldRepository categoryFieldRepository) {
+    public CategoryService(
+            CategoryRepository categoryRepository,
+            CategoryFieldRepository categoryFieldRepository,
+            DatabaseMigrationService migrationService) {
         this.categoryRepository = categoryRepository;
         this.categoryFieldRepository = categoryFieldRepository;
+        this.migrationService = migrationService;
     }
-
-    // ==================== CRUD AVEC FIELDS ====================
 
     @Transactional
     public CategoryDTO createCategory(CategoryRequest request) {
-        // 1️⃣ Créer la catégorie
+        // ✅ Vérifier et créer les colonnes manquantes
+        ensureColumnsExist(request.getFields());
+
+        // Créer la catégorie
         Category category = Category.builder()
                 .name(request.getName())
                 .plafond(request.getPlafond())
@@ -39,18 +42,18 @@ public class CategoryService {
 
         Category savedCategory = categoryRepository.save(category);
 
-        // 2️⃣ Créer les champs associés
+        // Ajouter les champs
         if (request.getFields() != null && !request.getFields().isEmpty()) {
             for (CategoryFieldDTO fieldDTO : request.getFields()) {
                 CategoryField field = CategoryField.builder()
-                        .fieldName(fieldDTO.getFieldName())        // "depart"
-                        .fieldType(fieldDTO.getFieldType())        // "TEXT"
-                        .fieldOptions(fieldDTO.getFieldOptions())  // options JSON
-                        .required(fieldDTO.isRequired())           // true/false
-                        .displayOrder(fieldDTO.getDisplayOrder())  // 1,2,3...
-                        .category(savedCategory)                  // 🔗 liaison
+                        .fieldName(fieldDTO.getFieldName())
+                        .fieldType(fieldDTO.getFieldType())
+                        .fieldOptions(fieldDTO.getFieldOptions())
+                        .required(fieldDTO.isRequired())
+                        .displayOrder(fieldDTO.getDisplayOrder())
+                        .category(savedCategory)
                         .build();
-                categoryFieldRepository.save(field);  // 💾 INSERT dans category_fields
+                categoryFieldRepository.save(field);
             }
         }
 
@@ -59,11 +62,12 @@ public class CategoryService {
 
     @Transactional
     public CategoryDTO updateCategory(Long id, CategoryRequest request) {
-        // 1️⃣ Récupérer la catégorie
-        Category category = categoryRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Catégorie non trouvée avec id: " + id));
+        // ✅ Vérifier et créer les colonnes manquantes
+        ensureColumnsExist(request.getFields());
 
-        // 2️⃣ Mettre à jour la catégorie
+        Category category = categoryRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Catégorie non trouvée"));
+
         category.setName(request.getName());
         category.setPlafond(request.getPlafond());
         category.setDescription(request.getDescription());
@@ -71,10 +75,10 @@ public class CategoryService {
 
         Category updatedCategory = categoryRepository.save(category);
 
-        // 3️⃣ 🗑️ SUPPRIMER les anciens champs
+        // Supprimer les anciens champs
         categoryFieldRepository.deleteByCategoryId(id);
 
-        // 4️⃣ ✨ CRÉER les nouveaux champs
+        // Ajouter les nouveaux champs
         if (request.getFields() != null && !request.getFields().isEmpty()) {
             for (CategoryFieldDTO fieldDTO : request.getFields()) {
                 CategoryField field = CategoryField.builder()
@@ -90,6 +94,35 @@ public class CategoryService {
         }
 
         return convertToDTO(updatedCategory);
+    }
+
+    /**
+     * ✅ Vérifie et crée les colonnes manquantes dans expense_lines
+     */
+// MODIFIER la méthode ensureColumnsExist pour AJOUTER la logique de réutilisation
+    private void ensureColumnsExist(List<CategoryFieldDTO> fields) {
+        if (fields == null) return;
+
+        // ✅ Récupérer les colonnes EXISTANTES
+        List<String> existingColumns = migrationService.getDynamicColumns();
+
+        for (CategoryFieldDTO field : fields) {
+            String columnName = field.getFieldName();
+
+            if (!migrationService.isValidColumnName(columnName)) {
+                throw new IllegalArgumentException("Nom de colonne invalide: " + columnName);
+            }
+
+            // ✅ Vérifier si la colonne existe DÉJÀ
+            if (!existingColumns.contains(columnName)) {
+                // ✅ NOUVEAU champ - créer la colonne
+                migrationService.addColumn(columnName, field.getFieldType());
+                System.out.println("➕ Nouvelle colonne créée: " + columnName);
+            } else {
+                // ✅ Champ EXISTANT - pas de création !
+                System.out.println("♻️ Réutilisation colonne existante: " + columnName);
+            }
+        }
     }
 
     @Transactional
@@ -138,4 +171,5 @@ public class CategoryService {
                 .displayOrder(field.getDisplayOrder())
                 .build();
     }
+
 }

@@ -7,9 +7,20 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 public interface ExpenseLineRepository extends JpaRepository<ExpenseLine, Long> {
+    // ✅ Version JPA standard (ne récupère que les champs mappés)
     List<ExpenseLine> findByExpenseNoteId(Long expenseNoteId);
 
+    // ✅ Version NATIVE - récupère TOUTES les colonnes !
+    @Query(value = "SELECT * FROM expense_lines WHERE expense_note_id = :noteId",
+            nativeQuery = true)
+    List<Map<String, Object>> findByExpenseNoteIdNative(@Param("noteId") Long noteId);
+
+    // ✅ Version avec mapping manuel
+    @Query(value = "SELECT * FROM expense_lines WHERE expense_note_id = :noteId",
+            nativeQuery = true)
+    List<ExpenseLine> findByExpenseNoteIdWithAllColumns(@Param("noteId") Long noteId);
 
 }
