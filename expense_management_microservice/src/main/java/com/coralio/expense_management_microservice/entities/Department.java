@@ -1,4 +1,4 @@
-package com.coralio.expense_management_microservice.entities;
+/*package com.coralio.expense_management_microservice.entities;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -24,3 +24,4 @@ public class Department {
     private String name;
 }
 
+*/

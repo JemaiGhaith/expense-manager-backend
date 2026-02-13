@@ -1,5 +1,6 @@
 package com.coralio.expense_management_microservice.controllers;
 
+import com.coralio.expense_management_microservice.dto.ExpenseLineDetailDTO;
 import com.coralio.expense_management_microservice.dto.ExpenseRequest;
 import com.coralio.expense_management_microservice.entities.ExpenseLine;
 import com.coralio.expense_management_microservice.entities.ExpenseNote;
@@ -17,6 +18,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -31,7 +33,7 @@ import java.util.Map;
 @RequestMapping("/api/expenses")
 public class ExpenseController {
     private final ExpenseLineRepository expenseLineRepository;
-
+    private final JdbcTemplate jdbcTemplate; // ✅ AJOUTER
     private final ExpenseService expenseService;
     private final ProjectService projectService;
     @Autowired
@@ -114,12 +116,15 @@ public class ExpenseController {
     }
 
 
-    public ExpenseController(ExpenseService expenseService, ProjectService projectService, ExpenseLineRepository expenseLineRepository) {
+    public ExpenseController(
+            ExpenseService expenseService,
+            ProjectService projectService,
+            ExpenseLineRepository expenseLineRepository,
+            JdbcTemplate jdbcTemplate) { // ✅ AJOUTER
         this.expenseService = expenseService;
         this.projectService = projectService;
-
         this.expenseLineRepository = expenseLineRepository;
-
+        this.jdbcTemplate = jdbcTemplate; // ✅ AJOUTER
     }
 
     @PostMapping
@@ -204,10 +209,101 @@ public class ExpenseController {
 
 
 
+    // ====================
+    // ✅ VERSION CORRIGÉE - AVEC TOUS LES CHAMPS DYNAMIQUES
+    // ====================
     @GetMapping("/{noteId}/lines")
-    public ResponseEntity<List<ExpenseLine>> getLinesByNote(@PathVariable Long noteId) {
-        List<ExpenseLine> lines = expenseLineRepository.findByExpenseNoteId(noteId);
-        return ResponseEntity.ok(lines);
+    public ResponseEntity<List<ExpenseLineDetailDTO>> getLinesByNote(@PathVariable Long noteId) {
+        try {
+            // ✅ 1. Récupérer les lignes avec native query
+            List<Map<String, Object>> rows = expenseLineRepository.findByExpenseNoteIdNative(noteId);
+            List<ExpenseLineDetailDTO> result = new ArrayList<>();
+
+            System.out.println("✅ Récupération des lignes pour note #" + noteId);
+            System.out.println("📊 Nombre de lignes trouvées: " + rows.size());
+
+            for (Map<String, Object> row : rows) {
+                ExpenseLineDetailDTO dto = new ExpenseLineDetailDTO();
+
+                // ✅ 2. Mapper les champs standards
+                dto.setId(((Number) row.get("id")).longValue());
+                dto.setExpenseNoteId(((Number) row.get("expense_note_id")).longValue());
+                dto.setCategoryId(row.get("category_id") != null ? ((Number) row.get("category_id")).longValue() : null);
+                dto.setAmount(row.get("amount") != null ? ((Number) row.get("amount")).doubleValue() : null);
+
+                // Date
+                if (row.get("expense_date") != null) {
+                    dto.setExpenseDate(LocalDate.parse(row.get("expense_date").toString()));
+                }
+
+                dto.setDescription((String) row.get("description"));
+                dto.setJustificatifPath((String) row.get("justificatif_path"));
+
+                // ✅ 3. AJOUTER TOUS LES CHAMPS DYNAMIQUES !
+                for (Map.Entry<String, Object> entry : row.entrySet()) {
+                    String columnName = entry.getKey();
+                    Object value = entry.getValue();
+
+                    // Ignorer les champs standards déjà mappés
+                    if (!isStandardColumn(columnName) && value != null) {
+                        // Convertir snake_case en camelCase pour le frontend
+                        String fieldName = toCamelCase(columnName);
+                        dto.setDynamicField(fieldName, value);
+
+                        // ✅ AUSSI garder le snake_case pour compatibilité
+                        dto.setDynamicField(columnName, value);
+
+                        System.out.println("   📌 Champ dynamique: " + columnName + " = " + value);
+                    }
+                }
+
+                result.add(dto);
+            }
+
+            System.out.println("✅ " + result.size() + " lignes préparées avec champs dynamiques");
+            return ResponseEntity.ok(result);
+
+        } catch (Exception e) {
+            System.err.println("❌ Erreur lors de la récupération des lignes: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+
+    // ====================
+    // MÉTHODES UTILITAIRES
+    // ====================
+
+    private boolean isStandardColumn(String columnName) {
+        return columnName.equals("id") ||
+                columnName.equals("expense_note_id") ||
+                columnName.equals("category_id") ||
+                columnName.equals("amount") ||
+                columnName.equals("expense_date") ||
+                columnName.equals("description") ||
+                columnName.equals("justificatif_path") ||
+                columnName.equals("created_at") ||
+                columnName.equals("updated_at");
+    }
+
+    private String toCamelCase(String snakeCase) {
+        if (snakeCase == null) return null;
+        StringBuilder result = new StringBuilder();
+        boolean nextUpper = false;
+        for (char c : snakeCase.toCharArray()) {
+            if (c == '_') {
+                nextUpper = true;
+            } else {
+                if (nextUpper) {
+                    result.append(Character.toUpperCase(c));
+                    nextUpper = false;
+                } else {
+                    result.append(c);
+                }
+            }
+        }
+        return result.toString();
     }
 
     // ====================
