@@ -36,8 +36,9 @@ public class CategoryService {
     @Transactional
     public CategoryDTO createCategory(CategoryRequest request) {
         try {
-            // ✅ 1. VÉRIFICATION D'UNICITÉ DES fieldName
-            validateFieldNamesUniqueness(request.getFields(), null);
+            // ✅ 1. VÉRIFICATION: Les champs existants peuvent être réutilisés
+            // Seuls les NOUVEAUX champs (qui n'existent pas dans category_fields) doivent être uniques
+            validateFieldNamesForCreation(request.getFields());
 
             // ✅ 2. Vérifier et créer les colonnes manquantes dans expense_lines
             ensureColumnsExist(request.getFields());
@@ -55,14 +56,34 @@ public class CategoryService {
             // ✅ 4. Ajouter les champs
             if (request.getFields() != null && !request.getFields().isEmpty()) {
                 for (CategoryFieldDTO fieldDTO : request.getFields()) {
-                    CategoryField field = CategoryField.builder()
-                            .fieldName(fieldDTO.getFieldName())
-                            .fieldType(fieldDTO.getFieldType())
-                            .fieldOptions(fieldDTO.getFieldOptions())
-                            .required(fieldDTO.isRequired())
-                            .displayOrder(fieldDTO.getDisplayOrder())
-                            .category(savedCategory)
-                            .build();
+                    // ✅ Vérifier si le champ existe déjà dans category_fields
+                    Optional<CategoryField> existingField = categoryFieldRepository.findByFieldName(fieldDTO.getFieldName());
+
+                    CategoryField field;
+                    if (existingField.isPresent()) {
+                        // ✅ RÉUTILISER le champ existant
+                        field = existingField.get();
+                        // Mettre à jour les métadonnées pour cette catégorie
+                        field.setFieldType(fieldDTO.getFieldType());
+                        field.setFieldOptions(fieldDTO.getFieldOptions());
+                        field.setRequired(fieldDTO.isRequired());
+                        field.setDisplayOrder(fieldDTO.getDisplayOrder());
+                        // Associer à la nouvelle catégorie
+                        field.setCategory(savedCategory);
+                        System.out.println("♻️ Réutilisation du champ existant: " + fieldDTO.getFieldName());
+                    } else {
+                        // ✅ CRÉER un nouveau champ
+                        field = CategoryField.builder()
+                                .fieldName(fieldDTO.getFieldName())
+                                .fieldType(fieldDTO.getFieldType())
+                                .fieldOptions(fieldDTO.getFieldOptions())
+                                .required(fieldDTO.isRequired())
+                                .displayOrder(fieldDTO.getDisplayOrder())
+                                .category(savedCategory)
+                                .build();
+                        System.out.println("➕ Création nouveau champ: " + fieldDTO.getFieldName());
+                    }
+
                     categoryFieldRepository.save(field);
                 }
             }
@@ -70,12 +91,10 @@ public class CategoryService {
             return convertToDTO(savedCategory);
 
         } catch (DataIntegrityViolationException e) {
-            // ✅ Capture la violation de contrainte d'unicité
             if (e.getMessage().contains("uk_category_fields_fieldname") ||
                     e.getMessage().contains("unique constraint")) {
                 throw new IllegalArgumentException(
-                        "❌ Un champ avec ce nom existe déjà dans une autre catégorie. " +
-                                "Les noms de champs doivent être uniques dans toute l'application."
+                        "❌ Un champ avec ce nom existe déjà. Utilisez-le plutôt que d'en créer un nouveau."
                 );
             }
             throw e;
@@ -85,8 +104,8 @@ public class CategoryService {
     @Transactional
     public CategoryDTO updateCategory(Long id, CategoryRequest request) {
         try {
-            // ✅ 1. VÉRIFICATION D'UNICITÉ DES fieldName (en excluant cette catégorie)
-            validateFieldNamesUniqueness(request.getFields(), id);
+            // ✅ 1. VÉRIFICATION: Pour la mise à jour, on vérifie uniquement les NOUVEAUX champs
+            validateFieldNamesForUpdate(request.getFields(), id);
 
             // ✅ 2. Vérifier et créer les colonnes manquantes
             ensureColumnsExist(request.getFields());
@@ -102,33 +121,50 @@ public class CategoryService {
 
             Category updatedCategory = categoryRepository.save(category);
 
-            // ✅ 4. Gestion des champs
+            // ✅ 4. Gestion des champs - Permettre la réutilisation
             List<CategoryField> existingFields = categoryFieldRepository.findByCategoryId(id);
             Map<String, CategoryField> existingFieldsMap = existingFields.stream()
                     .collect(Collectors.toMap(CategoryField::getFieldName, field -> field));
 
-            // Traiter les nouveaux champs
+            // Traiter les champs de la requête
             if (request.getFields() != null && !request.getFields().isEmpty()) {
                 for (CategoryFieldDTO fieldDTO : request.getFields()) {
                     CategoryField field;
 
+                    // ✅ Vérifier si le champ existe déjà dans cette catégorie
                     if (existingFieldsMap.containsKey(fieldDTO.getFieldName())) {
-                        // MISE À JOUR
+                        // MISE À JOUR du champ existant dans cette catégorie
                         field = existingFieldsMap.get(fieldDTO.getFieldName());
                         field.setFieldType(fieldDTO.getFieldType());
                         field.setFieldOptions(fieldDTO.getFieldOptions());
                         field.setRequired(fieldDTO.isRequired());
                         field.setDisplayOrder(fieldDTO.getDisplayOrder());
+                        System.out.println("🔄 Mise à jour champ: " + fieldDTO.getFieldName());
                     } else {
-                        // CRÉATION
-                        field = CategoryField.builder()
-                                .fieldName(fieldDTO.getFieldName())
-                                .fieldType(fieldDTO.getFieldType())
-                                .fieldOptions(fieldDTO.getFieldOptions())
-                                .required(fieldDTO.isRequired())
-                                .displayOrder(fieldDTO.getDisplayOrder())
-                                .category(updatedCategory)
-                                .build();
+                        // ✅ Vérifier si le champ existe dans category_fields (autre catégorie)
+                        Optional<CategoryField> globalField = categoryFieldRepository.findByFieldName(fieldDTO.getFieldName());
+
+                        if (globalField.isPresent()) {
+                            // ✅ RÉUTILISER le champ existant d'une autre catégorie
+                            field = globalField.get();
+                            field.setFieldType(fieldDTO.getFieldType());
+                            field.setFieldOptions(fieldDTO.getFieldOptions());
+                            field.setRequired(fieldDTO.isRequired());
+                            field.setDisplayOrder(fieldDTO.getDisplayOrder());
+                            field.setCategory(updatedCategory);
+                            System.out.println("♻️ Réutilisation champ existant d'une autre catégorie: " + fieldDTO.getFieldName());
+                        } else {
+                            // ✅ CRÉER un nouveau champ
+                            field = CategoryField.builder()
+                                    .fieldName(fieldDTO.getFieldName())
+                                    .fieldType(fieldDTO.getFieldType())
+                                    .fieldOptions(fieldDTO.getFieldOptions())
+                                    .required(fieldDTO.isRequired())
+                                    .displayOrder(fieldDTO.getDisplayOrder())
+                                    .category(updatedCategory)
+                                    .build();
+                            System.out.println("➕ Création nouveau champ: " + fieldDTO.getFieldName());
+                        }
                     }
 
                     categoryFieldRepository.save(field);
@@ -136,12 +172,13 @@ public class CategoryService {
                 }
             }
 
-            // Supprimer les champs orphelins
+            // Supprimer les champs orphelins (ceux qui ne sont plus dans la requête)
             if (!existingFieldsMap.isEmpty()) {
                 List<Long> fieldIdsToDelete = existingFieldsMap.values().stream()
                         .map(CategoryField::getId)
                         .collect(Collectors.toList());
                 categoryFieldRepository.deleteAllByIdInBatch(fieldIdsToDelete);
+                System.out.println("🗑️ Suppression de " + fieldIdsToDelete.size() + " champs orphelins");
             }
 
             Category refreshedCategory = categoryRepository.findById(id)
@@ -153,8 +190,7 @@ public class CategoryService {
             if (e.getMessage().contains("uk_category_fields_fieldname") ||
                     e.getMessage().contains("unique constraint")) {
                 throw new IllegalArgumentException(
-                        "❌ Un champ avec ce nom existe déjà dans une autre catégorie. " +
-                                "Les noms de champs doivent être uniques dans toute l'application."
+                        "❌ Conflit de noms de champs. Vérifiez que vous n'essayez pas de créer un champ qui existe déjà."
                 );
             }
             throw e;
@@ -162,9 +198,9 @@ public class CategoryService {
     }
 
     /**
-     * ✅ VÉRIFICATION D'UNICITÉ DES fieldName
+     * ✅ VÉRIFICATION POUR CRÉATION: Permet de réutiliser les champs existants
      */
-    private void validateFieldNamesUniqueness(List<CategoryFieldDTO> fields, Long categoryIdToExclude) {
+    private void validateFieldNamesForCreation(List<CategoryFieldDTO> fields) {
         if (fields == null || fields.isEmpty()) {
             return;
         }
@@ -174,12 +210,10 @@ public class CategoryService {
         for (CategoryFieldDTO field : fields) {
             String fieldName = field.getFieldName();
 
-            // Vérifier null ou vide
             if (fieldName == null || fieldName.trim().isEmpty()) {
                 throw new IllegalArgumentException("❌ Le nom d'un champ ne peut pas être vide");
             }
 
-            // Normaliser le nom (trim)
             fieldName = fieldName.trim();
             field.setFieldName(fieldName);
 
@@ -190,27 +224,59 @@ public class CategoryService {
             }
         }
 
-        // 2️⃣ Vérifier les doublons avec la BASE DE DONNÉES
+        // ✅ 2️⃣ Pour la CRÉATION: on NE VÉRIFIE PAS l'unicité globale
+        // On permet de réutiliser les champs existants
+        System.out.println("✅ Validation création: " + fields.size() + " champs (les existants peuvent être réutilisés)");
+    }
+
+    /**
+     * ✅ VÉRIFICATION POUR MISE À JOUR: Vérifie uniquement les NOUVEAUX champs
+     */
+    private void validateFieldNamesForUpdate(List<CategoryFieldDTO> fields, Long categoryId) {
+        if (fields == null || fields.isEmpty()) {
+            return;
+        }
+
+        // 1️⃣ Vérifier les doublons DANS LA REQUÊTE
+        Set<String> uniqueNames = new HashSet<>();
         for (CategoryFieldDTO field : fields) {
             String fieldName = field.getFieldName();
 
-            boolean exists;
-            if (categoryIdToExclude != null) {
-                // Cas UPDATE : exclure les champs de la catégorie qu'on modifie
-                exists = categoryFieldRepository.existsByFieldNameAndCategoryIdNot(fieldName, categoryIdToExclude);
-            } else {
-                // Cas CREATE : vérifier dans toute la table
-                exists = categoryFieldRepository.existsByFieldName(fieldName);
+            if (fieldName == null || fieldName.trim().isEmpty()) {
+                throw new IllegalArgumentException("❌ Le nom d'un champ ne peut pas être vide");
             }
 
-            if (exists) {
+            fieldName = fieldName.trim();
+            field.setFieldName(fieldName);
+
+            if (!uniqueNames.add(fieldName)) {
                 throw new IllegalArgumentException(
-                        "❌ Le nom de champ '" + fieldName + "' est déjà utilisé par une autre catégorie.\n" +
-                                "Les noms de champs doivent être uniques dans toute l'application.\n" +
-                                "Exemples valides : 'depart', 'destination', 'nombreNuits', 'kilometrage'"
+                        "❌ Doublon détecté dans la requête : le champ '" + fieldName + "' apparaît plusieurs fois"
                 );
             }
         }
+
+        // 2️⃣ Récupérer les champs existants de CETTE catégorie
+        List<CategoryField> existingFieldsInCategory = categoryFieldRepository.findByCategoryId(categoryId);
+        Set<String> existingFieldNamesInCategory = existingFieldsInCategory.stream()
+                .map(CategoryField::getFieldName)
+                .collect(Collectors.toSet());
+
+        // 3️⃣ Vérifier UNIQUEMENT les NOUVEAUX champs (qui ne sont pas déjà dans cette catégorie)
+        for (CategoryFieldDTO field : fields) {
+            String fieldName = field.getFieldName();
+
+            // Si le champ est déjà dans cette catégorie, c'est OK (c'est une mise à jour)
+            if (existingFieldNamesInCategory.contains(fieldName)) {
+                continue;
+            }
+
+            // ✅ Pour les NOUVEAUX champs, on permet la réutilisation des champs existants
+            // Donc on ne vérifie PAS l'unicité globale
+            System.out.println("📝 Nouveau champ dans cette catégorie (peut être existant ailleurs): " + fieldName);
+        }
+
+        System.out.println("✅ Validation mise à jour: " + fields.size() + " champs");
     }
 
     /**
@@ -249,18 +315,15 @@ public class CategoryService {
         try {
             System.out.println("🗑️ Début suppression catégorie ID: " + id);
 
-            // 1️⃣ Vérifier que la catégorie existe
             Category category = categoryRepository.findById(id)
                     .orElseThrow(() -> new RuntimeException("Catégorie non trouvée avec id: " + id));
 
             System.out.println("📋 Catégorie trouvée: " + category.getName());
 
-            // 2️⃣ Supprimer les champs associés
             List<CategoryField> fields = categoryFieldRepository.findByCategoryId(id);
             System.out.println("📊 " + fields.size() + " champs associés trouvés");
 
             if (!fields.isEmpty()) {
-                // Supprimer tous les champs en une seule fois
                 List<Long> fieldIds = fields.stream()
                         .map(CategoryField::getId)
                         .collect(Collectors.toList());
@@ -268,7 +331,6 @@ public class CategoryService {
                 categoryFieldRepository.flush();
             }
 
-            // 3️⃣ Maintenant supprimer la catégorie
             categoryRepository.delete(category);
             categoryRepository.flush();
 
@@ -279,6 +341,15 @@ public class CategoryService {
             e.printStackTrace();
             throw new RuntimeException("Erreur lors de la suppression de la catégorie: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * ✅ NOUVELLE MÉTHODE: Récupérer tous les champs disponibles (bibliothèque)
+     */
+    public List<CategoryFieldDTO> getAllAvailableFields() {
+        return categoryFieldRepository.findAll().stream()
+                .map(this::convertFieldToDTO)
+                .collect(Collectors.toList());
     }
 
     // ==================== MÉTHODES DE LECTURE ====================
