@@ -3,6 +3,7 @@ package com.coralio.user_microservice.services;
 import com.coralio.user_microservice.dto.UserUpdateDTO;
 import com.coralio.user_microservice.controllers.UserController.UserDto;  // ✅ IMPORTER UserDto
 import jakarta.ws.rs.core.Response;
+import lombok.extern.slf4j.Slf4j;
 import org.keycloak.OAuth2Constants;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.KeycloakBuilder;
@@ -14,7 +15,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-
+@Slf4j  // ✅ AJOUTER CETTE ANNOTATION
 @Service
 public class KeycloakAdminClient {
 
@@ -237,9 +238,45 @@ public class KeycloakAdminClient {
             }
         }
     }
+    // ✅ NOUVELLE MÉTHODE - Mise à jour simple d'un utilisateur
+    public void updateUser(UserRepresentation user) {
+        try {
+            keycloak.realm(REALM)
+                    .users()
+                    .get(user.getId())
+                    .update(user);
 
+            log.info("✅ Utilisateur {} mis à jour", user.getUsername());
+
+        } catch (Exception e) {
+            log.error("❌ Erreur mise à jour utilisateur: {}", e.getMessage());
+            throw new RuntimeException("Erreur lors de la mise à jour", e);
+        }
+    }
     // ==================== MÉTHODES UTILITAIRES ====================
+    public UserRepresentation getUserByUsername(String username) {
+        log.info("🔍 Recherche utilisateur par username: {}", username);
 
+        try {
+            List<UserRepresentation> users = keycloak.realm(REALM)
+                    .users()
+                    .search(username, true);
+
+            if (users.isEmpty()) {
+                log.warn("⚠️ Aucun utilisateur trouvé avec username: {}", username);
+                return null;
+            }
+
+            // Prendre le premier résultat (le plus pertinent)
+            UserRepresentation user = users.get(0);
+            log.info("✅ Utilisateur trouvé: {} (ID: {})", user.getUsername(), user.getId());
+            return user;
+
+        } catch (Exception e) {
+            log.error("❌ Erreur recherche par username {}: {}", username, e.getMessage());
+            return null;
+        }
+    }
     private UserDto mapToUserDto(UserRepresentation user) {
         String departmentId = null;
         if (user.getAttributes() != null && user.getAttributes().containsKey("departmentId")) {
@@ -277,4 +314,28 @@ public class KeycloakAdminClient {
             throw new RuntimeException("Erreur lors de la suppression de l'utilisateur: " + e.getMessage(), e);
         }
     }
+
+    // Ajouter cette méthode dans KeycloakAdminClient.java
+    public List<String> getUserRoles(String userId) {
+        try {
+            // Récupérer les rôles du realm
+            List<RoleRepresentation> realmRoles = keycloak.realm(REALM)
+                    .users()
+                    .get(userId)
+                    .roles()
+                    .realmLevel()
+                    .listAll();
+
+            return realmRoles.stream()
+                    .map(RoleRepresentation::getName)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("Erreur récupération rôles: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+
+
+
 }

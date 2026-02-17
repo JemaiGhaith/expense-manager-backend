@@ -9,12 +9,14 @@ import org.keycloak.representations.idm.UserRepresentation;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import lombok.extern.slf4j.Slf4j;  // ✅ AJOUTER CET IMPORT
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+@Slf4j  // ✅ AJOUTER CETTE ANNOTATION
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
@@ -104,8 +106,12 @@ public class UserController {
     }
 
     private List<String> extractRoles(UserRepresentation user) {
-        // Version simplifiée - retourne une liste vide
-        return List.of();
+        try {
+            return keycloakClient.getUserRoles(user.getId());
+        } catch (Exception e) {
+            log.error("❌ Erreur extraction rôles: {}", e.getMessage());
+            return List.of();
+        }
     }
 
     @PostMapping

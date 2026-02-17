@@ -29,7 +29,7 @@ spring:
         - id: user-ms
           uri: lb://USER-MICROSERVICE  # Use Eureka service name
           predicates:
-            - Path=/api/users/**
+            - Path=/api/users/** , /api/profile/**
 
 eureka:
   client:

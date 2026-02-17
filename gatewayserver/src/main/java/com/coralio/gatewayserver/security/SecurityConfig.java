@@ -27,6 +27,8 @@ public class SecurityConfig {
                 .authorizeExchange(exchange -> exchange
                         .pathMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll() // ✅ ALLOW PREFLIGHT
                         .pathMatchers("/api/expenses/**").authenticated()
+                        .pathMatchers("/api/profile/**").authenticated()
+                        .pathMatchers("/api/users/**").authenticated()
                         .anyExchange().permitAll()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2

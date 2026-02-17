@@ -1,4 +1,18 @@
 spring:
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: datalake.rh@gmail.com
+    password: yshwctetiasbkntj
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
   application:
     name: USER-MICROSERVICE  # Must be UPPERCASE to match gateway
   servlet:
@@ -46,6 +60,14 @@ management:
 
 file:
   upload-dir: ./uploads
+
+
+keycloak:
+  server-url: http://localhost:8090
+  realm: coral-io_realm
+  client-id: admin-client
+  client-secret: sXpiIV8tivS92L9iN5dCzVve1rzEfUFi
+
 
 logging:
   level:
