@@ -11,19 +11,17 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 @Entity
-@Table(name = "category_fields")
+@Table(name = "category_fields", uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"fieldName"}, name = "uk_category_fields_fieldname")
+})
 public class CategoryField {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // ✅ UN SEUL NOM - C'EST TOUT !
-    // L'admin écrit exactement le nom de la colonne dans expense_lines
-    // Exemples: "depart", "destination", "transportType", "nombreNuits",
-    //           "hotelName", "nombrePersonnes", "repasType", "kilometrage",
-    //           "vehicule", "detail"
-    @Column(nullable = false)
+    // ✅ UN SEUL NOM - UNIQUE DANS TOUTE LA TABLE
+    @Column(nullable = false, unique = true)
     private String fieldName;
 
     @Column(nullable = false)
