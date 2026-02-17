@@ -1,14 +1,18 @@
 package com.coralio.user_microservice.services;
 
+import com.coralio.user_microservice.dto.UserUpdateDTO;
+import com.coralio.user_microservice.controllers.UserController.UserDto;  // ✅ IMPORTER UserDto
+import jakarta.ws.rs.core.Response;
 import org.keycloak.OAuth2Constants;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.KeycloakBuilder;
+import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -19,7 +23,7 @@ public class KeycloakAdminClient {
     private static final String SERVER_URL = "http://localhost:8090";
     private static final String REALM = "coral-io_realm";
     private static final String CLIENT_ID = "admin-client";
-    private static final String CLIENT_SECRET = "vov2JMbDjbDsZQCyJeBZIqcH2W5blsdD";
+    private static final String CLIENT_SECRET = "sXpiIV8tivS92L9iN5dCzVve1rzEfUFi";
 
     public KeycloakAdminClient() {
         keycloak = KeycloakBuilder.builder()
@@ -46,93 +50,231 @@ public class KeycloakAdminClient {
                 .list();
     }
 
-    // ✅ VERSION CORRIGÉE: Récupérer les rôles d'un utilisateur
-    public List<String> getUserRoles(String userId) {
-        List<String> roles = new ArrayList<>();
+    public List<UserRepresentation> getKeycloakUsers() {
+        return keycloak.realm(REALM).users().list();
+    }
+
+    // ==================== CRÉATION D'UTILISATEUR ====================
+
+    public String createUser(String username,
+                             String email,
+                             String firstName,
+                             String lastName,
+                             String password,
+                             boolean enabled,
+                             boolean emailVerified,
+                             Map<String, List<String>> attributes,
+                             List<String> realmRoles) {
 
         try {
-            UserRepresentation user = getUserById(userId);
-            System.out.println("🔍 Récupération des rôles pour: " + user.getUsername());
+            UserRepresentation user = new UserRepresentation();
+            user.setUsername(username);
+            user.setEmail(email);
+            user.setFirstName(firstName);
+            user.setLastName(lastName);
+            user.setEnabled(enabled);
+            user.setEmailVerified(emailVerified);
 
-            // Récupérer TOUS les rôles disponibles pour l'utilisateur
-            List<RoleRepresentation> allRoles = keycloak
-                    .realm(REALM)
+            if (attributes != null && !attributes.isEmpty()) {
+                user.setAttributes(attributes);
+            }
+
+            CredentialRepresentation credential = new CredentialRepresentation();
+            credential.setType(CredentialRepresentation.PASSWORD);
+            credential.setValue(password);
+            credential.setTemporary(false);
+            user.setCredentials(List.of(credential));
+
+            Response response = keycloak.realm(REALM)
+                    .users()
+                    .create(user);
+
+            if (response.getStatus() == 201) {
+                String location = response.getHeaderString("Location");
+                String userId = location.substring(location.lastIndexOf("/") + 1);
+
+                if (realmRoles != null && !realmRoles.isEmpty()) {
+                    assignRoles(userId, realmRoles);
+                }
+
+                return userId;
+            } else {
+                String error = response.readEntity(String.class);
+                throw new RuntimeException("Erreur création utilisateur: " + response.getStatus() + " - " + error);
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Erreur lors de la création de l'utilisateur: " + e.getMessage(), e);
+        }
+    }
+
+    private void assignRoles(String userId, List<String> roleNames) {
+        try {
+            List<RoleRepresentation> roles = keycloak.realm(REALM)
+                    .roles()
+                    .list();
+
+            List<RoleRepresentation> rolesToAssign = roles.stream()
+                    .filter(role -> roleNames.contains(role.getName()))
+                    .collect(Collectors.toList());
+
+            if (!rolesToAssign.isEmpty()) {
+                keycloak.realm(REALM)
+                        .users()
+                        .get(userId)
+                        .roles()
+                        .realmLevel()
+                        .add(rolesToAssign);
+            }
+        } catch (Exception e) {
+            System.err.println("Erreur lors de l'assignation des rôles: " + e.getMessage());
+        }
+    }
+
+    // ==================== MISE À JOUR D'UTILISATEUR ====================
+
+    public UserDto updateUser(String userId,
+                              String firstName,
+                              String lastName,
+                              String email,
+                              String password,
+                              boolean enabled,
+                              boolean emailVerified,
+                              Map<String, List<String>> attributes,
+                              List<String> realmRoles) {
+
+        try {
+            // 1. Récupérer l'utilisateur existant
+            UserRepresentation user = keycloak.realm(REALM)
+                    .users()
+                    .get(userId)
+                    .toRepresentation();
+
+            // 2. Mettre à jour les champs
+            if (firstName != null) user.setFirstName(firstName);
+            if (lastName != null) user.setLastName(lastName);
+            if (email != null) user.setEmail(email);
+
+            user.setEnabled(enabled);
+            user.setEmailVerified(emailVerified);
+
+            // 3. Mettre à jour les attributs
+            if (attributes != null && !attributes.isEmpty()) {
+                user.setAttributes(attributes);
+            } else {
+                // Si attributes est null ou vide, on peut soit laisser les anciens, soit les supprimer
+                // Option: supprimer les attributs si on veut les effacer
+                // user.setAttributes(null);
+            }
+
+            // 4. Sauvegarder les modifications
+            keycloak.realm(REALM)
+                    .users()
+                    .get(userId)
+                    .update(user);
+
+            // 5. Mettre à jour le mot de passe si fourni
+            if (password != null && !password.trim().isEmpty()) {
+                CredentialRepresentation credential = new CredentialRepresentation();
+                credential.setType(CredentialRepresentation.PASSWORD);
+                credential.setValue(password);
+                credential.setTemporary(false);
+
+                keycloak.realm(REALM)
+                        .users()
+                        .get(userId)
+                        .resetPassword(credential);
+            }
+
+            // 6. Mettre à jour les rôles si nécessaire
+            if (realmRoles != null && !realmRoles.isEmpty()) {
+                updateUserRoles(userId, realmRoles);
+            }
+
+            // 7. Retourner l'utilisateur mis à jour au format UserDto
+            return mapToUserDto(user);
+
+        } catch (Exception e) {
+            throw new RuntimeException("Erreur lors de la mise à jour de l'utilisateur: " + e.getMessage(), e);
+        }
+    }
+
+    private void updateUserRoles(String userId, List<String> newRoleNames) {
+        // Récupérer les rôles actuels
+        List<RoleRepresentation> currentRoles = keycloak.realm(REALM)
+                .users()
+                .get(userId)
+                .roles()
+                .realmLevel()
+                .listAll();
+
+        // Supprimer tous les rôles actuels
+        if (!currentRoles.isEmpty()) {
+            keycloak.realm(REALM)
                     .users()
                     .get(userId)
                     .roles()
                     .realmLevel()
-                    .listAll();
+                    .remove(currentRoles);
+        }
 
-            System.out.println("📋 Tous les rôles (bruts): " +
-                    allRoles.stream().map(RoleRepresentation::getName).collect(Collectors.toList()));
+        // Ajouter les nouveaux rôles
+        if (!newRoleNames.isEmpty()) {
+            List<RoleRepresentation> roles = keycloak.realm(REALM)
+                    .roles()
+                    .list();
 
-            // Filtrer pour ne garder que ADMIN, MANAGER, EMPLOYEE
-            for (RoleRepresentation role : allRoles) {
-                String roleName = role.getName();
-                if (roleName.equals("ADMIN") ||
-                        roleName.equals("MANAGER") ||
-                        roleName.equals("EMPLOYEE")) {
-                    roles.add(roleName);
-                }
+            List<RoleRepresentation> rolesToAdd = roles.stream()
+                    .filter(role -> newRoleNames.contains(role.getName()))
+                    .collect(Collectors.toList());
+
+            if (!rolesToAdd.isEmpty()) {
+                keycloak.realm(REALM)
+                        .users()
+                        .get(userId)
+                        .roles()
+                        .realmLevel()
+                        .add(rolesToAdd);
             }
+        }
+    }
 
-            // Si aucun rôle trouvé, utiliser le fallback
-            if (roles.isEmpty()) {
-                String username = user.getUsername().toLowerCase();
-                if (username.contains("admin") || "test_admin".equals(username)) {
-                    roles.add("ADMIN");  // ✅ Seulement ADMIN, pas MANAGER
-                } else if (username.contains("manager")) {
-                    roles.add("MANAGER");
-                } else {
-                    roles.add("EMPLOYEE");
-                }
-            }
+    // ==================== MÉTHODES UTILITAIRES ====================
 
-            // ✅ SUPPRIMER cette ligne qui ajoute MANAGER à ADMIN
-            // if (roles.contains("ADMIN") && !roles.contains("MANAGER")) {
-            //     roles.add("MANAGER");
-            // }
-
-            System.out.println("✅ Rôles finaux: " + roles);
-
-        } catch (Exception e) {
-            System.err.println("❌ Erreur: " + e.getMessage());
-            e.printStackTrace();
-
-            // Fallback
-            try {
-                UserRepresentation user = getUserById(userId);
-                String username = user.getUsername().toLowerCase();
-                if (username.contains("admin") || "test_admin".equals(username)) {
-                    roles.add("ADMIN");  // ✅ Seulement ADMIN
-                } else if (username.contains("manager")) {
-                    roles.add("MANAGER");
-                } else {
-                    roles.add("EMPLOYEE");
-                }
-            } catch (Exception ex) {
-                roles.add("EMPLOYEE");
+    private UserDto mapToUserDto(UserRepresentation user) {
+        String departmentId = null;
+        if (user.getAttributes() != null && user.getAttributes().containsKey("departmentId")) {
+            List<String> values = user.getAttributes().get("departmentId");
+            if (values != null && !values.isEmpty()) {
+                departmentId = values.get(0);
             }
         }
 
-        return roles.stream().distinct().collect(Collectors.toList());
+        // Récupérer les rôles (simplifié)
+        List<String> roles = List.of(); // À implémenter si besoin
+
+        return new UserDto(
+                user.getFirstName(),
+                user.getLastName(),
+                user.getUsername(),
+                user.getEmail(),
+                departmentId,
+                null, // departmentName (à remplir si besoin)
+                user.isEnabled(),
+                roles
+        );
     }
-    // Méthode utilitaire pour obtenir l'ID d'un client par son nom
-    private String getClientId(String clientName) {
+    public void deleteUser(String userId) {
         try {
-            return keycloak
-                    .realm(REALM)
-                    .clients()
-                    .findByClientId(clientName)
-                    .get(0)
-                    .getId();
-        } catch (Exception e) {
-            System.err.println("⚠️ Client non trouvé: " + clientName);
-            return null;
-        }
-    }
+            Response response = keycloak.realm(REALM)
+                    .users()
+                    .delete(userId);
 
-    public List<UserRepresentation> getKeycloakUsers() {
-        return keycloak.realm(REALM).users().list();
+            if (response.getStatus() != 204) {
+                String error = response.readEntity(String.class);
+                throw new RuntimeException("Erreur suppression utilisateur: " + response.getStatus() + " - " + error);
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Erreur lors de la suppression de l'utilisateur: " + e.getMessage(), e);
+        }
     }
 }
