@@ -23,7 +23,7 @@ public class KeycloakAdminClient {
     private static final String SERVER_URL = "http://localhost:8090";
     private static final String REALM = "coral-io_realm";
     private static final String CLIENT_ID = "admin-client";
-    private static final String CLIENT_SECRET = "sXpiIV8tivS92L9iN5dCzVve1rzEfUFi";
+    private static final String CLIENT_SECRET = "vov2JMbDjbDsZQCyJeBZIqcH2W5blsdD";
 
     public KeycloakAdminClient() {
         keycloak = KeycloakBuilder.builder()
