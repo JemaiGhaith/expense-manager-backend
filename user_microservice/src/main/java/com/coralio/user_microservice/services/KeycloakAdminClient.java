@@ -12,6 +12,7 @@ import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -335,7 +336,132 @@ public class KeycloakAdminClient {
         }
     }
 
+    /**
+     * Mise à jour du profil personnel (sans modification des champs sensibles)
+     */
+    public UserDto updateUserProfile(String userId,
+                                     String firstName,
+                                     String lastName,
+                                     String email,
+                                     String phone,
+                                     String location) {
+        try {
+            log.info("📝 Mise à jour profil utilisateur: {}", userId);
 
+            // Récupérer l'utilisateur existant
+            UserRepresentation user = getUserById(userId);
 
+            // ✅ Mettre à jour SEULEMENT les champs autorisés
+            if (firstName != null && !firstName.trim().isEmpty()) {
+                user.setFirstName(firstName);
+            }
+            if (lastName != null && !lastName.trim().isEmpty()) {
+                user.setLastName(lastName);
+            }
+            if (email != null && !email.trim().isEmpty()) {
+                user.setEmail(email);
+            }
 
+            // ✅ Gérer les attributs (phone, location)
+            Map<String, List<String>> attributes = user.getAttributes();
+            if (attributes == null) {
+                attributes = new HashMap<>();
+            }
+
+            // Gérer le téléphone
+            if (phone != null && !phone.trim().isEmpty()) {
+                attributes.put("phone", List.of(phone));
+            } else {
+                attributes.remove("phone"); // Supprimer si phone est null ou vide
+            }
+
+            // Gérer la localisation
+            if (location != null && !location.trim().isEmpty()) {
+                attributes.put("location", List.of(location));
+            } else {
+                attributes.remove("location"); // Supprimer si location est null ou vide
+            }
+
+            user.setAttributes(attributes);
+
+            // ✅ NE PAS MODIFIER enabled ET emailVerified
+            // On garde les valeurs existantes
+            log.info("🔵 Conservation enabled: {}, emailVerified: {}",
+                    user.isEnabled(), user.isEmailVerified());
+
+            // ✅ CORRECTION 1: Utiliser 'keycloak' au lieu de 'keycloakInstance'
+            keycloak.realm(REALM)
+                    .users()
+                    .get(userId)
+                    .update(user);
+
+            log.info("✅ Profil utilisateur {} mis à jour avec succès", userId);
+
+            // ✅ CORRECTION 2: Retourner un UserDto au lieu d'UserRepresentation
+            return mapToUserDto(user);
+
+        } catch (Exception e) {
+            log.error("❌ Erreur mise à jour profil: {}", e.getMessage());
+            throw new RuntimeException("Erreur lors de la mise à jour du profil: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Changer le mot de passe d'un utilisateur
+     */
+
+    // ✅ VÉRIFIER LE MOT DE PASSE ACTUEL
+    public boolean verifyUserPassword(String userId, String currentPassword) {
+        try {
+            log.info("🔐 Vérification du mot de passe pour l'utilisateur: {}", userId);
+
+            // Récupérer l'utilisateur pour obtenir son username
+            UserRepresentation user = getUserById(userId);
+            String username = user.getUsername();
+
+            // Créer une connexion Keycloak avec les credentials de l'utilisateur
+            Keycloak userKeycloak = KeycloakBuilder.builder()
+                    .serverUrl(SERVER_URL)
+                    .realm(REALM)
+                    .grantType(OAuth2Constants.PASSWORD)
+                    .clientId(CLIENT_ID)
+                    .clientSecret(CLIENT_SECRET)
+                    .username(username)
+                    .password(currentPassword)
+                    .build();
+
+            // Tenter d'obtenir un token
+            userKeycloak.tokenManager().getAccessToken();
+
+            log.info("✅ Mot de passe valide pour l'utilisateur: {}", userId);
+            return true;
+
+        } catch (Exception e) {
+            log.warn("🔴 Mot de passe invalide pour l'utilisateur: {} - {}", userId, e.getMessage());
+            return false;
+        }
+    }
+    public void changeUserPassword(String userId, String newPassword) {
+        try {
+            log.info("🔐 Changement de mot de passe pour l'utilisateur: {}", userId);
+
+            // Créer les credentials
+            CredentialRepresentation credential = new CredentialRepresentation();
+            credential.setType(CredentialRepresentation.PASSWORD);
+            credential.setValue(newPassword);
+            credential.setTemporary(false);
+
+            // Réinitialiser le mot de passe
+            keycloak.realm(REALM)
+                    .users()
+                    .get(userId)
+                    .resetPassword(credential);
+
+            log.info("✅ Mot de passe changé avec succès pour: {}", userId);
+
+        } catch (Exception e) {
+            log.error("❌ Erreur changement mot de passe pour {}: {}", userId, e.getMessage());
+            throw new RuntimeException("Erreur lors du changement de mot de passe: " + e.getMessage());
+        }
+    }
 }

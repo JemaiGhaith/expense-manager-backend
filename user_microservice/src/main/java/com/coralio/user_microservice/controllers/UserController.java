@@ -1,5 +1,7 @@
 package com.coralio.user_microservice.controllers;
 
+import com.coralio.user_microservice.dto.PasswordChangeDTO;
+import com.coralio.user_microservice.dto.ProfileUpdateDTO;
 import com.coralio.user_microservice.dto.UserCreateDTO;
 import com.coralio.user_microservice.dto.UserUpdateDTO;
 import com.coralio.user_microservice.services.KeycloakAdminClient;
@@ -191,6 +193,55 @@ public class UserController {
                     .body(Map.of("error", "Erreur interne: " + e.getMessage()));
         }
     }
+
+    // ✅ NOUVEAU ENDPOINT SPÉCIFIQUE POUR LA MISE À JOUR DU PROFIL PERSONNEL
+    @PutMapping("/{id}/profile")
+    public ResponseEntity<?> updateMyProfile(@PathVariable("id") String id, @RequestBody ProfileUpdateDTO profileDTO) {
+        try {
+            log.info("📝 Mise à jour du profil personnel pour l'utilisateur: {}", id);
+
+            // ✅ 1. Récupérer l'utilisateur existant pour conserver enabled/emailVerified
+            UserRepresentation existingUser = keycloakClient.getUserById(id);
+
+            // ✅ 2. Journaliser les valeurs existantes
+            log.info("🔵 Valeurs existantes - enabled: {}, emailVerified: {}",
+                    existingUser.isEnabled(), existingUser.isEmailVerified());
+
+            // ✅ 3. Mise à jour SEULEMENT des champs autorisés
+            UserDto updatedUser = keycloakClient.updateUserProfile(
+                    id,
+                    profileDTO.getFirstName(),
+                    profileDTO.getLastName(),
+                    profileDTO.getEmail(),
+                    profileDTO.getPhone(),
+                    profileDTO.getLocation()
+            );
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("id", id);
+            response.put("message", "Profil mis à jour avec succès");
+            response.put("firstName", updatedUser.firstName);
+            response.put("lastName", updatedUser.lastName);
+            response.put("email", updatedUser.email);
+
+
+            // ✅ Confirmer que enabled/emailVerified n'ont pas changé
+            response.put("enabled", updatedUser.enabled);
+            response.put("emailVerified", updatedUser.emailVerified);
+
+            return ResponseEntity.ok(response);
+
+        } catch (RuntimeException e) {
+            log.error("❌ Erreur mise à jour profil: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            log.error("❌ Erreur interne: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Erreur interne: " + e.getMessage()));
+        }
+    }
+
+
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteUser(@PathVariable String id) {
         try {
@@ -295,6 +346,65 @@ public class UserController {
         // ✅ GETTER pour le username
         public String getUsername() {
             return username;
+        }
+    }
+
+
+    // ✅ ENDPOINT POUR CHANGER LE MOT DE PASSE AVEC VÉRIFICATION
+    @PutMapping("/{id}/password")
+    public ResponseEntity<?> changePassword(@PathVariable("id") String id, @RequestBody PasswordChangeDTO passwordDTO) {
+        try {
+            log.info("🔐 Demande de changement de mot de passe pour l'utilisateur: {}", id);
+
+            // 1. Vérifier que les mots de passe correspondent
+            if (!passwordDTO.getNewPassword().equals(passwordDTO.getConfirmPassword())) {
+                log.warn("🔴 Les nouveaux mots de passe ne correspondent pas");
+                return ResponseEntity.badRequest().body(Map.of(
+                        "error", "Les nouveaux mots de passe ne correspondent pas"
+                ));
+            }
+
+            // 2. Vérifier que le nouveau mot de passe est valide
+            if (passwordDTO.getNewPassword() == null || passwordDTO.getNewPassword().length() < 6) {
+                log.warn("🔴 Nouveau mot de passe trop court");
+                return ResponseEntity.badRequest().body(Map.of(
+                        "error", "Le nouveau mot de passe doit contenir au moins 6 caractères"
+                ));
+            }
+
+            // 3. Vérifier que l'ancien mot de passe est correct
+            boolean isCurrentPasswordValid = keycloakClient.verifyUserPassword(
+                    id,
+                    passwordDTO.getCurrentPassword()
+            );
+
+            if (!isCurrentPasswordValid) {
+                log.warn("🔴 Ancien mot de passe incorrect pour l'utilisateur: {}", id);
+                return ResponseEntity.badRequest().body(Map.of(
+                        "error", "Le mot de passe actuel est incorrect"
+                ));
+            }
+
+            // 4. Changer le mot de passe dans Keycloak
+            keycloakClient.changeUserPassword(id, passwordDTO.getNewPassword());
+
+            log.info("✅ Mot de passe changé avec succès pour l'utilisateur: {}", id);
+
+            Map<String, String> response = new HashMap<>();
+            response.put("message", "Mot de passe modifié avec succès");
+            response.put("id", id);
+
+            return ResponseEntity.ok(response);
+
+        } catch (RuntimeException e) {
+            log.error("❌ Erreur changement mot de passe: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", e.getMessage()
+            ));
+        } catch (Exception e) {
+            log.error("❌ Erreur interne: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Erreur interne: " + e.getMessage()));
         }
     }
 }
