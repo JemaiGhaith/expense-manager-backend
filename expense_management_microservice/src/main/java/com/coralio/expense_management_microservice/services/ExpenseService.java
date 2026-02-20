@@ -13,10 +13,13 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.HashSet;
 
 @Service
 public class ExpenseService {
@@ -30,6 +33,9 @@ public class ExpenseService {
             "01-01", "14-01", "20-03", "09-04", "01-05",
             "25-07", "13-08", "15-10", "17-12"
     );
+
+    // ✅ Cache pour les types de colonnes
+    private final Map<String, String> columnTypeCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     @Autowired
     private FileStorageService fileStorageService;
@@ -48,15 +54,16 @@ public class ExpenseService {
     // Créer une note avec ses lignes (sans fichiers)
     @Transactional
     public ExpenseNote createExpenseNote(ExpenseNote note, List<ExpenseLine> lines) {
-        return createExpenseNoteWithFiles(note, lines, null);
+        return createExpenseNoteWithFiles(note, lines, null, null);
     }
 
-    // ✅ CORRIGÉ - Sauvegarde dynamique avec toutes les colonnes
+    // ✅ Nouvelle méthode avec accord et factures
     @Transactional
     public ExpenseNote createExpenseNoteWithFiles(
             ExpenseNote note,
             List<ExpenseLine> lines,
-            List<String> fileNames
+            String accordFileName,
+            List<String> factureFileNames
     ) {
         // 1️⃣ Initialiser la note
         if (note.getStatus() == null) {
@@ -64,6 +71,11 @@ public class ExpenseService {
         }
         note.setCreatedAt(LocalDateTime.now());
         note.setUpdatedAt(LocalDateTime.now());
+
+        // ✅ Sauvegarder le chemin de l'accord
+        if (accordFileName != null) {
+            note.setAccordPath(accordFileName);
+        }
 
         // 2️⃣ Valider les dates
         for (ExpenseLine line : lines) {
@@ -76,16 +88,15 @@ public class ExpenseService {
         // 3️⃣ Sauvegarder la note
         ExpenseNote savedNote = noteRepository.save(note);
 
-        // 4️⃣ ✅ Sauvegarder chaque ligne avec INSERT dynamique
+        // 4️⃣ Sauvegarder chaque ligne avec sa facture
         for (int i = 0; i < lines.size(); i++) {
             ExpenseLine line = lines.get(i);
             line.setExpenseNoteId(savedNote.getId());
 
-            if (fileNames != null && i < fileNames.size()) {
-                line.setJustificatifPath(fileNames.get(i));
+            if (factureFileNames != null && i < factureFileNames.size()) {
+                line.setJustificatifPath(factureFileNames.get(i));
             }
 
-            // ✅ Utiliser JDBC pour un INSERT dynamique
             insertExpenseLineWithDynamicColumns(line);
         }
 
@@ -100,13 +111,18 @@ public class ExpenseService {
         return noteRepository.save(savedNote);
     }
 
-    // ✅ INSERT dynamique avec toutes les colonnes de la table
-    // ✅ CORRIGÉ - INSERT dynamique avec SEULEMENT les colonnes qui ont des valeurs
-    private void insertExpenseLineWithDynamicColumns(ExpenseLine line) {
-        // 1️⃣ Récupérer toutes les colonnes de la table
-        List<String> allColumns = migrationService.getAllColumns();
+    // Garder l'ancienne méthode pour compatibilité
+    @Transactional
+    public ExpenseNote createExpenseNoteWithFiles(
+            ExpenseNote note,
+            List<ExpenseLine> lines,
+            List<String> fileNames
+    ) {
+        return createExpenseNoteWithFiles(note, lines, null, fileNames);
+    }
 
-        // 2️⃣ Filtrer UNIQUEMENT les colonnes qui ont des valeurs
+    private void insertExpenseLineWithDynamicColumns(ExpenseLine line) {
+        List<String> allColumns = migrationService.getAllColumns();
         List<String> columnsToInsert = new ArrayList<>();
         List<Object> params = new ArrayList<>();
 
@@ -115,44 +131,145 @@ public class ExpenseService {
             if (value != null) {
                 columnsToInsert.add(column);
                 params.add(value);
+
+                // 🔍 DEBUG pour les dates
+                if (isColumnOfType(column, "date")) {
+                    System.out.println("📅 DATE préparée: " + column + " = " + value + " (" + value.getClass().getSimpleName() + ")");
+                }
             }
         }
 
-        // 3️⃣ TOUJOURS inclure expense_note_id même si null ? Non, on vérifie
-        // Si expense_note_id n'est pas dans la liste, on l'ajoute
         if (!columnsToInsert.contains("expense_note_id") && line.getExpenseNoteId() != null) {
-            columnsToInsert.add("expense_n_id"); // ✅ CORRECTION: le nom exact de la colonne
+            columnsToInsert.add("expense_note_id");
             params.add(line.getExpenseNoteId());
         }
 
-        // 4️⃣ Construire la requête INSERT
-        StringBuilder sql = new StringBuilder("INSERT INTO expense_lines (");
-        StringBuilder values = new StringBuilder("VALUES (");
-
-        for (int i = 0; i < columnsToInsert.size(); i++) {
-            if (i > 0) {
-                sql.append(", ");
-                values.append(", ");
-            }
-            sql.append(columnsToInsert.get(i));
-            values.append("?");
-        }
-
-        sql.append(") ");
-        values.append(")");
-        sql.append(values);
-
-        // 5️⃣ Exécuter l'insertion
         if (!columnsToInsert.isEmpty()) {
+            StringBuilder sql = new StringBuilder("INSERT INTO expense_lines (");
+            StringBuilder values = new StringBuilder("VALUES (");
+
+            for (int i = 0; i < columnsToInsert.size(); i++) {
+                if (i > 0) {
+                    sql.append(", ");
+                    values.append(", ");
+                }
+                sql.append(columnsToInsert.get(i));
+                values.append("?");
+            }
+
+            sql.append(") ").append(values).append(")");
+
+            // 🔍 DEBUG - Voir la requête complète
+            System.out.println("📝 SQL: " + sql.toString());
+            System.out.println("📦 Paramètres: " + params);
+
             jdbcTemplate.update(sql.toString(), params.toArray());
             System.out.println("✅ Insertion avec colonnes: " + columnsToInsert);
         }
     }
-    // ✅ CORRIGÉ - Mapper les valeurs de l'entité aux colonnes
+
+    /**
+     * ✅ Vérifie si une colonne est d'un certain type dans la base
+     */
+    private boolean isColumnOfType(String columnName, String targetType) {
+        if (!columnTypeCache.containsKey(columnName)) {
+            try {
+                String sql = """
+                    SELECT data_type 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'expense_lines' 
+                    AND column_name = ?
+                """;
+                String dataType = jdbcTemplate.queryForObject(sql, String.class, columnName);
+                columnTypeCache.put(columnName, dataType != null ? dataType.toLowerCase() : "unknown");
+            } catch (Exception e) {
+                columnTypeCache.put(columnName, "unknown");
+            }
+        }
+
+        String dataType = columnTypeCache.get(columnName);
+        return dataType != null && dataType.contains(targetType.toLowerCase());
+    }
+
+    /**
+     * ✅ Convertit une valeur en LocalDate pour les colonnes DATE
+     */
+    private LocalDate convertToLocalDate(Object value, String columnName) {
+        if (value == null) return null;
+
+        // ✅ Déjà LocalDate
+        if (value instanceof LocalDate) {
+            return (LocalDate) value;
+        }
+
+        // ✅ Déjà java.sql.Date
+        if (value instanceof java.sql.Date) {
+            return ((java.sql.Date) value).toLocalDate();
+        }
+
+        // ✅ String - essayer différents formats
+        if (value instanceof String) {
+            String str = (String) value;
+            str = str.trim();
+
+            // Format ISO (2024-01-15)
+            if (str.matches("\\d{4}-\\d{2}-\\d{2}")) {
+                try {
+                    return LocalDate.parse(str);
+                } catch (DateTimeParseException e) {
+                    System.err.println("❌ Erreur parsing ISO date: " + str);
+                }
+            }
+
+            // Format français (15/01/2024)
+            else if (str.matches("\\d{2}/\\d{2}/\\d{4}")) {
+                try {
+                    String[] parts = str.split("/");
+                    return LocalDate.of(
+                            Integer.parseInt(parts[2]),
+                            Integer.parseInt(parts[1]),
+                            Integer.parseInt(parts[0])
+                    );
+                } catch (Exception e) {
+                    System.err.println("❌ Erreur parsing français date: " + str);
+                }
+            }
+
+            // Format avec tirets (15-01-2024)
+            else if (str.matches("\\d{2}-\\d{2}-\\d{4}")) {
+                try {
+                    String[] parts = str.split("-");
+                    return LocalDate.of(
+                            Integer.parseInt(parts[2]),
+                            Integer.parseInt(parts[1]),
+                            Integer.parseInt(parts[0])
+                    );
+                } catch (Exception e) {
+                    System.err.println("❌ Erreur parsing tirets date: " + str);
+                }
+            }
+
+            // Essayer avec DateTimeFormatter
+            try {
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("[yyyy-MM-dd][dd/MM/yyyy][dd-MM-yyyy]");
+                return LocalDate.parse(str, formatter);
+            } catch (Exception e) {
+                System.err.println("❌ Aucun format de date reconnu pour: " + str);
+            }
+        }
+
+        // ⚠️ Fallback: date du jour
+        System.err.println("⚠️ Utilisation date courante pour " + columnName + " (valeur: " + value + ")");
+        return LocalDate.now();
+    }
+
+    /**
+     * ✅ Version corrigée de getValueForColumn avec gestion des dates
+     */
     private Object getValueForColumn(ExpenseLine line, String columnName) {
         // 1️⃣ Essayer les champs standards
         Object value = switch (columnName) {
-            case "expense_note_id", "expense_n_id" -> line.getExpenseNoteId();  // ✅ Support les deux noms
+            case "expense_note_id" -> line.getExpenseNoteId();
             case "category_id" -> line.getCategoryId();
             case "amount" -> line.getAmount();
             case "expense_date" -> line.getExpenseDate();
@@ -173,35 +290,33 @@ public class ExpenseService {
 
         // 2️⃣ Si c'est null, essayer les champs dynamiques
         if (value == null) {
-            // Essayer avec le nom exact de la colonne
             value = line.getDynamicField(columnName);
 
-            // Si toujours null, essayer de convertir le camelCase en snake_case
             if (value == null) {
-                // Essayer de trouver une correspondance dans dynamicFields
-                for (Map.Entry<String, Object> entry : line.getDynamicFields().entrySet()) {
-                    String dynamicKey = entry.getKey();
-                    // Convertir le nom de colonne (snake_case) en camelCase pour la recherche
-                    String camelCaseKey = toCamelCase(columnName);
-                    if (dynamicKey.equals(columnName) ||
-                            dynamicKey.equals(camelCaseKey) ||
-                            dynamicKey.equalsIgnoreCase(columnName)) {
-                        value = entry.getValue();
-                        break;
-                    }
-                }
+                String camelCaseKey = toCamelCase(columnName);
+                value = line.getDynamicField(camelCaseKey);
             }
         }
 
-        // 3️⃣ DEBUG - Afficher les colonnes avec leurs valeurs
+        // 3️⃣ 🔥 CORRECTION CRITIQUE : Convertir les dates !
         if (value != null) {
-            System.out.println("📌 Colonne: " + columnName + " = " + value + " (type: " + value.getClass().getSimpleName() + ")");
+            // Vérifier si c'est une colonne DATE
+            if (isColumnOfType(columnName, "date")) {
+                LocalDate dateValue = convertToLocalDate(value, columnName);
+                System.out.println("📅 Conversion date pour " + columnName +
+                        ": " + value + " (" + value.getClass().getSimpleName() +
+                        ") → " + dateValue + " (LocalDate)");
+                return dateValue;
+            }
+
+            // DEBUG
+            System.out.println("📌 Colonne: " + columnName + " = " + value +
+                    " (type: " + value.getClass().getSimpleName() + ")");
         }
 
         return value;
     }
 
-    // ✅ Convertir snake_case en camelCase
     private String toCamelCase(String snakeCase) {
         if (snakeCase == null) return null;
         StringBuilder result = new StringBuilder();
@@ -220,7 +335,7 @@ public class ExpenseService {
         }
         return result.toString();
     }
-    // ✅ VALIDATION DES DATES
+
     private void validateExpenseDate(LocalDate date) {
         DayOfWeek day = date.getDayOfWeek();
         if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
@@ -240,8 +355,6 @@ public class ExpenseService {
             );
         }
     }
-
-    // ==================== MÉTHODES DE LECTURE ====================
 
     public List<ExpenseNote> getNotesByEmployee(String employeeId) {
         return noteRepository.findByEmployeeId(employeeId);

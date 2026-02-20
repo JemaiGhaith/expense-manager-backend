@@ -35,12 +35,12 @@ public class FileStorageService {
     }
 
     // =========================
-    // STOCKAGE FICHIER (PRO)
+    // STOCKAGE FICHIER (AVEC TYPE)
     // =========================
-    public String storeFile(MultipartFile file, String employeeId) {
+    public String storeFile(MultipartFile file, String employeeId, String type) {
         try {
-            // 1. Créer le dossier uploads/{employeeId}
-            Path employeeDir = uploadRoot.resolve(String.valueOf(employeeId));
+            // 1. Créer le dossier uploads/{employeeId}/{type}
+            Path employeeDir = uploadRoot.resolve(String.valueOf(employeeId)).resolve(type);
             Files.createDirectories(employeeDir);
 
             // 2. Nettoyer le nom du fichier
@@ -69,58 +69,37 @@ public class FileStorageService {
             Path targetPath = employeeDir.resolve(finalFilename);
             Files.copy(file.getInputStream(), targetPath, StandardCopyOption.REPLACE_EXISTING);
 
-            return finalFilename;
+            // 6. Retourner le chemin relatif (incluant le type)
+            return type + "/" + finalFilename;
 
         } catch (IOException e) {
             throw new RuntimeException("Erreur lors de l'enregistrement du fichier", e);
         }
     }
 
-    // =========================
-    // AUTO-NUMÉROTATION
-    // =========================
-    private String resolveFileNameConflict(Path directory, String fileName) throws IOException {
-        if (!Files.exists(directory.resolve(fileName))) {
-            return fileName;
-        }
-
-        String name = fileName;
-        String extension = "";
-
-        int dotIndex = fileName.lastIndexOf(".");
-        if (dotIndex != -1) {
-            name = fileName.substring(0, dotIndex);
-            extension = fileName.substring(dotIndex);
-        }
-
-        int counter = 1;
-        String newFileName;
-
-        do {
-            newFileName = name + "_" + counter + extension;
-            counter++;
-        } while (Files.exists(directory.resolve(newFileName)));
-
-        return newFileName;
+    // Méthode pour compatibilité avec l'existant (par défaut dossier "factures")
+    public String storeFile(MultipartFile file, String employeeId) {
+        return storeFile(file, employeeId, "factures");
     }
 
     // =========================
     // CHARGEMENT FICHIER
     // =========================
-    public Resource loadFileAsResource(String employeeId, String fileName) {
+    public Resource loadFileAsResource(String employeeId, String filePath) {
         try {
-            Path filePath = fileStorageLocation
-                    .resolve(employeeId)
-                    .resolve(fileName)
+            // Le filePath contient déjà le type (ex: "accords/monfichier.pdf")
+            Path fullPath = uploadRoot
+                    .resolve(String.valueOf(employeeId))
+                    .resolve(filePath)
                     .normalize();
 
-            Resource resource = new UrlResource(filePath.toUri());
+            Resource resource = new UrlResource(fullPath.toUri());
 
             if (resource.exists()) {
                 return resource;
             }
 
-            throw new RuntimeException("Fichier introuvable");
+            throw new RuntimeException("Fichier introuvable: " + filePath);
 
         } catch (MalformedURLException ex) {
             throw new RuntimeException("Erreur chargement fichier", ex);

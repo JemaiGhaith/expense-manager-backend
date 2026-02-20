@@ -5,7 +5,6 @@ import com.coralio.expense_management_microservice.dto.ExpenseRequest;
 import com.coralio.expense_management_microservice.entities.ExpenseLine;
 import com.coralio.expense_management_microservice.entities.ExpenseNote;
 import com.coralio.expense_management_microservice.entities.ExpenseStatus;
-import com.coralio.expense_management_microservice.entities.Project;
 import com.coralio.expense_management_microservice.repos.ExpenseLineRepository;
 import com.coralio.expense_management_microservice.services.ExpenseService;
 import com.coralio.expense_management_microservice.services.FileStorageService;
@@ -13,7 +12,6 @@ import com.coralio.expense_management_microservice.services.ProjectService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -22,7 +20,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.nio.file.Files;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -33,28 +30,36 @@ import java.util.Map;
 @RequestMapping("/api/expenses")
 public class ExpenseController {
     private final ExpenseLineRepository expenseLineRepository;
-    private final JdbcTemplate jdbcTemplate; // ✅ AJOUTER
+    private final JdbcTemplate jdbcTemplate;
     private final ExpenseService expenseService;
     private final ProjectService projectService;
+
     @Autowired
     private FileStorageService fileStorageService;
 
     @Autowired
     private ObjectMapper objectMapper;
 
-    // ====================
-    // ENDPOINTS AVEC FICHIERS
-    // ====================
-
+    public ExpenseController(
+            ExpenseService expenseService,
+            ProjectService projectService,
+            ExpenseLineRepository expenseLineRepository,
+            JdbcTemplate jdbcTemplate) {
+        this.expenseService = expenseService;
+        this.projectService = projectService;
+        this.expenseLineRepository = expenseLineRepository;
+        this.jdbcTemplate = jdbcTemplate;
+    }
 
     // =========================
-    // UPLOAD NOTE + FICHIERS
+    // UPLOAD NOTE + FICHIERS (ACCORD + FACTURES)
     // =========================
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> uploadExpense(
             @RequestPart("note") String noteJson,
             @RequestPart("lines") String linesJson,
-            @RequestPart("files") List<MultipartFile> files
+            @RequestPart(value = "accordFile", required = true) MultipartFile accordFile,
+            @RequestPart(value = "factureFiles", required = true) List<MultipartFile> factureFiles
     ) {
         try {
             ExpenseNote note = objectMapper.readValue(noteJson, ExpenseNote.class);
@@ -64,45 +69,54 @@ public class ExpenseController {
                             .constructCollectionType(List.class, ExpenseLine.class)
             );
 
-            List<String> fileNames = new ArrayList<>();
+            // 1️⃣ Sauvegarder l'accord dans le dossier "accords"
+            String accordFileName = fileStorageService.storeFile(accordFile, note.getEmployeeId(), "accords");
+            note.setAccordPath(accordFileName);
 
-            for (MultipartFile file : files) {
-                String savedFileName =
-                        fileStorageService.storeFile(file, note.getEmployeeId());
-                fileNames.add(savedFileName);
+            // 2️⃣ Sauvegarder les factures dans le dossier "factures"
+            List<String> factureFileNames = new ArrayList<>();
+            for (MultipartFile file : factureFiles) {
+                String savedFileName = fileStorageService.storeFile(file, note.getEmployeeId(), "factures");
+                factureFileNames.add(savedFileName);
             }
 
-            ExpenseNote createdNote =
-                    expenseService.createExpenseNoteWithFiles(note, lines, fileNames);
+            // 3️⃣ Créer la note avec ses lignes
+            ExpenseNote createdNote = expenseService.createExpenseNoteWithFiles(
+                    note,
+                    lines,
+                    accordFileName,      // L'accord pour la note
+                    factureFileNames     // Les factures pour les lignes
+            );
 
             return ResponseEntity.status(HttpStatus.CREATED).body(createdNote);
+
         } catch (IllegalArgumentException e) {
-            // ✅ ERREUR MÉTIER (date invalide)
             return ResponseEntity
                     .badRequest()
                     .body(Map.of("message", e.getMessage()));
         } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(e.getMessage());
+                    .body(Map.of("message", e.getMessage()));
         }
     }
 
     // =========================
-    // DOWNLOAD FICHIER
+    // DOWNLOAD FICHIER (avec chemin complet)
     // =========================
-    @GetMapping("/files/{employeeId}/{filename:.+}")
+    @GetMapping("/files/{employeeId}/{type}/{filename:.+}")
     public ResponseEntity<Resource> downloadFile(
             @PathVariable String employeeId,
+            @PathVariable String type,
             @PathVariable String filename
     ) {
         try {
-            Resource resource =
-                    fileStorageService.loadFileAsResource(employeeId, filename);
+            String filePath = type + "/" + filename;
+            Resource resource = fileStorageService.loadFileAsResource(employeeId, filePath);
 
             String contentType = determineContentType(filename);
 
-            // "inline" ouvre dans le navigateur si supporté
             return ResponseEntity.ok()
                     .contentType(MediaType.parseMediaType(contentType))
                     .header(HttpHeaders.CONTENT_DISPOSITION,
@@ -115,20 +129,74 @@ public class ExpenseController {
         }
     }
 
+    // =========================
+    // DOWNLOAD FICHIER (pour compatibilité ancienne version)
+    // =========================
+    @GetMapping("/files/{employeeId}/{filename:.+}")
+    public ResponseEntity<Resource> downloadFileOld(
+            @PathVariable String employeeId,
+            @PathVariable String filename
+    ) {
+        try {
+            // Par défaut, chercher dans le dossier factures
+            String filePath = "factures/" + filename;
+            Resource resource = fileStorageService.loadFileAsResource(employeeId, filePath);
 
-    public ExpenseController(
-            ExpenseService expenseService,
-            ProjectService projectService,
-            ExpenseLineRepository expenseLineRepository,
-            JdbcTemplate jdbcTemplate) { // ✅ AJOUTER
-        this.expenseService = expenseService;
-        this.projectService = projectService;
-        this.expenseLineRepository = expenseLineRepository;
-        this.jdbcTemplate = jdbcTemplate; // ✅ AJOUTER
+            String contentType = determineContentType(filename);
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType(contentType))
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            "inline; filename=\"" + resource.getFilename() + "\"")
+                    .body(resource);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    // =========================
+    // ENDPOINT POUR AVOIR LES URLs DES FICHIERS
+    // =========================
+    @GetMapping("/{noteId}/files-urls")
+    public ResponseEntity<Map<String, Object>> getFilesUrls(@PathVariable Long noteId) {
+        try {
+            ExpenseNote note = expenseService.getNoteWithLines(noteId);
+            List<ExpenseLine> lines = expenseService.getLines(noteId);
+
+            Map<String, Object> response = new HashMap<>();
+
+            // URL de l'accord
+            if (note.getAccordPath() != null) {
+                String accordUrl = "/api/expenses/files/" + note.getEmployeeId() + "/" + note.getAccordPath();
+                response.put("accordUrl", accordUrl);
+                response.put("accordPath", note.getAccordPath());
+            }
+
+            // URLs des factures
+            List<Map<String, Object>> facturesUrls = new ArrayList<>();
+            for (ExpenseLine line : lines) {
+                if (line.getJustificatifPath() != null) {
+                    Map<String, Object> factureInfo = new HashMap<>();
+                    factureInfo.put("lineId", line.getId());
+                    factureInfo.put("factureUrl", "/api/expenses/files/" + note.getEmployeeId() + "/" + line.getJustificatifPath());
+                    factureInfo.put("facturePath", line.getJustificatifPath());
+                    facturesUrls.add(factureInfo);
+                }
+            }
+            response.put("factures", facturesUrls);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
     @PostMapping
-    public ResponseEntity<ExpenseNote> createNote(@RequestBody ExpenseRequest request) {
+    public ResponseEntity<?> createNote(@RequestBody ExpenseRequest request) {
         try {
             ExpenseNote note = request.getNote();
             List<ExpenseLine> lines = request.getLines();
@@ -137,18 +205,15 @@ public class ExpenseController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity
                     .badRequest()
-                    .body((ExpenseNote) Map.of("message", e.getMessage()));
+                    .body(Map.of("message", e.getMessage()));
         }
     }
+
     @GetMapping
     public ResponseEntity<List<ExpenseNote>> getAllNotes() {
         return ResponseEntity.ok(expenseService.getAllNotes());
     }
 
-    /*@GetMapping("/employee/{employeeId}")
-    public ResponseEntity<List<ExpenseNote>> getNotesByEmployee(@PathVariable String employeeId) {
-        return ResponseEntity.ok(expenseService.getNotesByEmployee(employeeId));
-    }*/
     @GetMapping("/employee/{employeeId}")
     public ResponseEntity<List<Map<String, Object>>> getNotesByEmployee(
             @PathVariable String employeeId) {
@@ -164,8 +229,9 @@ public class ExpenseController {
             map.put("createdAt", note.getCreatedAt());
             map.put("totalAmount", note.getTotalAmount());
             map.put("status", note.getStatus());
+            map.put("accordPath", note.getAccordPath());
 
-            // 🔹 ICI on ajoute le nom du projet
+            // Ajouter le nom du projet
             projectService.getProjectById(note.getProjectId())
                     .ifPresentOrElse(
                             project -> map.put("projectName", project.getName()),
@@ -178,18 +244,16 @@ public class ExpenseController {
         return ResponseEntity.ok(response);
     }
 
-
     @GetMapping("/status/{status}")
     public ResponseEntity<List<ExpenseNote>> getNotesByStatus(@PathVariable String status) {
         ExpenseStatus enumStatus;
         try {
             enumStatus = ExpenseStatus.valueOf(status.toUpperCase());
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build(); // Si valeur invalide
+            return ResponseEntity.badRequest().build();
         }
         return ResponseEntity.ok(expenseService.getNotesByStatus(enumStatus));
     }
-
 
     @PutMapping("/validate/{noteId}")
     public ResponseEntity<ExpenseNote> validateNote(@PathVariable Long noteId) {
@@ -206,16 +270,9 @@ public class ExpenseController {
         return ResponseEntity.ok(expenseService.getLines(noteId));
     }
 
-
-
-
-    // ====================
-    // ✅ VERSION CORRIGÉE - AVEC TOUS LES CHAMPS DYNAMIQUES
-    // ====================
     @GetMapping("/{noteId}/lines")
     public ResponseEntity<List<ExpenseLineDetailDTO>> getLinesByNote(@PathVariable Long noteId) {
         try {
-            // ✅ 1. Récupérer les lignes avec native query
             List<Map<String, Object>> rows = expenseLineRepository.findByExpenseNoteIdNative(noteId);
             List<ExpenseLineDetailDTO> result = new ArrayList<>();
 
@@ -225,13 +282,11 @@ public class ExpenseController {
             for (Map<String, Object> row : rows) {
                 ExpenseLineDetailDTO dto = new ExpenseLineDetailDTO();
 
-                // ✅ 2. Mapper les champs standards
                 dto.setId(((Number) row.get("id")).longValue());
                 dto.setExpenseNoteId(((Number) row.get("expense_note_id")).longValue());
                 dto.setCategoryId(row.get("category_id") != null ? ((Number) row.get("category_id")).longValue() : null);
                 dto.setAmount(row.get("amount") != null ? ((Number) row.get("amount")).doubleValue() : null);
 
-                // Date
                 if (row.get("expense_date") != null) {
                     dto.setExpenseDate(LocalDate.parse(row.get("expense_date").toString()));
                 }
@@ -239,18 +294,13 @@ public class ExpenseController {
                 dto.setDescription((String) row.get("description"));
                 dto.setJustificatifPath((String) row.get("justificatif_path"));
 
-                // ✅ 3. AJOUTER TOUS LES CHAMPS DYNAMIQUES !
                 for (Map.Entry<String, Object> entry : row.entrySet()) {
                     String columnName = entry.getKey();
                     Object value = entry.getValue();
 
-                    // Ignorer les champs standards déjà mappés
                     if (!isStandardColumn(columnName) && value != null) {
-                        // Convertir snake_case en camelCase pour le frontend
                         String fieldName = toCamelCase(columnName);
                         dto.setDynamicField(fieldName, value);
-
-                        // ✅ AUSSI garder le snake_case pour compatibilité
                         dto.setDynamicField(columnName, value);
 
                         System.out.println("   📌 Champ dynamique: " + columnName + " = " + value);
@@ -269,11 +319,6 @@ public class ExpenseController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
-
-
-    // ====================
-    // MÉTHODES UTILITAIRES
-    // ====================
 
     private boolean isStandardColumn(String columnName) {
         return columnName.equals("id") ||
@@ -306,10 +351,6 @@ public class ExpenseController {
         return result.toString();
     }
 
-    // ====================
-    // MÉTHODES UTILITAIRES
-    // ====================
-
     private String determineContentType(String filename) {
         if (filename.toLowerCase().endsWith(".pdf")) {
             return "application/pdf";
@@ -329,7 +370,6 @@ public class ExpenseController {
 
     private boolean isValidFileType(String contentType) {
         if (contentType == null) return false;
-
         return contentType.equals("application/pdf") ||
                 contentType.equals("image/jpeg") ||
                 contentType.equals("image/jpg") ||
@@ -337,8 +377,4 @@ public class ExpenseController {
                 contentType.equals("application/msword") ||
                 contentType.equals("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
     }
-
-
-
-
 }

@@ -40,4 +40,8 @@ public class ExpenseNote {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    // ✅ NOUVEAU : Justificatif d'accord pour la note de frais
+    @Column(name = "accord_path")
+    private String accordPath;
 }
