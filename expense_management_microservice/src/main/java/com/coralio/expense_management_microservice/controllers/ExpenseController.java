@@ -230,6 +230,7 @@ public class ExpenseController {
             map.put("totalAmount", note.getTotalAmount());
             map.put("status", note.getStatus());
             map.put("accordPath", note.getAccordPath());
+            map.put("managerComment", note.getManagerComment()); // ✅ AJOUTER CETTE LIGNE
 
             // Ajouter le nom du projet
             projectService.getProjectById(note.getProjectId())
@@ -259,7 +260,15 @@ public class ExpenseController {
     public ResponseEntity<ExpenseNote> validateNote(@PathVariable Long noteId) {
         return ResponseEntity.ok(expenseService.validateNote(noteId));
     }
-
+    /**
+     * ✅ Valide une note avec commentaire optionnel
+     */
+    @PutMapping("/validate/{noteId}/with-comment")
+    public ResponseEntity<ExpenseNote> validateNoteWithComment(
+            @PathVariable Long noteId,
+            @RequestParam(required = false) String comment) {
+        return ResponseEntity.ok(expenseService.validateNote(noteId, comment));
+    }
     @PutMapping("/refuse/{noteId}")
     public ResponseEntity<ExpenseNote> refuseNote(@PathVariable Long noteId, @RequestParam String comment) {
         return ResponseEntity.ok(expenseService.refuseNote(noteId, comment));

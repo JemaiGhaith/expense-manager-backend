@@ -372,7 +372,24 @@ public class ExpenseService {
         note.setStatus(ExpenseStatus.VALIDEE);
         return noteRepository.save(note);
     }
+    /**
+     * ✅ Valide une note avec commentaire optionnel
+     */
+    @Transactional
+    public ExpenseNote validateNote(Long noteId, String comment) {
+        ExpenseNote note = noteRepository.findById(noteId)
+                .orElseThrow(() -> new RuntimeException("Note non trouvée avec l'ID: " + noteId));
 
+        note.setUpdatedAt(LocalDateTime.now());
+        note.setStatus(ExpenseStatus.VALIDEE);
+
+        // ✅ Ajouter le commentaire s'il est fourni
+        if (comment != null && !comment.trim().isEmpty()) {
+            note.setManagerComment(comment);
+        }
+
+        return noteRepository.save(note);
+    }
     public List<ExpenseNote> getAllNotes() {
         return noteRepository.findAll();
     }
