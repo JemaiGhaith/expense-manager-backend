@@ -4,10 +4,10 @@ import com.coralio.expense_management_microservice.dto.ProjectRequestDTO;
 import com.coralio.expense_management_microservice.dto.ProjectResponseDTO;
 import com.coralio.expense_management_microservice.entities.Project;
 import com.coralio.expense_management_microservice.enums.ProjectStatus;
+import com.coralio.expense_management_microservice.repos.EmployeeProjectAssignmentRepository;
 import com.coralio.expense_management_microservice.repos.ProjectRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -17,14 +17,19 @@ import java.util.stream.Collectors;
 public class ProjectService {
 
     private final ProjectRepository projectRepository;
+    private final EmployeeProjectService employeeProjectService;
+    private final EmployeeProjectAssignmentRepository assignmentRepository;
 
-    public ProjectService(ProjectRepository projectRepository) {
+    public ProjectService(ProjectRepository projectRepository,
+                          EmployeeProjectService employeeProjectService,
+                          EmployeeProjectAssignmentRepository assignmentRepository) {
         this.projectRepository = projectRepository;
+        this.employeeProjectService = employeeProjectService;
+        this.assignmentRepository = assignmentRepository;
     }
 
-    // ==================== CONVERSION ====================
-
-    private ProjectResponseDTO convertToResponseDTO(Project project) {
+    // Conversion rendue publique pour l'utiliser ailleurs
+    public ProjectResponseDTO convertToResponseDTO(Project project) {
         ProjectResponseDTO dto = new ProjectResponseDTO();
         dto.setId(project.getId());
         dto.setName(project.getName());
@@ -40,36 +45,92 @@ public class ProjectService {
         return dto;
     }
 
-    // ==================== CRUD OPERATIONS ====================
-
     @Transactional
     public ProjectResponseDTO createProject(ProjectRequestDTO request) {
-        // Vérifier si le code existe déjà
+        // Vérifications existantes
         if (projectRepository.existsByCode(request.getCode())) {
             throw new RuntimeException("Un projet avec ce code existe déjà");
         }
+        if (request.getStartDate() != null && request.getEndDate() != null
+                && request.getEndDate().isBefore(request.getStartDate())) {
+            throw new RuntimeException("La date de fin doit être postérieure à la date de début");
+        }
 
-        // Valider les dates
-        if (request.getStartDate() != null && request.getEndDate() != null) {
-            if (request.getEndDate().isBefore(request.getStartDate())) {
-                throw new RuntimeException("La date de fin doit être postérieure à la date de début");
+        // Création du projet
+        Project project = Project.builder()
+                .name(request.getName())
+                .code(request.getCode())
+                .departmentId(request.getDepartmentId())
+                .status(request.getStatus() != null ? request.getStatus() : ProjectStatus.ACTIF)
+                .description(request.getDescription())
+                .budget(request.getBudget())
+                .startDate(request.getStartDate())
+                .endDate(request.getEndDate())
+                .build();
+
+        Project savedProject = projectRepository.save(project);
+
+        // Affectation des employés si fournis
+        if (request.getEmployeeIds() != null && !request.getEmployeeIds().isEmpty()) {
+            for (String employeeId : request.getEmployeeIds()) {
+                employeeProjectService.assignEmployeeToProject(employeeId, savedProject.getId());
             }
         }
 
-        Project project = new Project();
+        return convertToResponseDTO(savedProject);
+    }
+
+    @Transactional
+    public ProjectResponseDTO updateProject(Long id, ProjectRequestDTO request) {
+        Project project = projectRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Projet non trouvé avec l'id: " + id));
+
+        // Vérifications
+        if (projectRepository.existsByCodeAndIdNot(request.getCode(), id)) {
+            throw new RuntimeException("Un autre projet avec ce code existe déjà");
+        }
+        if (request.getStartDate() != null && request.getEndDate() != null
+                && request.getEndDate().isBefore(request.getStartDate())) {
+            throw new RuntimeException("La date de fin doit être postérieure à la date de début");
+        }
+
+        // Mise à jour des champs
         project.setName(request.getName());
         project.setCode(request.getCode());
         project.setDepartmentId(request.getDepartmentId());
-        project.setStatus(request.getStatus() != null ? request.getStatus() : ProjectStatus.ACTIF);
+        if (request.getStatus() != null) project.setStatus(request.getStatus());
         project.setDescription(request.getDescription());
         project.setBudget(request.getBudget());
         project.setStartDate(request.getStartDate());
         project.setEndDate(request.getEndDate());
+        project.setUpdatedAt(LocalDateTime.now());
 
-        Project savedProject = projectRepository.save(project);
-        return convertToResponseDTO(savedProject);
+        Project updatedProject = projectRepository.save(project);
+
+        // Gestion des affectations : si la liste est fournie, on remplace
+        if (request.getEmployeeIds() != null) {
+            // Supprimer toutes les anciennes affectations
+            assignmentRepository.deleteByProjectId(updatedProject.getId());
+            // Ajouter les nouvelles
+            for (String employeeId : request.getEmployeeIds()) {
+                employeeProjectService.assignEmployeeToProject(employeeId, updatedProject.getId());
+            }
+        }
+
+        return convertToResponseDTO(updatedProject);
     }
 
+    @Transactional
+    public void deleteProject(Long id) {
+        if (!projectRepository.existsById(id)) {
+            throw new RuntimeException("Projet non trouvé avec l'id: " + id);
+        }
+        // Supprimer d'abord les affectations pour éviter les contraintes FK
+        assignmentRepository.deleteByProjectId(id);
+        projectRepository.deleteById(id);
+    }
+
+    // Méthodes de lecture existantes (inchangées)
     public List<ProjectResponseDTO> getAllProjects() {
         return projectRepository.findAll()
                 .stream()
@@ -82,69 +143,12 @@ public class ProjectService {
                 .map(this::convertToResponseDTO);
     }
 
-    public Optional<Project> getProjectEntityById(Long id) {
-        return projectRepository.findById(id);
-    }
-
-    @Transactional
-    public ProjectResponseDTO updateProject(Long id, ProjectRequestDTO request) {
-        Project project = projectRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Projet non trouvé avec l'id: " + id));
-
-        // Vérifier si le code existe déjà pour un autre projet
-        if (projectRepository.existsByCodeAndIdNot(request.getCode(), id)) {
-            throw new RuntimeException("Un autre projet avec ce code existe déjà");
-        }
-
-        // Valider les dates
-        if (request.getStartDate() != null && request.getEndDate() != null) {
-            if (request.getEndDate().isBefore(request.getStartDate())) {
-                throw new RuntimeException("La date de fin doit être postérieure à la date de début");
-            }
-        }
-
-        project.setName(request.getName());
-        project.setCode(request.getCode());
-        project.setDepartmentId(request.getDepartmentId());
-        if (request.getStatus() != null) {
-            project.setStatus(request.getStatus());
-        }
-        project.setDescription(request.getDescription());
-        project.setBudget(request.getBudget());
-        project.setStartDate(request.getStartDate());
-        project.setEndDate(request.getEndDate());
-        project.setUpdatedAt(LocalDateTime.now());
-
-        Project updatedProject = projectRepository.save(project);
-        return convertToResponseDTO(updatedProject);
-    }
-
-    @Transactional
-    public void deleteProject(Long id) {
-        if (!projectRepository.existsById(id)) {
-            throw new RuntimeException("Projet non trouvé avec l'id: " + id);
-        }
-        projectRepository.deleteById(id);
-    }
-
-    @Transactional
     public ProjectResponseDTO updateProjectStatus(Long id, ProjectStatus status) {
         Project project = projectRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Projet non trouvé avec l'id: " + id));
-
         project.setStatus(status);
         project.setUpdatedAt(LocalDateTime.now());
-
         return convertToResponseDTO(projectRepository.save(project));
-    }
-
-    // ==================== FILTRES ET RECHERCHE ====================
-
-    public List<ProjectResponseDTO> getProjectsByStatus(ProjectStatus status) {
-        return projectRepository.findByStatus(status)
-                .stream()
-                .map(this::convertToResponseDTO)
-                .collect(Collectors.toList());
     }
 
     public List<ProjectResponseDTO> getProjectsByDepartment(Long departmentId) {

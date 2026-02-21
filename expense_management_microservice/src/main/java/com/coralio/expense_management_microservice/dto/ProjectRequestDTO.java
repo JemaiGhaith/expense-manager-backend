@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @Data
 public class ProjectRequestDTO {
@@ -20,4 +21,6 @@ public class ProjectRequestDTO {
 
     @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate endDate;
+    private List<String> employeeIds;
+
 }
