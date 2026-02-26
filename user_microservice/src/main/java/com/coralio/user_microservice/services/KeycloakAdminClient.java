@@ -25,7 +25,7 @@ public class KeycloakAdminClient {
     private static final String SERVER_URL = "http://localhost:8090";
     private static final String REALM = "coral-io_realm";
     private static final String CLIENT_ID = "admin-client";
-    private static final String CLIENT_SECRET = "vov2JMbDjbDsZQCyJeBZIqcH2W5blsdD";
+    private static final String CLIENT_SECRET = "sXpiIV8tivS92L9iN5dCzVve1rzEfUFi";
 
     public KeycloakAdminClient() {
         keycloak = KeycloakBuilder.builder()
@@ -81,10 +81,11 @@ public class KeycloakAdminClient {
                 user.setAttributes(attributes);
             }
 
+            // ✅ MOT DE PASSE TEMPORAIRE
             CredentialRepresentation credential = new CredentialRepresentation();
             credential.setType(CredentialRepresentation.PASSWORD);
             credential.setValue(password);
-            credential.setTemporary(false);
+            credential.setTemporary(true);  // ← CRUCIAL : mot de passe temporaire
             user.setCredentials(List.of(credential));
 
             Response response = keycloak.realm(REALM)
@@ -462,6 +463,18 @@ public class KeycloakAdminClient {
         } catch (Exception e) {
             log.error("❌ Erreur changement mot de passe pour {}: {}", userId, e.getMessage());
             throw new RuntimeException("Erreur lors du changement de mot de passe: " + e.getMessage());
+        }
+    }
+
+    public List<CredentialRepresentation> getUserCredentials(String userId) {
+        try {
+            return keycloak.realm(REALM)
+                    .users()
+                    .get(userId)
+                    .credentials();
+        } catch (Exception e) {
+            log.error("❌ Erreur récupération credentials: {}", e.getMessage());
+            return List.of();
         }
     }
 }
