@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -20,7 +21,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.HashSet;
-
+import java.util.stream.Collectors;
+import java.util.Objects;
+import java.util.function.Function;
 @Service
 public class ExpenseService {
 
@@ -411,5 +414,186 @@ public class ExpenseService {
     public ExpenseNote getNoteWithLines(Long noteId) {
         return noteRepository.findById(noteId)
                 .orElseThrow(() -> new RuntimeException("Note non trouvée avec l'ID: " + noteId));
+    }
+    @Transactional
+    public void deleteNote(Long noteId, String employeeId) {
+        ExpenseNote note = noteRepository.findById(noteId)
+                .orElseThrow(() -> new RuntimeException("Note non trouvée avec l'ID: " + noteId));
+
+        // Vérifier que la note appartient à l'employé
+        if (!note.getEmployeeId().equals(employeeId)) {
+            throw new RuntimeException("Vous n'êtes pas autorisé à supprimer cette note.");
+        }
+
+        // Vérifier que la note est en attente
+        if (note.getStatus() != ExpenseStatus.EN_ATTENTE) {
+            throw new IllegalStateException("Seules les notes en attente peuvent être supprimées.");
+        }
+
+        // Supprimer le fichier d'accord s'il existe
+        if (note.getAccordPath() != null) {
+            fileStorageService.deleteFile(note.getEmployeeId(), note.getAccordPath());
+        }
+
+        // Récupérer les lignes pour supprimer leurs justificatifs
+        List<ExpenseLine> lines = lineRepository.findByExpenseNoteId(noteId);
+        for (ExpenseLine line : lines) {
+            if (line.getJustificatifPath() != null) {
+                fileStorageService.deleteFile(note.getEmployeeId(), line.getJustificatifPath());
+            }
+        }
+
+        // Supprimer les lignes (via une méthode dédiée dans le repository)
+        lineRepository.deleteByExpenseNoteId(noteId);
+
+        // Supprimer la note
+        noteRepository.delete(note);
+    }
+    @Transactional
+    public ExpenseNote updateExpenseNoteWithFiles(
+            Long noteId,
+            String employeeId,
+            ExpenseNote updatedNote,
+            List<ExpenseLine> updatedLines,
+            MultipartFile newAccordFile,
+            List<MultipartFile> newFactureFiles  // Liste ordonnée, peut contenir des null
+    ) {
+        ExpenseNote existingNote = noteRepository.findById(noteId)
+                .orElseThrow(() -> new RuntimeException("Note non trouvée avec l'ID: " + noteId));
+
+        // Vérifications
+        if (!existingNote.getEmployeeId().equals(employeeId)) {
+            throw new RuntimeException("Vous n'êtes pas autorisé à modifier cette note.");
+        }
+        if (existingNote.getStatus() != ExpenseStatus.EN_ATTENTE) {
+            throw new IllegalStateException("Seules les notes en attente peuvent être modifiées.");
+        }
+
+        // Mise à jour des champs simples
+        existingNote.setProjectId(updatedNote.getProjectId());
+        existingNote.setUpdatedAt(LocalDateTime.now());
+
+        // Gestion de l'accord
+        if (newAccordFile != null && !newAccordFile.isEmpty()) {
+            if (existingNote.getAccordPath() != null) {
+                fileStorageService.deleteFile(employeeId, existingNote.getAccordPath());
+            }
+            String newAccordFileName = fileStorageService.storeFile(newAccordFile, employeeId, "accords");
+            existingNote.setAccordPath(newAccordFileName);
+        }
+
+        // Récupérer les anciennes lignes
+        List<ExpenseLine> oldLines = lineRepository.findByExpenseNoteId(noteId);
+        Map<Long, ExpenseLine> oldLinesMap = oldLines.stream()
+                .collect(Collectors.toMap(ExpenseLine::getId, Function.identity()));
+
+        Set<Long> updatedLineIds = updatedLines.stream()
+                .map(ExpenseLine::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        // Supprimer les lignes qui ne sont plus dans la nouvelle liste
+        for (ExpenseLine oldLine : oldLines) {
+            if (!updatedLineIds.contains(oldLine.getId())) {
+                if (oldLine.getJustificatifPath() != null) {
+                    fileStorageService.deleteFile(employeeId, oldLine.getJustificatifPath());
+                }
+                lineRepository.delete(oldLine);
+            }
+        }
+
+        double total = 0.0;
+        for (int i = 0; i < updatedLines.size(); i++) {
+            ExpenseLine line = updatedLines.get(i);
+            ExpenseLine lineToSave;
+
+            if (line.getId() != null && oldLinesMap.containsKey(line.getId())) {
+                // Ligne existante : mise à jour
+                lineToSave = oldLinesMap.get(line.getId());
+                lineToSave.setCategoryId(line.getCategoryId());
+                lineToSave.setAmount(line.getAmount());
+                lineToSave.setExpenseDate(line.getExpenseDate());
+                lineToSave.setDescription(line.getDescription());
+                copyDynamicFields(line, lineToSave);
+            } else {
+                // Nouvelle ligne
+                lineToSave = new ExpenseLine();
+                lineToSave.setExpenseNoteId(noteId);
+                lineToSave.setCategoryId(line.getCategoryId());
+                lineToSave.setAmount(line.getAmount());
+                lineToSave.setExpenseDate(line.getExpenseDate());
+                lineToSave.setDescription(line.getDescription());
+                copyDynamicFields(line, lineToSave);
+            }
+
+            // Gestion du justificatif
+            MultipartFile fileForThisLine = (newFactureFiles != null && i < newFactureFiles.size()) ? newFactureFiles.get(i) : null;
+            if (fileForThisLine != null && !fileForThisLine.isEmpty()) {
+                // Nouveau fichier fourni
+                if (lineToSave.getJustificatifPath() != null) {
+                    fileStorageService.deleteFile(employeeId, lineToSave.getJustificatifPath());
+                }
+                String fileName = fileStorageService.storeFile(fileForThisLine, employeeId, "factures");
+                lineToSave.setJustificatifPath(fileName);
+            } // sinon on garde l'ancien chemin
+
+            // Validation de la date
+            if (lineToSave.getExpenseDate() == null) {
+                lineToSave.setExpenseDate(LocalDate.now());
+            }
+            validateExpenseDate(lineToSave.getExpenseDate());
+
+            // Sauvegarde
+            if (lineToSave.getId() == null) {
+                insertExpenseLineWithDynamicColumns(lineToSave);
+            } else {
+                updateExpenseLineWithDynamicColumns(lineToSave);
+            }
+
+            total += lineToSave.getAmount();
+        }
+
+        existingNote.setTotalAmount(total);
+        return noteRepository.save(existingNote);
+    }
+    private void updateExpenseLineWithDynamicColumns(ExpenseLine line) {
+        List<String> allColumns = migrationService.getAllColumns();
+        List<String> setClauses = new ArrayList<>();
+        List<Object> params = new ArrayList<>();
+
+        for (String column : allColumns) {
+            Object value = getValueForColumn(line, column);
+            if (value != null) {
+                setClauses.add(column + " = ?");
+                params.add(value);
+            }
+        }
+
+        if (!setClauses.isEmpty()) {
+            String sql = "UPDATE expense_lines SET " + String.join(", ", setClauses) + " WHERE id = ?";
+            params.add(line.getId());
+            jdbcTemplate.update(sql, params.toArray());
+            System.out.println("✅ Mise à jour ligne " + line.getId());
+        }
+    }
+    private void copyDynamicFields(ExpenseLine source, ExpenseLine target) {
+        // Copie des champs standards
+        target.setDepart(source.getDepart());
+        target.setDestination(source.getDestination());
+        target.setTransportType(source.getTransportType());
+        target.setNombreNuits(source.getNombreNuits());
+        target.setHotelName(source.getHotelName());
+        target.setNombrePersonnes(source.getNombrePersonnes());
+        target.setRepasType(source.getRepasType());
+        target.setKilometrage(source.getKilometrage());
+        target.setVehicule(source.getVehicule());
+        target.setDetail(source.getDetail());
+
+        // Copie des champs dynamiques (via la Map)
+        if (source.getDynamicFields() != null) {
+            for (Map.Entry<String, Object> entry : source.getDynamicFields().entrySet()) {
+                target.setDynamicField(entry.getKey(), entry.getValue());
+            }
+        }
     }
 }

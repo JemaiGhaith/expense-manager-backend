@@ -105,4 +105,35 @@ public class FileStorageService {
             throw new RuntimeException("Erreur chargement fichier", ex);
         }
     }
+
+    // =========================
+    // SUPPRESSION FICHIER
+    // =========================
+    /**
+     * Supprime un fichier du disque.
+     * @param employeeId Identifiant de l'employé
+     * @param filePath Chemin relatif du fichier (doit commencer par "accords/" ou "factures/")
+     * @throws RuntimeException si le fichier n'existe pas ou en cas d'erreur
+     */
+    public void deleteFile(String employeeId, String filePath) {
+        try {
+            // Construire le chemin complet
+            Path fullPath = uploadRoot
+                    .resolve(String.valueOf(employeeId))
+                    .resolve(filePath)
+                    .normalize();
+
+            // Sécurité : vérifier que le chemin résolu est bien dans le répertoire de base
+            if (!fullPath.startsWith(uploadRoot.resolve(employeeId))) {
+                throw new RuntimeException("Tentative de suppression en dehors du répertoire autorisé");
+            }
+
+            boolean deleted = Files.deleteIfExists(fullPath);
+            if (!deleted) {
+                throw new RuntimeException("Fichier introuvable: " + filePath);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Erreur lors de la suppression du fichier: " + filePath, e);
+        }
+    }
 }

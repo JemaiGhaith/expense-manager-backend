@@ -386,4 +386,63 @@ public class ExpenseController {
                 contentType.equals("application/msword") ||
                 contentType.equals("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
     }
+    @DeleteMapping("/{noteId}")
+    public ResponseEntity<?> deleteNote(
+            @PathVariable Long noteId,
+            @RequestParam String employeeId) {
+        try {
+            expenseService.deleteNote(noteId, employeeId);
+            return ResponseEntity.ok(Map.of("message", "Note supprimée avec succès"));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", e.getMessage()));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", e.getMessage()));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", "Erreur lors de la suppression"));
+        }
+    }
+    @PutMapping(value = "/{noteId}/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> updateExpense(
+            @PathVariable Long noteId,
+            @RequestParam String employeeId,
+            @RequestPart("note") String noteJson,
+            @RequestPart("lines") String linesJson,
+            @RequestPart(value = "accordFile", required = false) MultipartFile accordFile,
+            @RequestParam Map<String, MultipartFile> allFiles
+    ) {
+        try {
+            ExpenseNote updatedNote = objectMapper.readValue(noteJson, ExpenseNote.class);
+            List<ExpenseLine> updatedLines = objectMapper.readValue(
+                    linesJson,
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, ExpenseLine.class)
+            );
+
+            // Reconstituer la liste des factures dans l'ordre
+            List<MultipartFile> factureFiles = new ArrayList<>();
+            for (int i = 0; i < updatedLines.size(); i++) {
+                MultipartFile file = allFiles.get("factureFile_" + i);
+                factureFiles.add(file); // peut être null
+            }
+
+            ExpenseNote result = expenseService.updateExpenseNoteWithFiles(
+                    noteId, employeeId, updatedNote, updatedLines, accordFile, factureFiles
+            );
+
+            return ResponseEntity.ok(result);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", e.getMessage()));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", e.getMessage()));
+        }
+    }
+    @GetMapping("/{noteId}")
+    public ResponseEntity<ExpenseNote> getNoteById(@PathVariable Long noteId) {
+        return ResponseEntity.ok(expenseService.getNoteWithLines(noteId));
+    }
 }

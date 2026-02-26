@@ -22,5 +22,5 @@ public interface ExpenseLineRepository extends JpaRepository<ExpenseLine, Long> 
     @Query(value = "SELECT * FROM expense_lines WHERE expense_note_id = :noteId",
             nativeQuery = true)
     List<ExpenseLine> findByExpenseNoteIdWithAllColumns(@Param("noteId") Long noteId);
-
+    void deleteByExpenseNoteId(Long expenseNoteId);
 }
