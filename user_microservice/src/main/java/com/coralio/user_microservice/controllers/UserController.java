@@ -7,6 +7,7 @@ import com.coralio.user_microservice.dto.UserUpdateDTO;
 import com.coralio.user_microservice.services.KeycloakAdminClient;
 import com.coralio.user_microservice.services.DepartmentService;
 import lombok.RequiredArgsConstructor;
+import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -405,6 +406,28 @@ public class UserController {
             log.error("❌ Erreur interne: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Erreur interne: " + e.getMessage()));
+        }
+    }
+
+    @GetMapping("/{id}/password-status")
+    public ResponseEntity<Map<String, Boolean>> getPasswordStatus(@PathVariable String id) {
+        try {
+            UserRepresentation user = keycloakClient.getUserById(id);
+
+            // Récupérer les credentials de l'utilisateur
+            List<CredentialRepresentation> credentials = keycloakClient.getUserCredentials(id);
+
+            boolean isTemporary = false;
+            if (credentials != null && !credentials.isEmpty()) {
+                // Vérifier si le mot de passe est temporaire
+                isTemporary = credentials.stream()
+                        .anyMatch(cred -> cred.isTemporary() != null && cred.isTemporary());
+            }
+
+            return ResponseEntity.ok(Map.of("temporary", isTemporary));
+        } catch (Exception e) {
+            log.error("❌ Erreur vérification statut mot de passe: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 }
