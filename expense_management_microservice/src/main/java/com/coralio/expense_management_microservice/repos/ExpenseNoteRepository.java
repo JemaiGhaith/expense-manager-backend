@@ -9,4 +9,6 @@ import java.util.List;
 public interface ExpenseNoteRepository extends JpaRepository<ExpenseNote, Long> {
     List<ExpenseNote> findByEmployeeId(String employeeId);
     List<ExpenseNote> findByStatus(ExpenseStatus status);
+    List<ExpenseNote> findByProjectIdIn(List<Long> projectIds);
+
 }

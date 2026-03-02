@@ -3,8 +3,10 @@ package com.coralio.expense_management_microservice.services;
 import com.coralio.expense_management_microservice.entities.ExpenseLine;
 import com.coralio.expense_management_microservice.entities.ExpenseNote;
 import com.coralio.expense_management_microservice.entities.ExpenseStatus;
+import com.coralio.expense_management_microservice.entities.Project;
 import com.coralio.expense_management_microservice.repos.ExpenseLineRepository;
 import com.coralio.expense_management_microservice.repos.ExpenseNoteRepository;
+import com.coralio.expense_management_microservice.repos.ProjectRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -27,6 +29,7 @@ import java.util.function.Function;
 @Service
 public class ExpenseService {
 
+    private final ProjectRepository projectRepository;
     private final ExpenseNoteRepository noteRepository;
     private final ExpenseLineRepository lineRepository;
     private final DatabaseMigrationService migrationService;
@@ -47,11 +50,14 @@ public class ExpenseService {
             ExpenseNoteRepository noteRepository,
             ExpenseLineRepository lineRepository,
             DatabaseMigrationService migrationService,
+            ProjectRepository projectRepository,
             JdbcTemplate jdbcTemplate) {
         this.noteRepository = noteRepository;
         this.lineRepository = lineRepository;
         this.migrationService = migrationService;
         this.jdbcTemplate = jdbcTemplate;
+        this.projectRepository = projectRepository;
+
     }
 
     // Créer une note avec ses lignes (sans fichiers)
@@ -595,5 +601,34 @@ public class ExpenseService {
                 target.setDynamicField(entry.getKey(), entry.getValue());
             }
         }
+    }
+
+
+    /**
+     * Récupère les notes de frais pour un département donné
+     */
+    public List<ExpenseNote> getNotesByDepartment(Long departmentId) {
+        // 1. Récupérer tous les projets du département
+        List<Project> departmentProjects = projectRepository.findByDepartmentId(departmentId);
+
+        if (departmentProjects.isEmpty()) {
+            return List.of();
+        }
+
+        // 2. Extraire les IDs des projets
+        List<Long> projectIds = departmentProjects.stream()
+                .map(Project::getId)
+                .collect(Collectors.toList());
+
+        // 3. Récupérer les notes dont le projet est dans la liste
+        return noteRepository.findByProjectIdIn(projectIds);
+    }
+
+    /**
+     * Récupère les notes de frais pour un manager (basé sur son département)
+     */
+    public List<ExpenseNote> getNotesForManager(String managerId, Long departmentId) {
+        // Log optionnel : vérifier que le manager a bien accès à ce département
+        return getNotesByDepartment(departmentId);
     }
 }

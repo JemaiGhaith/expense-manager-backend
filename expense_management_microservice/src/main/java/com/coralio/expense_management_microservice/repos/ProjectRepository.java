@@ -29,4 +29,6 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
             "LOWER(p.code) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
             "LOWER(p.description) LIKE LOWER(CONCAT('%', :search, '%'))")
     List<Project> searchProjects(@Param("search") String searchTerm);
+
+
 }

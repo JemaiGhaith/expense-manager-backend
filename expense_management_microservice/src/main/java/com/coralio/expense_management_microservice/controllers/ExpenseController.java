@@ -5,6 +5,7 @@ import com.coralio.expense_management_microservice.dto.ExpenseRequest;
 import com.coralio.expense_management_microservice.entities.ExpenseLine;
 import com.coralio.expense_management_microservice.entities.ExpenseNote;
 import com.coralio.expense_management_microservice.entities.ExpenseStatus;
+import com.coralio.expense_management_microservice.entities.Project;
 import com.coralio.expense_management_microservice.repos.ExpenseLineRepository;
 import com.coralio.expense_management_microservice.services.ExpenseService;
 import com.coralio.expense_management_microservice.services.FileStorageService;
@@ -25,6 +26,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/expenses")
@@ -260,6 +262,7 @@ public class ExpenseController {
     public ResponseEntity<ExpenseNote> validateNote(@PathVariable Long noteId) {
         return ResponseEntity.ok(expenseService.validateNote(noteId));
     }
+
     /**
      * ✅ Valide une note avec commentaire optionnel
      */
@@ -269,6 +272,7 @@ public class ExpenseController {
             @RequestParam(required = false) String comment) {
         return ResponseEntity.ok(expenseService.validateNote(noteId, comment));
     }
+
     @PutMapping("/refuse/{noteId}")
     public ResponseEntity<ExpenseNote> refuseNote(@PathVariable Long noteId, @RequestParam String comment) {
         return ResponseEntity.ok(expenseService.refuseNote(noteId, comment));
@@ -386,6 +390,7 @@ public class ExpenseController {
                 contentType.equals("application/msword") ||
                 contentType.equals("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
     }
+
     @DeleteMapping("/{noteId}")
     public ResponseEntity<?> deleteNote(
             @PathVariable Long noteId,
@@ -403,6 +408,7 @@ public class ExpenseController {
                     .body(Map.of("message", "Erreur lors de la suppression"));
         }
     }
+
     @PutMapping(value = "/{noteId}/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> updateExpense(
             @PathVariable Long noteId,
@@ -441,8 +447,48 @@ public class ExpenseController {
                     .body(Map.of("message", e.getMessage()));
         }
     }
+
     @GetMapping("/{noteId}")
     public ResponseEntity<ExpenseNote> getNoteById(@PathVariable Long noteId) {
         return ResponseEntity.ok(expenseService.getNoteWithLines(noteId));
     }
+
+
+    // ✅ NOUVEAU : Récupère les notes pour un département spécifique
+    @GetMapping("/department/{departmentId}")
+    public ResponseEntity<List<Map<String, Object>>> getNotesByDepartment(
+            @PathVariable Long departmentId) {
+
+        try {
+            List<ExpenseNote> notes = expenseService.getNotesByDepartment(departmentId);
+
+            List<Map<String, Object>> response = notes.stream().map(note -> {
+                Map<String, Object> map = new HashMap<>();
+                map.put("id", note.getId());
+                map.put("employeeId", note.getEmployeeId());
+                map.put("projectId", note.getProjectId());
+                map.put("createdAt", note.getCreatedAt());
+                map.put("totalAmount", note.getTotalAmount());
+                map.put("status", note.getStatus());
+                map.put("accordPath", note.getAccordPath());
+                map.put("managerComment", note.getManagerComment());
+
+                projectService.getProjectById(note.getProjectId())
+                        .ifPresentOrElse(
+                                project -> map.put("projectName", project.getName()),
+                                () -> map.put("projectName", "Projet inconnu")
+                        );
+
+                return map;
+            }).collect(Collectors.toList());
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+
 }
