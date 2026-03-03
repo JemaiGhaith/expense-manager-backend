@@ -14,9 +14,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class FileStorageService {
+
+    private static final Logger log = LoggerFactory.getLogger(FileStorageService.class);
 
     @Value("${file.upload-dir:./uploads}")
     private String uploadDir;
@@ -29,6 +33,7 @@ public class FileStorageService {
         this.fileStorageLocation = Paths.get(uploadDir).toAbsolutePath().normalize();
         try {
             Files.createDirectories(this.fileStorageLocation);
+            log.info("Dossier uploads initialisé: {}", this.fileStorageLocation);
         } catch (IOException ex) {
             throw new RuntimeException("Impossible de créer le dossier uploads", ex);
         }
@@ -69,10 +74,13 @@ public class FileStorageService {
             Path targetPath = employeeDir.resolve(finalFilename);
             Files.copy(file.getInputStream(), targetPath, StandardCopyOption.REPLACE_EXISTING);
 
+            log.info("Fichier sauvegardé: {}", targetPath);
+
             // 6. Retourner le chemin relatif (incluant le type)
             return type + "/" + finalFilename;
 
         } catch (IOException e) {
+            log.error("Erreur lors de l'enregistrement du fichier", e);
             throw new RuntimeException("Erreur lors de l'enregistrement du fichier", e);
         }
     }
@@ -93,6 +101,8 @@ public class FileStorageService {
                     .resolve(filePath)
                     .normalize();
 
+            log.debug("Chargement fichier: {}", fullPath);
+
             Resource resource = new UrlResource(fullPath.toUri());
 
             if (resource.exists()) {
@@ -102,6 +112,7 @@ public class FileStorageService {
             throw new RuntimeException("Fichier introuvable: " + filePath);
 
         } catch (MalformedURLException ex) {
+            log.error("Erreur chargement fichier", ex);
             throw new RuntimeException("Erreur chargement fichier", ex);
         }
     }
@@ -132,8 +143,82 @@ public class FileStorageService {
             if (!deleted) {
                 throw new RuntimeException("Fichier introuvable: " + filePath);
             }
+
+            log.info("Fichier supprimé: {}", fullPath);
+
         } catch (IOException e) {
+            log.error("Erreur lors de la suppression du fichier", e);
             throw new RuntimeException("Erreur lors de la suppression du fichier: " + filePath, e);
+        }
+    }
+
+    // =========================
+    // MÉTHODES AJOUTÉES POUR LES PDF
+    // =========================
+
+    /**
+     * Sauvegarde un PDF dans le dossier de l'employé
+     */
+    public void storePdf(byte[] content, String employeeId, String type, String filename) {
+        try {
+            Path employeeDir = getOrCreateEmployeeDirectory(employeeId);
+            Path typeDir = employeeDir.resolve(type);
+
+            if (!Files.exists(typeDir)) {
+                Files.createDirectories(typeDir);
+                log.info("Dossier créé: {}", typeDir);
+            }
+
+            Path filePath = typeDir.resolve(filename);
+            Files.write(filePath, content);
+
+            log.info("PDF sauvegardé: {}", filePath);
+
+        } catch (IOException e) {
+            log.error("Erreur lors de la sauvegarde du PDF: {}", e.getMessage());
+            throw new RuntimeException("Erreur lors de la sauvegarde du PDF", e);
+        }
+    }
+
+    /**
+     * Récupère un PDF
+     */
+    public Resource loadPdfAsResource(String employeeId, String type, String filename) {
+        try {
+            Path employeeDir = getOrCreateEmployeeDirectory(employeeId);
+            Path filePath = employeeDir.resolve(type).resolve(filename);
+
+            Resource resource = new UrlResource(filePath.toUri());
+
+            if (resource.exists() || resource.isReadable()) {
+                return resource;
+            } else {
+                throw new RuntimeException("Fichier non trouvé: " + filename);
+            }
+        } catch (MalformedURLException e) {
+            log.error("Erreur lors de la lecture du fichier", e);
+            throw new RuntimeException("Erreur lors de la lecture du fichier: " + filename, e);
+        } catch (IOException e) {
+            log.error("Erreur lors de l'accès au dossier employé", e);
+            throw new RuntimeException("Erreur lors de l'accès au dossier employé: " + employeeId, e);
+        }
+    }
+
+    /**
+     * Méthode utilitaire pour créer/récupérer le dossier d'un employé
+     * Gère l'exception IOException
+     */
+    private Path getOrCreateEmployeeDirectory(String employeeId) {
+        try {
+            Path employeeDir = uploadRoot.resolve(String.valueOf(employeeId));
+            if (!Files.exists(employeeDir)) {
+                Files.createDirectories(employeeDir);
+                log.info("Dossier employé créé: {}", employeeDir);
+            }
+            return employeeDir;
+        } catch (IOException e) {
+            log.error("Erreur lors de la création du dossier employé: {}", employeeId, e);
+            throw new RuntimeException("Erreur lors de la création du dossier pour l'employé: " + employeeId, e);
         }
     }
 }

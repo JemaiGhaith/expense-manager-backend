@@ -391,4 +391,23 @@ public class CategoryService {
                 .displayOrder(field.getDisplayOrder())
                 .build();
     }
+    // À AJOUTER dans votre CategoryService.java existant
+
+    /**
+     * Récupère le plafond d'une catégorie par son ID
+     */
+    public Double getPlafondByCategoryId(Long categoryId) {
+        return categoryRepository.findById(categoryId)
+                .map(Category::getPlafond)
+                .orElse(Double.MAX_VALUE);
+    }
+
+    /**
+     * Récupère le nom d'une catégorie par son ID
+     */
+    public String getCategoryName(Long categoryId) {
+        return categoryRepository.findById(categoryId)
+                .map(Category::getName)
+                .orElse("Catégorie inconnue");
+    }
 }
