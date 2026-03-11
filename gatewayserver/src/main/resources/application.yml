@@ -30,7 +30,11 @@ spring:
           uri: lb://USER-MICROSERVICE  # Use Eureka service name
           predicates:
             - Path=/api/users/** , /api/profile/**
-
+        # ✅ NOUVEAU : Route vers le microservice IA
+        - id: ai-ms
+          uri: lb://AI-MICROSERVICE
+          predicates:
+            - Path=/api/ai/**
 eureka:
   client:
     register-with-eureka: true
