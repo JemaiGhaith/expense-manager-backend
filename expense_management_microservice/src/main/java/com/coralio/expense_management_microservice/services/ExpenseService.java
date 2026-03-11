@@ -26,6 +26,7 @@ import java.util.HashSet;
 import java.util.stream.Collectors;
 import java.util.Objects;
 import java.util.function.Function;
+
 @Service
 public class ExpenseService {
 
@@ -40,7 +41,6 @@ public class ExpenseService {
             "25-07", "13-08", "15-10", "17-12"
     );
 
-    // ✅ Cache pour les types de colonnes
     private final Map<String, String> columnTypeCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     @Autowired
@@ -57,16 +57,15 @@ public class ExpenseService {
         this.migrationService = migrationService;
         this.jdbcTemplate = jdbcTemplate;
         this.projectRepository = projectRepository;
-
     }
 
-    // Créer une note avec ses lignes (sans fichiers)
+    // ========== MÉTHODES EXISTANTES (inchangées) ==========
+
     @Transactional
     public ExpenseNote createExpenseNote(ExpenseNote note, List<ExpenseLine> lines) {
         return createExpenseNoteWithFiles(note, lines, null, null);
     }
 
-    // ✅ Nouvelle méthode avec accord et factures
     @Transactional
     public ExpenseNote createExpenseNoteWithFiles(
             ExpenseNote note,
@@ -74,19 +73,16 @@ public class ExpenseService {
             String accordFileName,
             List<String> factureFileNames
     ) {
-        // 1️⃣ Initialiser la note
         if (note.getStatus() == null) {
             note.setStatus(ExpenseStatus.EN_ATTENTE);
         }
         note.setCreatedAt(LocalDateTime.now());
         note.setUpdatedAt(LocalDateTime.now());
 
-        // ✅ Sauvegarder le chemin de l'accord
         if (accordFileName != null) {
             note.setAccordPath(accordFileName);
         }
 
-        // 2️⃣ Valider les dates
         for (ExpenseLine line : lines) {
             if (line.getExpenseDate() == null) {
                 line.setExpenseDate(LocalDate.now());
@@ -94,10 +90,8 @@ public class ExpenseService {
             validateExpenseDate(line.getExpenseDate());
         }
 
-        // 3️⃣ Sauvegarder la note
         ExpenseNote savedNote = noteRepository.save(note);
 
-        // 4️⃣ Sauvegarder chaque ligne avec sa facture
         for (int i = 0; i < lines.size(); i++) {
             ExpenseLine line = lines.get(i);
             line.setExpenseNoteId(savedNote.getId());
@@ -109,7 +103,6 @@ public class ExpenseService {
             insertExpenseLineWithDynamicColumns(line);
         }
 
-        // 5️⃣ Calculer le total
         double total = lines.stream()
                 .mapToDouble(ExpenseLine::getAmount)
                 .sum();
@@ -120,7 +113,6 @@ public class ExpenseService {
         return noteRepository.save(savedNote);
     }
 
-    // Garder l'ancienne méthode pour compatibilité
     @Transactional
     public ExpenseNote createExpenseNoteWithFiles(
             ExpenseNote note,
@@ -140,11 +132,6 @@ public class ExpenseService {
             if (value != null) {
                 columnsToInsert.add(column);
                 params.add(value);
-
-                // 🔍 DEBUG pour les dates
-                if (isColumnOfType(column, "date")) {
-                    System.out.println("📅 DATE préparée: " + column + " = " + value + " (" + value.getClass().getSimpleName() + ")");
-                }
             }
         }
 
@@ -167,19 +154,10 @@ public class ExpenseService {
             }
 
             sql.append(") ").append(values).append(")");
-
-            // 🔍 DEBUG - Voir la requête complète
-            System.out.println("📝 SQL: " + sql.toString());
-            System.out.println("📦 Paramètres: " + params);
-
             jdbcTemplate.update(sql.toString(), params.toArray());
-            System.out.println("✅ Insertion avec colonnes: " + columnsToInsert);
         }
     }
 
-    /**
-     * ✅ Vérifie si une colonne est d'un certain type dans la base
-     */
     private boolean isColumnOfType(String columnName, String targetType) {
         if (!columnTypeCache.containsKey(columnName)) {
             try {
@@ -200,38 +178,28 @@ public class ExpenseService {
         return dataType != null && dataType.contains(targetType.toLowerCase());
     }
 
-    /**
-     * ✅ Convertit une valeur en LocalDate pour les colonnes DATE
-     */
     private LocalDate convertToLocalDate(Object value, String columnName) {
         if (value == null) return null;
 
-        // ✅ Déjà LocalDate
         if (value instanceof LocalDate) {
             return (LocalDate) value;
         }
 
-        // ✅ Déjà java.sql.Date
         if (value instanceof java.sql.Date) {
             return ((java.sql.Date) value).toLocalDate();
         }
 
-        // ✅ String - essayer différents formats
         if (value instanceof String) {
             String str = (String) value;
             str = str.trim();
 
-            // Format ISO (2024-01-15)
             if (str.matches("\\d{4}-\\d{2}-\\d{2}")) {
                 try {
                     return LocalDate.parse(str);
                 } catch (DateTimeParseException e) {
                     System.err.println("❌ Erreur parsing ISO date: " + str);
                 }
-            }
-
-            // Format français (15/01/2024)
-            else if (str.matches("\\d{2}/\\d{2}/\\d{4}")) {
+            } else if (str.matches("\\d{2}/\\d{2}/\\d{4}")) {
                 try {
                     String[] parts = str.split("/");
                     return LocalDate.of(
@@ -242,10 +210,7 @@ public class ExpenseService {
                 } catch (Exception e) {
                     System.err.println("❌ Erreur parsing français date: " + str);
                 }
-            }
-
-            // Format avec tirets (15-01-2024)
-            else if (str.matches("\\d{2}-\\d{2}-\\d{4}")) {
+            } else if (str.matches("\\d{2}-\\d{2}-\\d{4}")) {
                 try {
                     String[] parts = str.split("-");
                     return LocalDate.of(
@@ -256,27 +221,21 @@ public class ExpenseService {
                 } catch (Exception e) {
                     System.err.println("❌ Erreur parsing tirets date: " + str);
                 }
-            }
-
-            // Essayer avec DateTimeFormatter
-            try {
-                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("[yyyy-MM-dd][dd/MM/yyyy][dd-MM-yyyy]");
-                return LocalDate.parse(str, formatter);
-            } catch (Exception e) {
-                System.err.println("❌ Aucun format de date reconnu pour: " + str);
+            } else {
+                try {
+                    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("[yyyy-MM-dd][dd/MM/yyyy][dd-MM-yyyy]");
+                    return LocalDate.parse(str, formatter);
+                } catch (Exception e) {
+                    System.err.println("❌ Aucun format de date reconnu pour: " + str);
+                }
             }
         }
 
-        // ⚠️ Fallback: date du jour
         System.err.println("⚠️ Utilisation date courante pour " + columnName + " (valeur: " + value + ")");
         return LocalDate.now();
     }
 
-    /**
-     * ✅ Version corrigée de getValueForColumn avec gestion des dates
-     */
     private Object getValueForColumn(ExpenseLine line, String columnName) {
-        // 1️⃣ Essayer les champs standards
         Object value = switch (columnName) {
             case "expense_note_id" -> line.getExpenseNoteId();
             case "category_id" -> line.getCategoryId();
@@ -297,30 +256,18 @@ public class ExpenseService {
             default -> null;
         };
 
-        // 2️⃣ Si c'est null, essayer les champs dynamiques
         if (value == null) {
             value = line.getDynamicField(columnName);
-
             if (value == null) {
                 String camelCaseKey = toCamelCase(columnName);
                 value = line.getDynamicField(camelCaseKey);
             }
         }
 
-        // 3️⃣ 🔥 CORRECTION CRITIQUE : Convertir les dates !
         if (value != null) {
-            // Vérifier si c'est une colonne DATE
             if (isColumnOfType(columnName, "date")) {
-                LocalDate dateValue = convertToLocalDate(value, columnName);
-                System.out.println("📅 Conversion date pour " + columnName +
-                        ": " + value + " (" + value.getClass().getSimpleName() +
-                        ") → " + dateValue + " (LocalDate)");
-                return dateValue;
+                return convertToLocalDate(value, columnName);
             }
-
-            // DEBUG
-            System.out.println("📌 Colonne: " + columnName + " = " + value +
-                    " (type: " + value.getClass().getSimpleName() + ")");
         }
 
         return value;
@@ -373,44 +320,8 @@ public class ExpenseService {
         return noteRepository.findByStatus(status);
     }
 
-    @Transactional
-    public ExpenseNote validateNote(Long noteId) {
-        ExpenseNote note = noteRepository.findById(noteId)
-                .orElseThrow(() -> new RuntimeException("Note non trouvée avec l'ID: " + noteId));
-        note.setUpdatedAt(LocalDateTime.now());
-        note.setStatus(ExpenseStatus.VALIDEE);
-        return noteRepository.save(note);
-    }
-    /**
-     * ✅ Valide une note avec commentaire optionnel
-     */
-    @Transactional
-    public ExpenseNote validateNote(Long noteId, String comment) {
-        ExpenseNote note = noteRepository.findById(noteId)
-                .orElseThrow(() -> new RuntimeException("Note non trouvée avec l'ID: " + noteId));
-
-        note.setUpdatedAt(LocalDateTime.now());
-        note.setStatus(ExpenseStatus.VALIDEE);
-
-        // ✅ Ajouter le commentaire s'il est fourni
-        if (comment != null && !comment.trim().isEmpty()) {
-            note.setManagerComment(comment);
-        }
-
-        return noteRepository.save(note);
-    }
     public List<ExpenseNote> getAllNotes() {
         return noteRepository.findAll();
-    }
-
-    @Transactional
-    public ExpenseNote refuseNote(Long noteId, String comment) {
-        ExpenseNote note = noteRepository.findById(noteId)
-                .orElseThrow(() -> new RuntimeException("Note non trouvée avec l'ID: " + noteId));
-        note.setStatus(ExpenseStatus.REFUSEE);
-        note.setManagerComment(comment);
-        note.setUpdatedAt(LocalDateTime.now());
-        return noteRepository.save(note);
     }
 
     public List<ExpenseLine> getLines(Long noteId) {
@@ -421,27 +332,24 @@ public class ExpenseService {
         return noteRepository.findById(noteId)
                 .orElseThrow(() -> new RuntimeException("Note non trouvée avec l'ID: " + noteId));
     }
+
     @Transactional
     public void deleteNote(Long noteId, String employeeId) {
         ExpenseNote note = noteRepository.findById(noteId)
                 .orElseThrow(() -> new RuntimeException("Note non trouvée avec l'ID: " + noteId));
 
-        // Vérifier que la note appartient à l'employé
         if (!note.getEmployeeId().equals(employeeId)) {
             throw new RuntimeException("Vous n'êtes pas autorisé à supprimer cette note.");
         }
 
-        // Vérifier que la note est en attente
         if (note.getStatus() != ExpenseStatus.EN_ATTENTE) {
             throw new IllegalStateException("Seules les notes en attente peuvent être supprimées.");
         }
 
-        // Supprimer le fichier d'accord s'il existe
         if (note.getAccordPath() != null) {
             fileStorageService.deleteFile(note.getEmployeeId(), note.getAccordPath());
         }
 
-        // Récupérer les lignes pour supprimer leurs justificatifs
         List<ExpenseLine> lines = lineRepository.findByExpenseNoteId(noteId);
         for (ExpenseLine line : lines) {
             if (line.getJustificatifPath() != null) {
@@ -449,12 +357,10 @@ public class ExpenseService {
             }
         }
 
-        // Supprimer les lignes (via une méthode dédiée dans le repository)
         lineRepository.deleteByExpenseNoteId(noteId);
-
-        // Supprimer la note
         noteRepository.delete(note);
     }
+
     @Transactional
     public ExpenseNote updateExpenseNoteWithFiles(
             Long noteId,
@@ -462,12 +368,11 @@ public class ExpenseService {
             ExpenseNote updatedNote,
             List<ExpenseLine> updatedLines,
             MultipartFile newAccordFile,
-            List<MultipartFile> newFactureFiles  // Liste ordonnée, peut contenir des null
+            List<MultipartFile> newFactureFiles
     ) {
         ExpenseNote existingNote = noteRepository.findById(noteId)
                 .orElseThrow(() -> new RuntimeException("Note non trouvée avec l'ID: " + noteId));
 
-        // Vérifications
         if (!existingNote.getEmployeeId().equals(employeeId)) {
             throw new RuntimeException("Vous n'êtes pas autorisé à modifier cette note.");
         }
@@ -475,11 +380,9 @@ public class ExpenseService {
             throw new IllegalStateException("Seules les notes en attente peuvent être modifiées.");
         }
 
-        // Mise à jour des champs simples
         existingNote.setProjectId(updatedNote.getProjectId());
         existingNote.setUpdatedAt(LocalDateTime.now());
 
-        // Gestion de l'accord
         if (newAccordFile != null && !newAccordFile.isEmpty()) {
             if (existingNote.getAccordPath() != null) {
                 fileStorageService.deleteFile(employeeId, existingNote.getAccordPath());
@@ -488,7 +391,6 @@ public class ExpenseService {
             existingNote.setAccordPath(newAccordFileName);
         }
 
-        // Récupérer les anciennes lignes
         List<ExpenseLine> oldLines = lineRepository.findByExpenseNoteId(noteId);
         Map<Long, ExpenseLine> oldLinesMap = oldLines.stream()
                 .collect(Collectors.toMap(ExpenseLine::getId, Function.identity()));
@@ -498,7 +400,6 @@ public class ExpenseService {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
 
-        // Supprimer les lignes qui ne sont plus dans la nouvelle liste
         for (ExpenseLine oldLine : oldLines) {
             if (!updatedLineIds.contains(oldLine.getId())) {
                 if (oldLine.getJustificatifPath() != null) {
@@ -514,7 +415,6 @@ public class ExpenseService {
             ExpenseLine lineToSave;
 
             if (line.getId() != null && oldLinesMap.containsKey(line.getId())) {
-                // Ligne existante : mise à jour
                 lineToSave = oldLinesMap.get(line.getId());
                 lineToSave.setCategoryId(line.getCategoryId());
                 lineToSave.setAmount(line.getAmount());
@@ -522,7 +422,6 @@ public class ExpenseService {
                 lineToSave.setDescription(line.getDescription());
                 copyDynamicFields(line, lineToSave);
             } else {
-                // Nouvelle ligne
                 lineToSave = new ExpenseLine();
                 lineToSave.setExpenseNoteId(noteId);
                 lineToSave.setCategoryId(line.getCategoryId());
@@ -532,24 +431,20 @@ public class ExpenseService {
                 copyDynamicFields(line, lineToSave);
             }
 
-            // Gestion du justificatif
             MultipartFile fileForThisLine = (newFactureFiles != null && i < newFactureFiles.size()) ? newFactureFiles.get(i) : null;
             if (fileForThisLine != null && !fileForThisLine.isEmpty()) {
-                // Nouveau fichier fourni
                 if (lineToSave.getJustificatifPath() != null) {
                     fileStorageService.deleteFile(employeeId, lineToSave.getJustificatifPath());
                 }
                 String fileName = fileStorageService.storeFile(fileForThisLine, employeeId, "factures");
                 lineToSave.setJustificatifPath(fileName);
-            } // sinon on garde l'ancien chemin
+            }
 
-            // Validation de la date
             if (lineToSave.getExpenseDate() == null) {
                 lineToSave.setExpenseDate(LocalDate.now());
             }
             validateExpenseDate(lineToSave.getExpenseDate());
 
-            // Sauvegarde
             if (lineToSave.getId() == null) {
                 insertExpenseLineWithDynamicColumns(lineToSave);
             } else {
@@ -562,6 +457,7 @@ public class ExpenseService {
         existingNote.setTotalAmount(total);
         return noteRepository.save(existingNote);
     }
+
     private void updateExpenseLineWithDynamicColumns(ExpenseLine line) {
         List<String> allColumns = migrationService.getAllColumns();
         List<String> setClauses = new ArrayList<>();
@@ -579,11 +475,10 @@ public class ExpenseService {
             String sql = "UPDATE expense_lines SET " + String.join(", ", setClauses) + " WHERE id = ?";
             params.add(line.getId());
             jdbcTemplate.update(sql, params.toArray());
-            System.out.println("✅ Mise à jour ligne " + line.getId());
         }
     }
+
     private void copyDynamicFields(ExpenseLine source, ExpenseLine target) {
-        // Copie des champs standards
         target.setDepart(source.getDepart());
         target.setDestination(source.getDestination());
         target.setTransportType(source.getTransportType());
@@ -595,7 +490,6 @@ public class ExpenseService {
         target.setVehicule(source.getVehicule());
         target.setDetail(source.getDetail());
 
-        // Copie des champs dynamiques (via la Map)
         if (source.getDynamicFields() != null) {
             for (Map.Entry<String, Object> entry : source.getDynamicFields().entrySet()) {
                 target.setDynamicField(entry.getKey(), entry.getValue());
@@ -603,32 +497,138 @@ public class ExpenseService {
         }
     }
 
-
-    /**
-     * Récupère les notes de frais pour un département donné
-     */
     public List<ExpenseNote> getNotesByDepartment(Long departmentId) {
-        // 1. Récupérer tous les projets du département
         List<Project> departmentProjects = projectRepository.findByDepartmentId(departmentId);
 
         if (departmentProjects.isEmpty()) {
             return List.of();
         }
 
-        // 2. Extraire les IDs des projets
         List<Long> projectIds = departmentProjects.stream()
                 .map(Project::getId)
                 .collect(Collectors.toList());
 
-        // 3. Récupérer les notes dont le projet est dans la liste
         return noteRepository.findByProjectIdIn(projectIds);
     }
 
-    /**
-     * Récupère les notes de frais pour un manager (basé sur son département)
-     */
     public List<ExpenseNote> getNotesForManager(String managerId, Long departmentId) {
-        // Log optionnel : vérifier que le manager a bien accès à ce département
         return getNotesByDepartment(departmentId);
+    }
+
+    // ========== NOUVELLES MÉTHODES POUR MANAGER ==========
+// ========== NOUVELLES MÉTHODES POUR MANAGER ==========
+
+    @Transactional
+    public ExpenseNote managerValidateNote(Long noteId, String comment, String managerId, String managerName) {
+        ExpenseNote note = noteRepository.findById(noteId)
+                .orElseThrow(() -> new RuntimeException("Note non trouvée avec l'ID: " + noteId));
+
+        note.setStatus(ExpenseStatus.VALIDEE);
+        note.setDecisionComment(comment);
+        // ✅ Stocker avec le préfixe "M:" pour les managers
+        note.setDecidedBy("M:" + managerName);
+        note.setManagerId(managerId);
+        note.setDecidedAt(LocalDateTime.now());
+        note.setUpdatedAt(LocalDateTime.now());
+
+        return noteRepository.save(note);
+    }
+
+    @Transactional
+    public ExpenseNote managerRejectNote(Long noteId, String comment, String managerId, String managerName) {
+        ExpenseNote note = noteRepository.findById(noteId)
+                .orElseThrow(() -> new RuntimeException("Note non trouvée avec l'ID: " + noteId));
+
+        note.setStatus(ExpenseStatus.REFUSEE);
+        note.setDecisionComment(comment);
+        // ✅ Stocker avec le préfixe "M:" pour les managers
+        note.setDecidedBy("M:" + managerName);
+        note.setManagerId(managerId);
+        note.setDecidedAt(LocalDateTime.now());
+        note.setUpdatedAt(LocalDateTime.now());
+
+        return noteRepository.save(note);
+    }
+    // ========== NOUVELLES MÉTHODES POUR ADMIN ==========
+// ========== NOUVELLES MÉTHODES POUR ADMIN ==========
+
+    @Transactional
+    public ExpenseNote adminRejectNote(Long noteId, String comment) {
+        ExpenseNote note = noteRepository.findById(noteId)
+                .orElseThrow(() -> new RuntimeException("Note non trouvée avec l'ID: " + noteId));
+
+        if (note.getStatus() != ExpenseStatus.VALIDEE) {
+            throw new IllegalStateException("Seules les notes validées peuvent être refusées par l'admin");
+        }
+
+        note.setStatus(ExpenseStatus.REFUSEE);
+        note.setDecisionComment(comment);
+        note.setDecidedBy("Admin");  // ✅ Garder "Admin" sans préfixe
+        note.setDecidedAt(LocalDateTime.now());
+        note.setUpdatedAt(LocalDateTime.now());
+
+        return noteRepository.save(note);
+    }
+
+    @Transactional
+    public ExpenseNote adminReimburseNote(Long noteId, String comment) {
+        ExpenseNote note = noteRepository.findById(noteId)
+                .orElseThrow(() -> new RuntimeException("Note non trouvée avec l'ID: " + noteId));
+
+        if (note.getStatus() != ExpenseStatus.VALIDEE) {
+            throw new IllegalStateException("Seules les notes validées peuvent être remboursées");
+        }
+
+        note.setStatus(ExpenseStatus.REMBOURSEE);
+        if (comment != null && !comment.trim().isEmpty()) {
+            note.setDecisionComment(comment);
+        }
+        note.setDecidedBy("Admin");  // ✅ Garder "Admin" sans préfixe
+        note.setDecidedAt(LocalDateTime.now());
+        note.setUpdatedAt(LocalDateTime.now());
+
+        return noteRepository.save(note);
+    }
+    // ========== MÉTHODES EXISTANTES CONSERVÉES POUR COMPATIBILITÉ ==========
+
+    @Transactional
+    public ExpenseNote validateNote(Long noteId) {
+        ExpenseNote note = noteRepository.findById(noteId)
+                .orElseThrow(() -> new RuntimeException("Note non trouvée avec l'ID: " + noteId));
+        note.setUpdatedAt(LocalDateTime.now());
+        note.setStatus(ExpenseStatus.VALIDEE);
+        return noteRepository.save(note);
+    }
+
+    @Transactional
+    public ExpenseNote validateNote(Long noteId, String comment) {
+        ExpenseNote note = noteRepository.findById(noteId)
+                .orElseThrow(() -> new RuntimeException("Note non trouvée avec l'ID: " + noteId));
+
+        note.setUpdatedAt(LocalDateTime.now());
+        note.setStatus(ExpenseStatus.VALIDEE);
+
+        if (comment != null && !comment.trim().isEmpty()) {
+            note.setDecisionComment(comment);
+            note.setDecidedBy("Manager (Legacy)");
+            note.setDecidedAt(LocalDateTime.now());
+        }
+
+        return noteRepository.save(note);
+    }
+
+    // Dans ExpenseService.java - Méthode pour le manager (ancien endpoint)
+    @Transactional
+    public ExpenseNote refuseNote(Long noteId, String comment) {
+        ExpenseNote note = noteRepository.findById(noteId)
+                .orElseThrow(() -> new RuntimeException("Note non trouvée avec l'ID: " + noteId));
+
+        note.setStatus(ExpenseStatus.REFUSEE);
+        note.setDecisionComment(comment);
+        note.setDecidedBy("M:Manager");  // ✅ Changé : "Manager" au lieu de "Admin (Legacy)"
+        note.setDecidedAt(LocalDateTime.now());
+        note.setUpdatedAt(LocalDateTime.now());
+
+        return noteRepository.save(note);
     }
 }

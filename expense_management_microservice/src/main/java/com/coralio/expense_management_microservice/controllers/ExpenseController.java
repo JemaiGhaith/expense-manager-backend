@@ -71,23 +71,20 @@ public class ExpenseController {
                             .constructCollectionType(List.class, ExpenseLine.class)
             );
 
-            // 1️⃣ Sauvegarder l'accord dans le dossier "accords"
             String accordFileName = fileStorageService.storeFile(accordFile, note.getEmployeeId(), "accords");
             note.setAccordPath(accordFileName);
 
-            // 2️⃣ Sauvegarder les factures dans le dossier "factures"
             List<String> factureFileNames = new ArrayList<>();
             for (MultipartFile file : factureFiles) {
                 String savedFileName = fileStorageService.storeFile(file, note.getEmployeeId(), "factures");
                 factureFileNames.add(savedFileName);
             }
 
-            // 3️⃣ Créer la note avec ses lignes
             ExpenseNote createdNote = expenseService.createExpenseNoteWithFiles(
                     note,
                     lines,
-                    accordFileName,      // L'accord pour la note
-                    factureFileNames     // Les factures pour les lignes
+                    accordFileName,
+                    factureFileNames
             );
 
             return ResponseEntity.status(HttpStatus.CREATED).body(createdNote);
@@ -105,7 +102,7 @@ public class ExpenseController {
     }
 
     // =========================
-    // DOWNLOAD FICHIER (avec chemin complet)
+    // DOWNLOAD FICHIER
     // =========================
     @GetMapping("/files/{employeeId}/{type}/{filename:.+}")
     public ResponseEntity<Resource> downloadFile(
@@ -131,16 +128,12 @@ public class ExpenseController {
         }
     }
 
-    // =========================
-    // DOWNLOAD FICHIER (pour compatibilité ancienne version)
-    // =========================
     @GetMapping("/files/{employeeId}/{filename:.+}")
     public ResponseEntity<Resource> downloadFileOld(
             @PathVariable String employeeId,
             @PathVariable String filename
     ) {
         try {
-            // Par défaut, chercher dans le dossier factures
             String filePath = "factures/" + filename;
             Resource resource = fileStorageService.loadFileAsResource(employeeId, filePath);
 
@@ -158,9 +151,6 @@ public class ExpenseController {
         }
     }
 
-    // =========================
-    // ENDPOINT POUR AVOIR LES URLs DES FICHIERS
-    // =========================
     @GetMapping("/{noteId}/files-urls")
     public ResponseEntity<Map<String, Object>> getFilesUrls(@PathVariable Long noteId) {
         try {
@@ -169,14 +159,12 @@ public class ExpenseController {
 
             Map<String, Object> response = new HashMap<>();
 
-            // URL de l'accord
             if (note.getAccordPath() != null) {
                 String accordUrl = "/api/expenses/files/" + note.getEmployeeId() + "/" + note.getAccordPath();
                 response.put("accordUrl", accordUrl);
                 response.put("accordPath", note.getAccordPath());
             }
 
-            // URLs des factures
             List<Map<String, Object>> facturesUrls = new ArrayList<>();
             for (ExpenseLine line : lines) {
                 if (line.getJustificatifPath() != null) {
@@ -216,6 +204,8 @@ public class ExpenseController {
         return ResponseEntity.ok(expenseService.getAllNotes());
     }
 
+    // ========== ENDPOINTS GET AVEC NOUVEAUX CHAMPS ==========
+
     @GetMapping("/employee/{employeeId}")
     public ResponseEntity<List<Map<String, Object>>> getNotesByEmployee(
             @PathVariable String employeeId) {
@@ -232,9 +222,13 @@ public class ExpenseController {
             map.put("totalAmount", note.getTotalAmount());
             map.put("status", note.getStatus());
             map.put("accordPath", note.getAccordPath());
-            map.put("managerComment", note.getManagerComment()); // ✅ AJOUTER CETTE LIGNE
 
-            // Ajouter le nom du projet
+            // ✅ NOUVEAUX CHAMPS
+            map.put("decisionComment", note.getDecisionComment());
+            map.put("decidedBy", note.getDecidedBy());
+            map.put("decidedAt", note.getDecidedAt());
+            map.put("managerId", note.getManagerId()); // ✅ AJOUTÉ
+
             projectService.getProjectById(note.getProjectId())
                     .ifPresentOrElse(
                             project -> map.put("projectName", project.getName()),
@@ -248,24 +242,135 @@ public class ExpenseController {
     }
 
     @GetMapping("/status/{status}")
-    public ResponseEntity<List<ExpenseNote>> getNotesByStatus(@PathVariable String status) {
+    public ResponseEntity<List<Map<String, Object>>> getNotesByStatus(@PathVariable String status) {
         ExpenseStatus enumStatus;
         try {
             enumStatus = ExpenseStatus.valueOf(status.toUpperCase());
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().build();
         }
-        return ResponseEntity.ok(expenseService.getNotesByStatus(enumStatus));
+
+        List<ExpenseNote> notes = expenseService.getNotesByStatus(enumStatus);
+
+        List<Map<String, Object>> response = notes.stream().map(note -> {
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", note.getId());
+            map.put("employeeId", note.getEmployeeId());
+            map.put("projectId", note.getProjectId());
+            map.put("createdAt", note.getCreatedAt());
+            map.put("totalAmount", note.getTotalAmount());
+            map.put("status", note.getStatus());
+            map.put("accordPath", note.getAccordPath());
+
+            // ✅ NOUVEAUX CHAMPS
+            map.put("decisionComment", note.getDecisionComment());
+            map.put("decidedBy", note.getDecidedBy());
+            map.put("decidedAt", note.getDecidedAt());
+            map.put("managerId", note.getManagerId()); // ✅ AJOUTÉ
+
+            return map;
+        }).toList();
+
+        return ResponseEntity.ok(response);
     }
+
+    @GetMapping("/department/{departmentId}")
+    public ResponseEntity<List<Map<String, Object>>> getNotesByDepartment(
+            @PathVariable Long departmentId) {
+
+        try {
+            List<ExpenseNote> notes = expenseService.getNotesByDepartment(departmentId);
+
+            List<Map<String, Object>> response = notes.stream().map(note -> {
+                Map<String, Object> map = new HashMap<>();
+                map.put("id", note.getId());
+                map.put("employeeId", note.getEmployeeId());
+                map.put("projectId", note.getProjectId());
+                map.put("createdAt", note.getCreatedAt());
+                map.put("totalAmount", note.getTotalAmount());
+                map.put("status", note.getStatus());
+                map.put("accordPath", note.getAccordPath());
+
+                // ✅ NOUVEAUX CHAMPS
+                map.put("decisionComment", note.getDecisionComment());
+                map.put("decidedBy", note.getDecidedBy());
+                map.put("decidedAt", note.getDecidedAt());
+                map.put("managerId", note.getManagerId()); // ✅ AJOUTÉ
+
+                projectService.getProjectById(note.getProjectId())
+                        .ifPresentOrElse(
+                                project -> map.put("projectName", project.getName()),
+                                () -> map.put("projectName", "Projet inconnu")
+                        );
+
+                return map;
+            }).collect(Collectors.toList());
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    // ========== NOUVEAUX ENDPOINTS POUR MANAGER ==========
+
+    @PutMapping("/manager/validate/{noteId}")
+    public ResponseEntity<ExpenseNote> managerValidate(
+            @PathVariable Long noteId,
+            @RequestParam String comment,
+            @RequestParam String managerId,
+            @RequestParam String managerName) {
+        return ResponseEntity.ok(expenseService.managerValidateNote(noteId, comment, managerId, managerName));
+    }
+
+    @PutMapping("/manager/reject/{noteId}")
+    public ResponseEntity<ExpenseNote> managerReject(
+            @PathVariable Long noteId,
+            @RequestParam String comment,
+            @RequestParam String managerId,
+            @RequestParam String managerName) {
+        return ResponseEntity.ok(expenseService.managerRejectNote(noteId, comment, managerId, managerName));
+    }
+
+    // ========== NOUVEAUX ENDPOINTS POUR ADMIN ==========
+
+    @PutMapping("/admin/reject/{noteId}")
+    public ResponseEntity<?> adminReject(
+            @PathVariable Long noteId,
+            @RequestParam String comment) {
+        try {
+            if (comment == null || comment.trim().isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error", "Le commentaire est obligatoire pour le refus"));
+            }
+            ExpenseNote updatedNote = expenseService.adminRejectNote(noteId, comment);
+            return ResponseEntity.ok(updatedNote);
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/admin/reimburse/{noteId}")
+    public ResponseEntity<?> adminReimburse(
+            @PathVariable Long noteId,
+            @RequestParam(required = false) String comment) {
+        try {
+            ExpenseNote updatedNote = expenseService.adminReimburseNote(noteId, comment);
+            return ResponseEntity.ok(updatedNote);
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // ========== ENDPOINTS EXISTANTS CONSERVÉS POUR COMPATIBILITÉ ==========
 
     @PutMapping("/validate/{noteId}")
     public ResponseEntity<ExpenseNote> validateNote(@PathVariable Long noteId) {
         return ResponseEntity.ok(expenseService.validateNote(noteId));
     }
 
-    /**
-     * ✅ Valide une note avec commentaire optionnel
-     */
     @PutMapping("/validate/{noteId}/with-comment")
     public ResponseEntity<ExpenseNote> validateNoteWithComment(
             @PathVariable Long noteId,
@@ -278,6 +383,8 @@ public class ExpenseController {
         return ResponseEntity.ok(expenseService.refuseNote(noteId, comment));
     }
 
+    // ========== AUTRES ENDPOINTS EXISTANTS ==========
+
     @GetMapping("/lines/{noteId}")
     public ResponseEntity<List<ExpenseLine>> getLines(@PathVariable Long noteId) {
         return ResponseEntity.ok(expenseService.getLines(noteId));
@@ -288,9 +395,6 @@ public class ExpenseController {
         try {
             List<Map<String, Object>> rows = expenseLineRepository.findByExpenseNoteIdNative(noteId);
             List<ExpenseLineDetailDTO> result = new ArrayList<>();
-
-            System.out.println("✅ Récupération des lignes pour note #" + noteId);
-            System.out.println("📊 Nombre de lignes trouvées: " + rows.size());
 
             for (Map<String, Object> row : rows) {
                 ExpenseLineDetailDTO dto = new ExpenseLineDetailDTO();
@@ -315,15 +419,12 @@ public class ExpenseController {
                         String fieldName = toCamelCase(columnName);
                         dto.setDynamicField(fieldName, value);
                         dto.setDynamicField(columnName, value);
-
-                        System.out.println("   📌 Champ dynamique: " + columnName + " = " + value);
                     }
                 }
 
                 result.add(dto);
             }
 
-            System.out.println("✅ " + result.size() + " lignes préparées avec champs dynamiques");
             return ResponseEntity.ok(result);
 
         } catch (Exception e) {
@@ -332,6 +433,69 @@ public class ExpenseController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
+
+    @GetMapping("/{noteId}")
+    public ResponseEntity<ExpenseNote> getNoteById(@PathVariable Long noteId) {
+        return ResponseEntity.ok(expenseService.getNoteWithLines(noteId));
+    }
+
+    @DeleteMapping("/{noteId}")
+    public ResponseEntity<?> deleteNote(
+            @PathVariable Long noteId,
+            @RequestParam String employeeId) {
+        try {
+            expenseService.deleteNote(noteId, employeeId);
+            return ResponseEntity.ok(Map.of("message", "Note supprimée avec succès"));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", e.getMessage()));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", e.getMessage()));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", "Erreur lors de la suppression"));
+        }
+    }
+
+    @PutMapping(value = "/{noteId}/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> updateExpense(
+            @PathVariable Long noteId,
+            @RequestParam String employeeId,
+            @RequestPart("note") String noteJson,
+            @RequestPart("lines") String linesJson,
+            @RequestPart(value = "accordFile", required = false) MultipartFile accordFile,
+            @RequestParam Map<String, MultipartFile> allFiles
+    ) {
+        try {
+            ExpenseNote updatedNote = objectMapper.readValue(noteJson, ExpenseNote.class);
+            List<ExpenseLine> updatedLines = objectMapper.readValue(
+                    linesJson,
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, ExpenseLine.class)
+            );
+
+            List<MultipartFile> factureFiles = new ArrayList<>();
+            for (int i = 0; i < updatedLines.size(); i++) {
+                MultipartFile file = allFiles.get("factureFile_" + i);
+                factureFiles.add(file);
+            }
+
+            ExpenseNote result = expenseService.updateExpenseNoteWithFiles(
+                    noteId, employeeId, updatedNote, updatedLines, accordFile, factureFiles
+            );
+
+            return ResponseEntity.ok(result);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", e.getMessage()));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    // ========== MÉTHODES UTILITAIRES ==========
 
     private boolean isStandardColumn(String columnName) {
         return columnName.equals("id") ||
@@ -380,115 +544,4 @@ public class ExpenseController {
             return "application/octet-stream";
         }
     }
-
-    private boolean isValidFileType(String contentType) {
-        if (contentType == null) return false;
-        return contentType.equals("application/pdf") ||
-                contentType.equals("image/jpeg") ||
-                contentType.equals("image/jpg") ||
-                contentType.equals("image/png") ||
-                contentType.equals("application/msword") ||
-                contentType.equals("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-    }
-
-    @DeleteMapping("/{noteId}")
-    public ResponseEntity<?> deleteNote(
-            @PathVariable Long noteId,
-            @RequestParam String employeeId) {
-        try {
-            expenseService.deleteNote(noteId, employeeId);
-            return ResponseEntity.ok(Map.of("message", "Note supprimée avec succès"));
-        } catch (IllegalStateException e) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", e.getMessage()));
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", e.getMessage()));
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("message", "Erreur lors de la suppression"));
-        }
-    }
-
-    @PutMapping(value = "/{noteId}/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<?> updateExpense(
-            @PathVariable Long noteId,
-            @RequestParam String employeeId,
-            @RequestPart("note") String noteJson,
-            @RequestPart("lines") String linesJson,
-            @RequestPart(value = "accordFile", required = false) MultipartFile accordFile,
-            @RequestParam Map<String, MultipartFile> allFiles
-    ) {
-        try {
-            ExpenseNote updatedNote = objectMapper.readValue(noteJson, ExpenseNote.class);
-            List<ExpenseLine> updatedLines = objectMapper.readValue(
-                    linesJson,
-                    objectMapper.getTypeFactory().constructCollectionType(List.class, ExpenseLine.class)
-            );
-
-            // Reconstituer la liste des factures dans l'ordre
-            List<MultipartFile> factureFiles = new ArrayList<>();
-            for (int i = 0; i < updatedLines.size(); i++) {
-                MultipartFile file = allFiles.get("factureFile_" + i);
-                factureFiles.add(file); // peut être null
-            }
-
-            ExpenseNote result = expenseService.updateExpenseNoteWithFiles(
-                    noteId, employeeId, updatedNote, updatedLines, accordFile, factureFiles
-            );
-
-            return ResponseEntity.ok(result);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
-        } catch (IllegalStateException e) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", e.getMessage()));
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("message", e.getMessage()));
-        }
-    }
-
-    @GetMapping("/{noteId}")
-    public ResponseEntity<ExpenseNote> getNoteById(@PathVariable Long noteId) {
-        return ResponseEntity.ok(expenseService.getNoteWithLines(noteId));
-    }
-
-
-    // ✅ NOUVEAU : Récupère les notes pour un département spécifique
-    @GetMapping("/department/{departmentId}")
-    public ResponseEntity<List<Map<String, Object>>> getNotesByDepartment(
-            @PathVariable Long departmentId) {
-
-        try {
-            List<ExpenseNote> notes = expenseService.getNotesByDepartment(departmentId);
-
-            List<Map<String, Object>> response = notes.stream().map(note -> {
-                Map<String, Object> map = new HashMap<>();
-                map.put("id", note.getId());
-                map.put("employeeId", note.getEmployeeId());
-                map.put("projectId", note.getProjectId());
-                map.put("createdAt", note.getCreatedAt());
-                map.put("totalAmount", note.getTotalAmount());
-                map.put("status", note.getStatus());
-                map.put("accordPath", note.getAccordPath());
-                map.put("managerComment", note.getManagerComment());
-
-                projectService.getProjectById(note.getProjectId())
-                        .ifPresentOrElse(
-                                project -> map.put("projectName", project.getName()),
-                                () -> map.put("projectName", "Projet inconnu")
-                        );
-
-                return map;
-            }).collect(Collectors.toList());
-
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.internalServerError().build();
-        }
-    }
-
-
 }
