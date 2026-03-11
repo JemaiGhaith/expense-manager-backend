@@ -21,7 +21,7 @@ public class ExpenseNote {
     private Long id;
 
     @Column(name = "employee_id")
-    private String employeeId; // L'employé qui crée la note (Keycloak ID)
+    private String employeeId;
 
     @Column(name = "project_id")
     private Long projectId;
@@ -32,8 +32,18 @@ public class ExpenseNote {
     @Column(name = "total_amount")
     private Double totalAmount = 0.0;
 
-    @Column(name = "manager_comment")
-    private String managerComment;
+    // ✅ NOUVEAU : Commentaire unique (manager OU admin)
+    @Column(name = "decision_comment")
+    private String decisionComment;
+
+    // ✅ NOUVEAU : Qui a pris la décision (ex: "M:Jean" ou "Admin")
+    @Column(name = "decided_by")
+    private String decidedBy;
+
+    // ✅ NOUVEAU : Date de la décision
+    @Column(name = "decided_at")
+    private LocalDateTime decidedAt;
+    private String managerId;  // ✅ NOUVEAU CHAMP
 
     @Column(name = "created_at")
     private LocalDateTime createdAt = LocalDateTime.now();
@@ -41,7 +51,6 @@ public class ExpenseNote {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    // ✅ NOUVEAU : Justificatif d'accord pour la note de frais
     @Column(name = "accord_path")
     private String accordPath;
 }
