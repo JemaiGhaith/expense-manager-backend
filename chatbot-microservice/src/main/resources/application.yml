@@ -1,0 +1,234 @@
+server:
+  port: 8085
+  servlet:
+    context-path: /api/chatbot
+  tomcat:
+    max-threads: 200
+    connection-timeout: 5000
+
+spring:
+  application:
+    name: chatbot-microservice
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/expense_app
+    username: postgres
+    password: 112004
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: false
+        jdbc:
+          batch_size: 20
+        default_batch_fetch_size: 100
+
+  ai:
+    ollama:
+      base-url: http://localhost:11434
+      chat:
+        model: llama3.1:8b-instruct-q4_0
+        options:
+          temperature: 0.3
+          top-k: 40
+          top-p: 0.9
+          num-predict: 2048
+          stop:
+            - "User:"
+            - "Human:"
+            - "<end_of_turn>"
+    vectorstore:
+      simple:
+        enabled: true
+        initialize-schema: always
+        similarity-top-k: 5
+
+  # Cache configuration pour améliorer les performances
+  cache:
+    type: caffeine
+    caffeine:
+      spec: maximumSize=500, expireAfterWrite=10m
+
+# Microservices URLs via Gateway
+expense:
+  service:
+    url: http://localhost:8888
+    timeout: 5000
+    max-retries: 3
+
+user:
+  service:
+    url: http://localhost:8888/api/users
+    timeout: 5000
+    max-retries: 3
+
+project:
+  service:
+    url: http://localhost:8888/api/projects
+    timeout: 5000
+    max-retries: 3
+
+department:
+  service:
+    url: http://localhost:8888/api/departments
+    timeout: 5000
+    max-retries: 3
+
+gateway:
+  service:
+    url: http://localhost:8888
+    paths:
+      expenses: /api/expenses
+      categories: /api/categories
+      projects: /api/projects
+      users: /api/users
+      departments: /api/departments
+
+# ===== CHATBOT HYBRIDE CONFIGURATION =====
+chatbot:
+  # Simple chatbot (rule-based)
+  simple:
+    enabled: true
+    cache-size: 100
+    cache-ttl: 300  # secondes
+
+  # Smart chatbot (IA)
+  smart:
+    enabled: true
+    fallback-to-simple: true
+    min-confidence: 0.6
+    use-database: true
+    max-response-length: 1000
+    enable-personalization: true
+    context-window: 4096
+
+  # HYBRID CHATBOT (fusion des deux)
+  hybrid:
+    enabled: true
+    simple-confidence-threshold: 0.6
+    fallback-to-smart: true
+    enable-access-control: true
+    cache-responses: true
+    response-cache-size: 200
+    response-cache-ttl: 600  # secondes
+
+  # WebSocket
+  websocket:
+    enabled: true
+    endpoint: /ws-chatbot
+    allowed-origins:
+      - http://localhost:4200
+      - http://localhost:3000
+      - http://localhost:8080
+
+  # Access Control (Keycloak)
+  access-control:
+    enabled: true
+    strict-mode: true
+    cache-user-info: true
+    user-info-cache-size: 500
+    user-info-cache-ttl: 300  # secondes
+    cache-project-info: true
+    project-info-cache-size: 200
+    project-info-cache-ttl: 600  # secondes
+
+  # Intent Classification
+  intent:
+    simple-confidence-threshold: 0.7
+    complex-keywords: "pourquoi,analyse,compare,simulation,prévision,explique"
+    enable-ml-classifier: false
+
+  # Feedback
+  feedback:
+    enabled: true
+    storage: file  # or database
+    file-path: ./feedback
+
+# Keycloak Configuration (si nécessaire)
+keycloak:
+  auth-server-url: http://localhost:8090
+  realm: coral-io_realm
+  resource: chatbot-client
+  public-client: true
+
+# Logging configuration
+logging:
+  level:
+    com.coralio.chatbot: DEBUG
+    com.coralio.chatbotmicroservice.service.access: DEBUG
+    com.coralio.chatbotmicroservice.service.hybrid: DEBUG
+    org.springframework.ai: INFO
+    org.springframework.web: INFO
+    org.springframework.web.client: DEBUG
+    org.hibernate.SQL: WARN
+    org.keycloak: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
+  file:
+    name: ./logs/chatbot.log
+    max-size: 10MB
+    max-history: 10
+    total-size-cap: 100MB
+
+# Management endpoints
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,env,configprops
+      base-path: /manage
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+    metrics:
+      enabled: true
+    env:
+      enabled: false  # Désactivé pour la sécurité
+  metrics:
+    export:
+      simple:
+        enabled: true
+
+# Circuit Breaker pour les appels aux microservices
+resilience4j:
+  circuitbreaker:
+    instances:
+      expenseService:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        waitDurationInOpenState: 10s
+        failureRateThreshold: 50
+      userService:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        waitDurationInOpenState: 10s
+  timelimiter:
+    instances:
+      expenseService:
+        timeoutDuration: 5s
+      userService:
+        timeoutDuration: 5s
+  retry:
+    instances:
+      expenseService:
+        maxRetryAttempts: 3
+        waitDuration: 500ms
+        retryExceptions:
+          - org.springframework.web.client.HttpServerErrorException
+          - java.io.IOException
