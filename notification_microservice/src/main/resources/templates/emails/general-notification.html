@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>General Notification</title>
+</head>
+<body>
+<div th:replace="~{emails/base :: container}">
+    <div th:fragment="content">
+        <p>Bonjour,</p>
+
+        <p th:text="${notification.message}">Votre message de notification</p>
+
+        <div th:if="${notification.data}" class="info-box">
+            <strong>Informations complémentaires :</strong>
+            <ul style="margin: 10px 0 0 20px;">
+                <li th:each="entry : ${notification.data}" th:if="${entry.key != 'firstName'}">
+                    <strong th:text="${entry.key} + ' :'"></strong>
+                    <span th:text="${entry.value}"></span>
+                </li>
+            </ul>
+        </div>
+    </div>
+</div>
+</body>
+</html>

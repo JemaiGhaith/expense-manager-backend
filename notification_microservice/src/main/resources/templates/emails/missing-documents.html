@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Missing Documents</title>
+</head>
+<body>
+<div th:replace="~{emails/base :: container}">
+    <div th:fragment="content">
+        <p>Bonjour <strong th:text="${notification.data.firstName}">Utilisateur</strong>,</p>
+
+        <div class="warning-box">
+            <strong>⚠️ Action requise : Documents manquants</strong>
+            <p style="margin: 10px 0 0 0;">Votre note de frais nécessite des justificatifs supplémentaires.</p>
+            <p><strong>Date limite :</strong> <span th:text="${notification.data.deadline}">48 heures</span></p>
+        </div>
+
+        <div class="expense-details">
+            <h3 style="margin-top: 0;">📋 Note concernée</h3>
+            <table>
+                <tr>
+                    <td>Référence :</td>
+                    <td><strong th:text="${notification.data.expenseReference}">EXP-2024-001</strong></td>
+                </tr>
+                <tr>
+                    <td>Montant :</td>
+                    <td><strong th:text="${notification.data.amount} + ' €'">250.00 €</strong></td>
+                </tr>
+                <tr>
+                    <td>Documents manquants :</td>
+                    <td th:text="${notification.data.missingDocuments}">Facture, Reçu</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="info-box">
+            <strong>📌 Instructions :</strong>
+            <ul style="margin: 10px 0 0 20px;">
+                <li>Téléchargez les justificatifs requis</li>
+                <li>Assurez-vous que les documents sont lisibles</li>
+                <li>Les formats acceptés : PDF, JPG, PNG (max 10MB)</li>
+            </ul>
+        </div>
+
+        <p><strong>Important :</strong> Sans ces documents, votre note ne pourra pas être traitée et sera rejetée.</p>
+    </div>
+</div>
+</body>
+</html>

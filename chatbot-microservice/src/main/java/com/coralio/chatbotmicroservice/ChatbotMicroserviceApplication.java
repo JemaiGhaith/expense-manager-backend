@@ -3,6 +3,7 @@ package com.coralio.chatbotmicroservice;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
@@ -12,6 +13,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EntityScan(basePackages = "com.coralio.chatbotmicroservice.entity")
 @EnableAsync
 @EnableScheduling
+@EnableDiscoveryClient  // ADD THIS ANNOTATION
 public class ChatbotMicroserviceApplication {
 
     public static void main(String[] args) {
@@ -23,13 +25,13 @@ public class ChatbotMicroserviceApplication {
             ║                                                          ║
             ║   🚀 Coral.io Smart Chatbot Microservice                ║
             ║   🔥 Model: llama3.1:8b-instruct-q4_0                                 ║
-            ║   📍 Port: 8085                                          ║
+            ║   📍 Port: 8086                                          ║
             ║   📊 Status: RUNNING                                     ║
             ║                                                          ║
             ╚══════════════════════════════════════════════════════════╝
             """);
 
-        System.out.println("📝 API available at: http://localhost:8085/api/chatbot");
-        System.out.println("💬 WebSocket available at: ws://localhost:8085/api/chatbot/ws-chatbot");
+        System.out.println("📝 API available at: http://localhost:8086/api/chatbot");
+        System.out.println("💬 WebSocket available at: ws://localhost:8086/api/chatbot/ws-chatbot");
     }
 }

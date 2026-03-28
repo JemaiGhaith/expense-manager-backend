@@ -1,5 +1,5 @@
 server:
-  port: 8085
+  port: 8086
   servlet:
     context-path: /api/chatbot
   tomcat:
@@ -9,6 +9,14 @@ server:
 spring:
   application:
     name: chatbot-microservice
+
+  # Disable security at application level (will be handled by gateway)
+  security:
+    enabled: false
+
+  # Config server import (optional)
+  config:
+    import: optional:configserver:${CONFIG_SERVICE_URL:http://localhost:9999}
 
   datasource:
     url: jdbc:postgresql://localhost:5432/expense_app
@@ -24,7 +32,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update
     show-sql: false
     properties:
       hibernate:
@@ -34,6 +42,18 @@ spring:
           batch_size: 20
         default_batch_fetch_size: 100
 
+  # Cloud configuration
+  cloud:
+    config:
+      enabled: true
+    discovery:
+      enabled: true
+
+  sql:
+    init:
+      mode: never
+
+  # AI Configuration - NO TIMEOUTS FOR OLLAMA
   ai:
     ollama:
       base-url: http://localhost:11434
@@ -48,43 +68,34 @@ spring:
             - "User:"
             - "Human:"
             - "<end_of_turn>"
+      # ✅ NO TIMEOUTS - set to -1 for infinite
+      connection-timeout: -1
+      read-timeout: -1
     vectorstore:
       simple:
         enabled: true
         initialize-schema: always
         similarity-top-k: 5
 
-  # Cache configuration pour améliorer les performances
+  # Cache configuration
   cache:
     type: caffeine
     caffeine:
       spec: maximumSize=500, expireAfterWrite=10m
 
-# Microservices URLs via Gateway
-expense:
-  service:
-    url: http://localhost:8888
-    timeout: 5000
-    max-retries: 3
+# EUREKA CONFIGURATION
+eureka:
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true
+    hostname: localhost
+    instance-id: ${spring.application.name}:${spring.application.instance_id:${random.value}}
 
-user:
-  service:
-    url: http://localhost:8888/api/users
-    timeout: 5000
-    max-retries: 3
-
-project:
-  service:
-    url: http://localhost:8888/api/projects
-    timeout: 5000
-    max-retries: 3
-
-department:
-  service:
-    url: http://localhost:8888/api/departments
-    timeout: 5000
-    max-retries: 3
-
+# Service URLs via Gateway
 gateway:
   service:
     url: http://localhost:8888
@@ -95,15 +106,45 @@ gateway:
       users: /api/users
       departments: /api/departments
 
+# Microservice URLs
+expense:
+  service:
+    url: http://localhost:8888
+    timeout: 5000
+    max-retries: 3
+
+user:
+  service:
+    url: http://localhost:8888
+    timeout: 5000
+    max-retries: 3
+
+project:
+  service:
+    url: http://localhost:8888
+    timeout: 5000
+    max-retries: 3
+
+department:
+  service:
+    url: http://localhost:8888
+    timeout: 5000
+    max-retries: 3
+
 # ===== CHATBOT HYBRIDE CONFIGURATION =====
 chatbot:
-  # Simple chatbot (rule-based)
+  # Session Configuration
+  session:
+    timeout-minutes: 30
+    cleanup-cron: "0 0/10 * * * ?"
+    max-active-sessions-per-user: 5
+    enable-persistence: true
+
   simple:
     enabled: true
     cache-size: 100
-    cache-ttl: 300  # secondes
+    cache-ttl: 300
 
-  # Smart chatbot (IA)
   smart:
     enabled: true
     fallback-to-simple: true
@@ -112,8 +153,9 @@ chatbot:
     max-response-length: 1000
     enable-personalization: true
     context-window: 4096
+    # ✅ NO TIMEOUT - set to -1 for infinite
+    timeout: -1
 
-  # HYBRID CHATBOT (fusion des deux)
   hybrid:
     enabled: true
     simple-confidence-threshold: 0.6
@@ -121,9 +163,8 @@ chatbot:
     enable-access-control: true
     cache-responses: true
     response-cache-size: 200
-    response-cache-ttl: 600  # secondes
+    response-cache-ttl: 600
 
-  # WebSocket
   websocket:
     enabled: true
     endpoint: /ws-chatbot
@@ -132,30 +173,27 @@ chatbot:
       - http://localhost:3000
       - http://localhost:8080
 
-  # Access Control (Keycloak)
   access-control:
     enabled: true
     strict-mode: true
     cache-user-info: true
     user-info-cache-size: 500
-    user-info-cache-ttl: 300  # secondes
+    user-info-cache-ttl: 300
     cache-project-info: true
     project-info-cache-size: 200
-    project-info-cache-ttl: 600  # secondes
+    project-info-cache-ttl: 600
 
-  # Intent Classification
   intent:
     simple-confidence-threshold: 0.7
     complex-keywords: "pourquoi,analyse,compare,simulation,prévision,explique"
     enable-ml-classifier: false
 
-  # Feedback
   feedback:
     enabled: true
-    storage: file  # or database
+    storage: file
     file-path: ./feedback
 
-# Keycloak Configuration (si nécessaire)
+# Keycloak Configuration
 keycloak:
   auth-server-url: http://localhost:8090
   realm: coral-io_realm
@@ -166,13 +204,13 @@ keycloak:
 logging:
   level:
     com.coralio.chatbot: DEBUG
-    com.coralio.chatbotmicroservice.service.access: DEBUG
-    com.coralio.chatbotmicroservice.service.hybrid: DEBUG
-    org.springframework.ai: INFO
+    com.coralio.chatbotmicroservice.service.ChatSessionService: DEBUG
+    com.netflix.discovery: DEBUG
+    com.netflix.eureka: DEBUG
+    org.springframework.cloud.netflix.eureka: DEBUG
+    org.springframework.cloud: DEBUG
     org.springframework.web: INFO
-    org.springframework.web.client: DEBUG
     org.hibernate.SQL: WARN
-    org.keycloak: INFO
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
@@ -187,7 +225,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,env,configprops
+        include: '*'
       base-path: /manage
   endpoint:
     health:
@@ -196,13 +234,14 @@ management:
     metrics:
       enabled: true
     env:
-      enabled: false  # Désactivé pour la sécurité
-  metrics:
-    export:
-      simple:
-        enabled: true
+      enabled: false
+    sessions:
+      enabled: true
 
-# Circuit Breaker pour les appels aux microservices
+build:
+  version: 1.0
+
+# Resilience4j Configuration - NO TIMEOUT FOR AI
 resilience4j:
   circuitbreaker:
     instances:
@@ -218,17 +257,40 @@ resilience4j:
         slidingWindowSize: 10
         minimumNumberOfCalls: 5
         waitDurationInOpenState: 10s
+      # ✅ AI Circuit Breaker - no timeout
+      aiService:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 3
+        permittedNumberOfCallsInHalfOpenState: 5
+        waitDurationInOpenState: 30s
+        failureRateThreshold: 80
   timelimiter:
     instances:
       expenseService:
         timeoutDuration: 5s
       userService:
         timeoutDuration: 5s
+      # ✅ NO TIMEOUT for AI - set to very high value (1 day)
+      aiService:
+        timeoutDuration: 86400s  # 24 hours - effectively infinite
   retry:
     instances:
       expenseService:
-        maxRetryAttempts: 3
+        maxAttempts: 3
         waitDuration: 500ms
         retryExceptions:
           - org.springframework.web.client.HttpServerErrorException
           - java.io.IOException
+      userService:
+        maxAttempts: 3
+        waitDuration: 500ms
+        retryExceptions:
+          - org.springframework.web.client.HttpServerErrorException
+          - java.io.IOException
+      # ✅ AI - no retry, just let it run
+      aiService:
+        maxAttempts: 1
+        waitDuration: 1ms
+        retryExceptions:
+          - java.lang.Exception

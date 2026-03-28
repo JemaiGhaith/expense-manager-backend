@@ -18,6 +18,7 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -46,10 +47,17 @@ public class SmartChatbotService {
     private ExpenseNoteRepository expenseNoteRepository;
 
     @Autowired
+    @Lazy  // ✅ AJOUTER CETTE ANNOTATION
     private ChatbotService simpleChatbotService;
 
     @Autowired
     private RulesDataService staticRulesService;
+    // ✅ AJOUTER CES INJECTIONS
+    @Autowired
+    private ResponseFormatter responseFormatter;
+
+    @Autowired
+    private PromptTemplates promptTemplates;
 
     @Value("${chatbot.smart.fallback-to-simple:true}")
     private boolean fallbackToSimple;
@@ -120,8 +128,15 @@ public class SmartChatbotService {
                     .collect(Collectors.joining("\n\n"));
 
             // 5. Build prompt
-            String systemPrompt = buildSystemPrompt(databaseContext, userContext, noteDetails, vectorContext);
-            log.debug("📝 PROMPT:\n{}", systemPrompt);
+// 5. Build prompt - Utiliser PromptTemplates
+            String systemPrompt = PromptTemplates.buildPrompt(
+                    request.getQuestion(),
+                    databaseContext,
+                    userContext,
+                    vectorContext,
+                    detectIntentFromContext(noteId, request.getQuestion()),
+                    request.getUserRole()
+            );            log.debug("📝 PROMPT:\n{}", systemPrompt);
 
             // 6. LLM call
             List<Message> messages = List.of(
@@ -137,19 +152,26 @@ public class SmartChatbotService {
                 answer = forceCorrectAnswerForNoteQuestion(answer, request.getQuestion(), noteDetails, noteId);
             }
 
-            // 8. Generate quick replies
+            // ✅ 8. FORMATER LA RÉPONSE AVEC RESPONSE FORMATTER
+            String formattedAnswer = responseFormatter.formatResponse(
+                    answer,
+                    detectIntentFromContext(noteId, request.getQuestion()),
+                    request.getUserRole()
+            );
+
+            // 9. Generate quick replies
             List<QuickReply> quickReplies = generateQuickReplies(request);
 
             long duration = System.currentTimeMillis() - startTime;
 
-            // 9. Build response
+            // 10. Build response with formatted answer
             return ChatResponse.builder()
-                    .answer(answer)
+                    .answer(formattedAnswer)  // ✅ UTILISER LA RÉPONSE FORMATÉE
                     .sessionId(request.getSessionId())
                     .timestamp(LocalDateTime.now())
                     .quickReplies(quickReplies)
-                    .requiresAction(detectAction(answer))
-                    .actionType(extractAction(answer))
+                    .requiresAction(detectAction(formattedAnswer))
+                    .actionType(extractAction(formattedAnswer))
                     .responseType("smart")
                     .processingTimeMs(duration)
                     .build();
@@ -172,15 +194,43 @@ public class SmartChatbotService {
                         .build();
             }
 
+            String errorResponse = responseFormatter.formatErrorResponse(e.getMessage(), request.getUserRole());
+
             if (fallbackToSimple) {
-                log.info("⚠️ Falling back to simple chatbot");
                 return simpleChatbotService.processQuestion(request);
             }
 
-            return buildErrorResponse(request, System.currentTimeMillis() - startTime);
+            return ChatResponse.builder()
+                    .answer(errorResponse)
+                    .sessionId(request.getSessionId())
+                    .timestamp(LocalDateTime.now())
+                    .responseType("error")
+                    .processingTimeMs(System.currentTimeMillis() - startTime)
+                    .build();
         }
     }
-
+    /**
+     * ✅ AJOUTER CETTE MÉTHODE POUR DÉTECTER L'INTENTION
+     */
+    private String detectIntentFromContext(Long noteId, String question) {
+        String lowerQuestion = question.toLowerCase();
+        if (noteId != null) {
+            return "NOTE_DETAILS";
+        }
+        if (lowerQuestion.contains("plafond")) {
+            return "CATEGORY_PLAFOND";
+        }
+        if (lowerQuestion.contains("règle") || lowerQuestion.contains("règles")) {
+            return "VALIDATION_RULES";
+        }
+        if (lowerQuestion.contains("créer") || lowerQuestion.contains("ajouter")) {
+            return "CREATE_NOTE";
+        }
+        if (lowerQuestion.contains("mes notes")) {
+            return "VIEW_NOTES";
+        }
+        return "HELP";
+    }
     /**
      * POST-PROCESSING: Force correct answer for note questions
      */

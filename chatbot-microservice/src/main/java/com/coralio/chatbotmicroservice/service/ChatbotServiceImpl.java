@@ -2,14 +2,19 @@ package com.coralio.chatbotmicroservice.service;
 
 import com.coralio.chatbotmicroservice.config.RulesConfig;
 import com.coralio.chatbotmicroservice.dto.*;
+import com.coralio.chatbotmicroservice.entity.Category;
+import com.coralio.chatbotmicroservice.entity.CategoryField;
 import com.coralio.chatbotmicroservice.entity.ExpenseLine;
+import com.coralio.chatbotmicroservice.entity.ExpenseNote;
 import com.coralio.chatbotmicroservice.model.*;
 import com.coralio.chatbotmicroservice.model.Currency;
 import com.coralio.chatbotmicroservice.repository.CategoryRepository;
+import com.coralio.chatbotmicroservice.repository.ExpenseNoteRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -26,6 +31,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -38,11 +44,15 @@ public class ChatbotServiceImpl implements ChatbotService {
 
     @Autowired
     private ExpenseApiService expenseApiService;
+    @Autowired
+    private ExpenseNoteRepository expenseNoteRepository;
 
     @Autowired
     private RestTemplate restTemplate;
     @Autowired
     private CategoryRepository categoryRepository;
+    @Autowired
+    private ResponseFormatter responseFormatter;
     private static final String PROJECT_SERVICE_URL = "http://localhost:8888/api/projects";
     private static final String USER_SERVICE_URL = "http://localhost:8888/api/users";
 
@@ -69,46 +79,207 @@ public class ChatbotServiceImpl implements ChatbotService {
             Map.entry("CURRENCY", Pattern.compile("(?i).*(devise|currency|conversion|tnd|euro|dollar).*"))
     );
 
+    @Autowired
+    @Lazy  // ✅ AJOUTER CETTE ANNOTATION
+    private SmartChatbotService smartChatbotService;
     @Override
     public ChatResponse processQuestion(ChatRequest request) {
         log.info("Processing question from user {}: {}", request.getUserId(), request.getQuestion());
 
-        String intent = detectIntent(request.getQuestion());
+        // ✅ Passer le rôle à detectIntent
+        String intent = detectIntent(request.getQuestion(), request.getUserRole());
         log.info("Detected intent: {}", intent);
 
         return processIntent(intent, request);
     }
 
-    private String detectIntent(String question) {
+    private String detectIntent(String question, String userRole) {
         String lowerQuestion = question.toLowerCase();
+        // ✅ PRIORITÉ 0: Détection pour les notes filtrées par statut (MUST COME FIRST!)
+        String[] statusKeywords = {"en attente", "validées", "validée", "refusées", "refusée", "remboursées", "remboursée"};
+        String detectedStatus = null;
 
-        // 1. ✅ Détection des questions sur les détails d'une note
-        if ((lowerQuestion.contains("détail") || lowerQuestion.contains("details") ||
-                lowerQuestion.contains("info")) &&
-                (lowerQuestion.contains("note") || lowerQuestion.contains("#") ||
-                        lowerQuestion.matches(".*\\d+.*"))) {
-            log.info("📊 Intent NOTE_DETAILS détecté via mots-clés");
+        for (String keyword : statusKeywords) {
+            if (lowerQuestion.contains("mes notes " + keyword) ||
+                    lowerQuestion.contains("notes " + keyword) ||
+                    (lowerQuestion.contains(keyword) && lowerQuestion.contains("notes"))) {
+                detectedStatus = keyword;
+                break;
+            }
+        }
+
+        if (detectedStatus != null) {
+            // Map French status to enum
+            String status = switch (detectedStatus) {
+                case "en attente" -> "EN_ATTENTE";
+                case "validées", "validée" -> "VALIDEE";
+                case "refusées", "refusée" -> "REFUSEE";
+                case "remboursées", "remboursée" -> "REMBOURSEE";
+                default -> null;
+            };
+
+            if (status != null) {
+                log.info("📊 Intent FILTER_NOTES_BY_STATUS détecté pour {}: {}",
+                        "MANAGER".equalsIgnoreCase(userRole) ? "manager" : "employé", status);
+                return "FILTER_NOTES_BY_STATUS";
+            }
+        }
+        // ✅ PRIORITÉ 0.1: Détection pour les questions simples de note (sans "détail")
+        // Exemples: "donner la note 92", "afficher note 92", "note 92", "donner note 92"
+        if ((lowerQuestion.contains("donner") || lowerQuestion.contains("afficher") ||
+                lowerQuestion.contains("voir") || lowerQuestion.contains("lister") ||
+                lowerQuestion.equals("note") || lowerQuestion.matches("note\\s+\\d+")) &&
+                lowerQuestion.matches(".*\\d+.*") &&
+                !lowerQuestion.contains("statut") && !lowerQuestion.contains("status")) {
+            log.info("📊 Intent NOTE_DETAILS détecté pour une note spécifique (commande simple)");
             return "NOTE_DETAILS";
         }
 
-        // 2. ✅ Détection spécifique pour les managers
-        if (lowerQuestion.contains("notes en attente") ||
-                lowerQuestion.contains("en attente de validation") ||
-                lowerQuestion.contains("notes à valider") ||
-                (lowerQuestion.contains("en attente") && lowerQuestion.contains("note"))) {
-            log.info("📊 Intent MANAGER_ACTIONS détecté via mots-clés: notes en attente");
-            return "MANAGER_ACTIONS";
+        // ✅ PRIORITÉ 1: Détection des questions sur les détails d'une note spécifique
+        if ((lowerQuestion.contains("détail") || lowerQuestion.contains("details") ||
+                lowerQuestion.contains("afficher") || lowerQuestion.contains("lister") ||
+                lowerQuestion.contains("donner") || lowerQuestion.contains("info")) &&
+                lowerQuestion.contains("note") &&
+                lowerQuestion.matches(".*\\d+.*")) {
+            log.info("📊 Intent NOTE_DETAILS détecté pour une note spécifique");
+            return "NOTE_DETAILS";
         }
 
-        // 3. Détection pour "toutes les notes" (manager)
+        // ✅ PRIORITÉ 2: Détection pour "mes notes" (SANS numéro)
+        if (lowerQuestion.contains("mes notes") && !lowerQuestion.matches(".*\\d+.*")) {
+            if ("MANAGER".equalsIgnoreCase(userRole) || "ADMIN".equalsIgnoreCase(userRole)) {
+                log.info("📊 Intent MANAGER_ACTIONS détecté: mes notes (manager) → toutes les notes du département");
+                return "MANAGER_ACTIONS";
+            } else {
+                log.info("📊 Intent VIEW_NOTES détecté: mes notes (employé)");
+                return "VIEW_NOTES";
+            }
+        }
+        // ✅ PRIORITÉ 3: Détection pour "toutes les notes du département"
         if (lowerQuestion.contains("toutes les notes") ||
-                lowerQuestion.contains("mes notes") ||
-                (lowerQuestion.contains("notes") && lowerQuestion.contains("département"))) {
+                lowerQuestion.contains("notes du département")) {
             log.info("📊 Intent MANAGER_ACTIONS détecté: toutes les notes du département");
             return "MANAGER_ACTIONS";
         }
 
-        // 4. Vérifier les patterns simples
+        // ✅ PRIORITÉ 4: Détection pour "notes en attente" (manager)
+        if (lowerQuestion.contains("notes en attente") ||
+                lowerQuestion.contains("en attente de validation") ||
+                lowerQuestion.contains("notes à valider")) {
+            log.info("📊 Intent MANAGER_ACTIONS détecté: notes en attente");
+            return "MANAGER_ACTIONS";
+        }
+
+        // ✅ BUG 1: Détection pour "plafond" seul
+        if (lowerQuestion.equals("plafond") || lowerQuestion.equals("plafonds")) {
+            log.info("📊 Intent CATEGORY_PLAFOND_ALL détecté (tous les plafonds)");
+            return "CATEGORY_PLAFOND_ALL";
+        }
+
+        // ✅ BUG 2: Détection pour les questions de vérification/conformité (COMPLEX)
+        if ((lowerQuestion.contains("vérifie") || lowerQuestion.contains("verifie") ||
+                lowerQuestion.contains("respecte") || lowerQuestion.contains("conformité")) &&
+                lowerQuestion.contains("note") && lowerQuestion.matches(".*\\d+.*")) {
+            log.info("📊 Intent COMPLEXE - ANALYSE_NOTE détecté");
+            return "ANALYSE_NOTE";
+        }
+
+        // ✅ BUG 3: Détection pour les questions de comparaison (COMPLEX)
+        if (lowerQuestion.contains("compare") || lowerQuestion.contains("comparer") ||
+                lowerQuestion.contains("différence") || lowerQuestion.contains("versus") ||
+                lowerQuestion.contains("vs") || (lowerQuestion.contains("janvier") && lowerQuestion.contains("février")) ||
+                (lowerQuestion.contains("mois") && lowerQuestion.contains("comparer"))) {
+            log.info("📊 Intent COMPLEXE - COMPARAISON_NOTES détecté");
+            return "COMPARAISON_NOTES";
+        }
+
+        // ✅ PRIORITÉ 5: Détection spécifique pour "plafond restauration" et autres catégories
+        if ((lowerQuestion.contains("plafond") || lowerQuestion.contains("montant max") || lowerQuestion.contains("limite")) &&
+                (lowerQuestion.contains("restauration") ||
+                        lowerQuestion.contains("hébergement") ||
+                        lowerQuestion.contains("hebergement") ||
+                        lowerQuestion.contains("transport") ||
+                        lowerQuestion.contains("carburant") ||
+                        lowerQuestion.contains("repas") ||
+                        lowerQuestion.contains("hôtel") ||
+                        lowerQuestion.contains("hotel"))) {
+            log.info("📊 Intent CATEGORY_PLAFOND spécifique détecté");
+            return "CATEGORY_PLAFOND";
+        }
+
+        // ✅ PRIORITÉ 6: Détection spécifique pour "devise" et "conversion"
+        if (lowerQuestion.contains("devise") || lowerQuestion.contains("conversion") ||
+                lowerQuestion.contains("euro") || lowerQuestion.contains("dollar") ||
+                lowerQuestion.contains("usd") || lowerQuestion.contains("eur")) {
+            log.info("📊 Intent CURRENCY détecté");
+            return "CURRENCY";
+        }
+
+        // ✅ PRIORITÉ 7: Détection pour le statut d'une note
+        if ((lowerQuestion.contains("statut") || lowerQuestion.contains("status") ||
+                lowerQuestion.contains("où en est") || lowerQuestion.contains("avancement")) &&
+                (lowerQuestion.contains("note") || lowerQuestion.matches(".*#?\\d+.*"))) {
+            log.info("📊 Intent NOTE_STATUS détecté");
+            return "NOTE_STATUS";
+        }
+
+        // ✅ PRIORITÉ 8: Détection pour le total des dépenses
+        if (lowerQuestion.contains("total") &&
+                (lowerQuestion.contains("dépense") || lowerQuestion.contains("frais") ||
+                        lowerQuestion.contains("remboursement"))) {
+            log.info("📊 Intent TOTAL_AMOUNT détecté");
+            return "TOTAL_AMOUNT";
+        }
+
+        // ✅ PRIORITÉ 9: Détection spécifique pour les justificatifs
+        if (lowerQuestion.contains("justificatif") || lowerQuestion.contains("format") ||
+                lowerQuestion.contains("taille") || lowerQuestion.contains("pdf") ||
+                lowerQuestion.contains("jpg") || lowerQuestion.contains("png")) {
+            log.info("📊 Intent VALIDATION_RULES détecté (justificatifs)");
+            return "VALIDATION_RULES";
+        }
+
+        // ✅ PRIORITÉ 10: Détection spécifique pour le workflow
+        if (lowerQuestion.contains("workflow") || lowerQuestion.contains("validation") ||
+                lowerQuestion.contains("étapes") || lowerQuestion.contains("processus")) {
+            log.info("📊 Intent WORKFLOW détecté");
+            return "WORKFLOW";
+        }
+
+        // ✅ PRIORITÉ 11: Détection spécifique pour les alertes
+        if (lowerQuestion.contains("alerte") || lowerQuestion.contains("alertes") ||
+                lowerQuestion.contains("facture en double") ||
+                lowerQuestion.contains("dépassement plafond") ||
+                lowerQuestion.contains("justificatif illisible") ||
+                lowerQuestion.contains("date incohérente")) {
+            log.info("📊 Intent ALERT_RULES détecté");
+            return "ALERT_RULES";
+        }
+
+        // ✅ PRIORITÉ 12: Détection spécifique pour les jours fériés
+        if (lowerQuestion.contains("jour férié") || lowerQuestion.contains("jours fériés") ||
+                lowerQuestion.contains("ferié") || lowerQuestion.contains("week-end") ||
+                lowerQuestion.contains("samedi") || lowerQuestion.contains("dimanche")) {
+            log.info("📊 Intent HOLIDAY_RULES détecté");
+            return "HOLIDAY_RULES";
+        }
+
+        // ✅ PRIORITÉ 13: Détection spécifique pour la FAQ
+        if (lowerQuestion.contains("faq") || lowerQuestion.contains("question fréquente") ||
+                (lowerQuestion.contains("remboursement") && lowerQuestion.contains("partiel"))) {
+            log.info("📊 Intent FAQ détecté");
+            return "FAQ";
+        }
+
+        // ✅ PRIORITÉ 14: Détection spécifique pour les règles de remboursement
+        if ((lowerQuestion.contains("règle") || lowerQuestion.contains("règles") ||
+                lowerQuestion.contains("regle") || lowerQuestion.contains("regles")) &&
+                lowerQuestion.contains("remboursement")) {
+            log.info("📊 Intent VALIDATION_RULES détecté (règles de remboursement)");
+            return "VALIDATION_RULES";
+        }
+
+        // ✅ PRIORITÉ 15: Vérifier les patterns simples
         for (Map.Entry<String, Pattern> entry : IntentClassifierService.SIMPLE_PATTERNS.entrySet()) {
             if (entry.getValue().matcher(question).matches()) {
                 log.info("✅ Intent SIMPLE détecté: {}", entry.getKey());
@@ -116,7 +287,7 @@ public class ChatbotServiceImpl implements ChatbotService {
             }
         }
 
-        // 5. Vérifier les patterns complexes
+        // ✅ PRIORITÉ 16: Vérifier les patterns complexes
         for (Map.Entry<String, Pattern> entry : IntentClassifierService.COMPLEX_PATTERNS.entrySet()) {
             if (entry.getValue().matcher(question).matches()) {
                 log.info("✅ Intent COMPLEXE détecté: {}", entry.getKey());
@@ -124,35 +295,68 @@ public class ChatbotServiceImpl implements ChatbotService {
             }
         }
 
-        // 6. Analyse par mots-clés
+        // ✅ PRIORITÉ 17: Analyse par mots-clés pour les plafonds génériques
         if (lowerQuestion.contains("plafond") || lowerQuestion.contains("montant")) {
-            if (lowerQuestion.contains("restauration") || lowerQuestion.contains("repas")) {
-                log.info("📊 Intent CATEGORY_PLAFOND via mots-clés (restauration)");
-                return "CATEGORY_PLAFOND";
-            }
-            if (lowerQuestion.contains("hébergement") || lowerQuestion.contains("hôtel") || lowerQuestion.contains("nuit")) {
-                log.info("📊 Intent CATEGORY_PLAFOND via mots-clés (hébergement)");
-                return "CATEGORY_PLAFOND";
-            }
-            if (lowerQuestion.contains("transport") || lowerQuestion.contains("voiture") || lowerQuestion.contains("trajet")) {
-                log.info("📊 Intent CATEGORY_PLAFOND via mots-clés (transport)");
-                return "CATEGORY_PLAFOND";
-            }
+            log.info("📊 Intent CATEGORY_PLAFOND via mots-clés (générique)");
+            return "CATEGORY_PLAFOND";
         }
 
-        // 7. Fallback
+        // ✅ PRIORITÉ 18: Analyse par mots-clés pour la création de note
+        if (lowerQuestion.contains("créer") || lowerQuestion.contains("nouvelle") ||
+                lowerQuestion.contains("ajouter")) {
+            log.info("📊 Intent CREATE_NOTE via mots-clés");
+            return "CREATE_NOTE";
+        }
+
+        // ✅ PRIORITÉ 19: Analyse par mots-clés pour le téléchargement
+        if (lowerQuestion.contains("télécharger") || lowerQuestion.contains("upload") ||
+                lowerQuestion.contains("joindre")) {
+            log.info("📊 Intent UPLOAD_FILE via mots-clés");
+            return "UPLOAD_FILE";
+        }
+
+        // ✅ PRIORITÉ 20: Analyse par mots-clés pour la suppression
+        if (lowerQuestion.contains("supprimer") || lowerQuestion.contains("effacer") ||
+                lowerQuestion.contains("annuler")) {
+            log.info("📊 Intent DELETE_NOTE via mots-clés");
+            return "DELETE_NOTE";
+        }
+
+        // ✅ PRIORITÉ 21: Fallback vers HELP
         log.info("❌ Aucun intent détecté, fallback vers HELP");
         return "HELP";
     }
+
     private ChatResponse processIntent(String intent, ChatRequest request) {
         // Si l'intention est HELP et que c'est le fallback, on utilise notre nouvelle méthode
         if ("HELP".equals(intent) && !request.getQuestion().toLowerCase().contains("aide")) {
             return handleUnknownIntent(request);
         }
+        if (Set.of("GREETING", "GRATITUDE", "FAREWELL", "POSITIVE_FEEDBACK").contains(intent)) {
+            return handleSocialIntent(intent, request);
+        }
 
         return switch (intent) {
             case "CREATE_NOTE" -> handleCreateNote(request);
             case "VIEW_NOTES" -> handleViewNotes(request);
+            case "FILTER_NOTES_BY_STATUS" -> {
+                // Extract the status from the question
+                String question = request.getQuestion().toLowerCase();
+                String status = null;
+
+                if (question.contains("en attente")) {
+                    status = "EN_ATTENTE";
+                } else if (question.contains("validée") || question.contains("validées")) {
+                    status = "VALIDEE";
+                } else if (question.contains("refusée") || question.contains("refusées")) {
+                    status = "REFUSEE";
+                } else if (question.contains("remboursée") || question.contains("remboursées")) {
+                    status = "REMBOURSEE";
+                }
+
+                yield handleFilterNotesByStatus(request, status);
+            }
+            case "NOTE_DETAILS" -> handleNoteDetails(request);
             case "NOTE_STATUS" -> handleNoteStatus(request);
             case "UPLOAD_FILE" -> handleUploadFile(request);
             case "VALIDATION_RULES" -> handleValidationRules(request);
@@ -163,6 +367,9 @@ public class ChatbotServiceImpl implements ChatbotService {
             case "ADMIN_ACTIONS" -> handleAdminActions(request);
             case "FILE_INFO" -> handleFileInfo(request);
             case "CATEGORY_PLAFOND" -> handleCategoryPlafond(request);
+            case "CATEGORY_PLAFOND_ALL" -> handleAllPlafonds(request);
+            case "ANALYSE_NOTE" -> smartChatbotService.processSmartQuestion(request);
+            case "COMPARAISON_NOTES" -> smartChatbotService.processSmartQuestion(request);
             case "SPECIAL_RULES" -> handleSpecialRules(request);
             case "ALERT_RULES" -> handleAlertRules(request);
             case "WORKFLOW" -> handleWorkflow(request);
@@ -737,44 +944,316 @@ public class ChatbotServiceImpl implements ChatbotService {
                 .actionType("SHOW_CREATE_FORM")
                 .build();
     }
+    /**
+     * Unified method to filter notes by status for all user roles
+     * @param request The chat request
+     * @param status The status to filter by (EN_ATTENTE, VALIDEE, REFUSEE, REMBOURSEE)
+     * @return Formatted response with filtered notes
+     */
+    private ChatResponse handleFilterNotesByStatus(ChatRequest request, String status) {
+        log.info("📊 Filtrage des notes par statut: {} pour l'utilisateur: {} (rôle: {})",
+                status, request.getUserId(), request.getUserRole());
 
+        String userRole = request.getUserRole();
+
+        try {
+            List<?> notes;
+            boolean isManager = "MANAGER".equalsIgnoreCase(userRole) || "ADMIN".equalsIgnoreCase(userRole);
+
+            // Récupérer les notes selon le rôle
+            if (isManager) {
+                Long departmentId = extractDepartmentFromToken();
+                if (departmentId == null) {
+                    return ChatResponse.builder()
+                            .answer("❌ Impossible de déterminer votre département.")
+                            .sessionId(request.getSessionId())
+                            .timestamp(LocalDateTime.now())
+                            .build();
+                }
+                notes = expenseApiService.getNotesByDepartment(departmentId);
+                log.info("📊 {} notes trouvées dans le département {}", ((List<?>)notes).size(), departmentId);
+            } else {
+                notes = expenseNoteRepository.findRecentByEmployee(request.getUserId());
+                log.info("📊 {} notes trouvées pour l'employé {}", ((List<?>)notes).size(), request.getUserId());
+            }
+
+            if (notes == null || ((List<?>)notes).isEmpty()) {
+                String message = isManager ?
+                        "📭 Aucune note trouvée dans votre département." :
+                        "📭 Vous n'avez aucune note de frais pour le moment.";
+                return ChatResponse.builder()
+                        .answer(message)
+                        .sessionId(request.getSessionId())
+                        .timestamp(LocalDateTime.now())
+                        .build();
+            }
+
+            // Filtrer par statut
+            List<?> filteredNotes = ((List<?>)notes).stream()
+                    .filter(note -> {
+                        String noteStatus;
+                        if (note instanceof ExpenseNote) {
+                            noteStatus = ((ExpenseNote) note).getStatus();
+                        } else if (note instanceof ExpenseNoteDTO) {
+                            noteStatus = ((ExpenseNoteDTO) note).getStatus();
+                        } else {
+                            return false;
+                        }
+                        return status.equals(noteStatus);
+                    })
+                    .collect(Collectors.toList());
+
+            if (filteredNotes.isEmpty()) {
+                String statusMessage = getStatusMessageInFrench(status);
+                String suggestion = isManager ?
+                        "Essayez 'toutes les notes' pour voir toutes les notes." :
+                        "Essayez 'mes notes' pour voir toutes vos notes.";
+
+                return ChatResponse.builder()
+                        .answer(String.format("📭 Aucune note %s trouvée.\n\n%s",
+                                statusMessage.toLowerCase(), suggestion))
+                        .sessionId(request.getSessionId())
+                        .timestamp(LocalDateTime.now())
+                        .quickReplies(List.of(
+                                QuickReply.builder().text(isManager ? "📋 Toutes les notes" : "📋 Mes notes")
+                                        .payload(isManager ? "ALL_NOTES" : "VIEW_NOTES")
+                                        .icon("📋").build(),
+                                QuickReply.builder().text("❓ Aide").payload("HELP").icon("❓").build()
+                        ))
+                        .build();
+            }
+
+            // ✅ CONSTRUIRE LA RÉPONSE AVEC DES SAUTS DE LIGNE CORRECTS
+            StringBuilder sb = new StringBuilder();
+            String statusEmoji = getStatusEmojiForNote(status);
+            String statusTitle = getStatusTitleInFrench(status);
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+            // Titre
+            if (isManager) {
+                sb.append(String.format("%s **Notes %s dans votre département** (%d)\n\n",
+                        statusEmoji, statusTitle.toLowerCase(), filteredNotes.size()));
+            } else {
+                sb.append(String.format("%s **Vos notes %s** (%d)\n\n",
+                        statusEmoji, statusTitle.toLowerCase(), filteredNotes.size()));
+            }
+
+            // Liste des notes
+            filteredNotes.stream().limit(5).forEach(note -> {
+                if (note instanceof ExpenseNote) {
+                    ExpenseNote expenseNote = (ExpenseNote) note;
+                    sb.append(String.format("%s **Note #%d**\n", statusEmoji, expenseNote.getId()));
+                    sb.append(String.format("   💰 Montant: %.2f TND\n", expenseNote.getTotalAmount()));
+                    sb.append(String.format("   📅 Date: %s\n", expenseNote.getCreatedAt().format(formatter)));
+
+                    if (isManager) {
+                        sb.append(String.format("   👤 Employé: %s\n", formatEmployeeId(expenseNote.getEmployeeId())));
+                    }
+
+                    int lineCount = expenseNote.getLines() != null ? expenseNote.getLines().size() : 0;
+                    if (lineCount > 0) {
+                        sb.append(String.format("   📋 %d ligne(s)\n", lineCount));
+                    }
+                    sb.append("\n"); // ✅ SAUT DE LIGNE ENTRE LES NOTES
+                } else if (note instanceof ExpenseNoteDTO) {
+                    ExpenseNoteDTO expenseNote = (ExpenseNoteDTO) note;
+                    sb.append(String.format("%s **Note #%d**\n", statusEmoji, expenseNote.getId()));
+                    sb.append(String.format("   💰 Montant: %.2f TND\n", expenseNote.getTotalAmount()));
+                    sb.append(String.format("   📅 Date: %s\n",
+                            expenseNote.getCreatedAt() != null ? expenseNote.getCreatedAt().format(formatter) : "N/A"));
+
+                    if (isManager) {
+                        sb.append(String.format("   👤 Employé: %s\n", formatEmployeeId(expenseNote.getEmployeeId())));
+                    }
+
+                    if (expenseNote.getProjectId() != null) {
+                        sb.append(String.format("   📁 Projet ID: %d\n", expenseNote.getProjectId()));
+                    }
+                    sb.append("\n"); // ✅ SAUT DE LIGNE ENTRE LES NOTES
+                }
+            });
+
+            if (filteredNotes.size() > 5) {
+                sb.append(String.format("... et %d autre(s) note(s)\n\n", filteredNotes.size() - 5));
+            } else {
+                sb.append("\n"); // ✅ SAUT DE LIGNE SUPPLÉMENTAIRE
+            }
+
+            // Calculer le total
+            double total = filteredNotes.stream()
+                    .mapToDouble(note -> {
+                        if (note instanceof ExpenseNote) {
+                            return ((ExpenseNote) note).getTotalAmount();
+                        } else if (note instanceof ExpenseNoteDTO) {
+                            return ((ExpenseNoteDTO) note).getTotalAmount();
+                        }
+                        return 0;
+                    })
+                    .sum();
+            sb.append(String.format("💰 **Total %s:** %.2f TND\n\n", statusTitle.toLowerCase(), total));
+
+            // Suggestions
+            sb.append("💡 **Pour voir plus de détails:**\n");
+            sb.append("• `détails de la note #123`\n");
+            if (!isManager) {
+                sb.append("• `mes notes` pour voir toutes vos notes\n");
+            } else {
+                sb.append("• `toutes les notes` pour voir toutes les notes du département\n");
+            }
+
+            // ✅ FORMATER LA RÉPONSE AVEC RESPONSE FORMATTER
+            String formattedAnswer = responseFormatter.formatResponse(
+                    sb.toString(),
+                    "FILTER_NOTES_BY_STATUS",
+                    request.getUserRole()
+            );
+
+            // Quick replies contextuels
+            List<QuickReply> quickReplies = new ArrayList<>();
+
+            if (!"EN_ATTENTE".equals(status)) {
+                quickReplies.add(QuickReply.builder()
+                        .text("⏳ Notes en attente")
+                        .payload("FILTER_EN_ATTENTE")
+                        .icon("⏳")
+                        .build());
+            }
+            if (!"VALIDEE".equals(status)) {
+                quickReplies.add(QuickReply.builder()
+                        .text("✅ Notes validées")
+                        .payload("FILTER_VALIDEE")
+                        .icon("✅")
+                        .build());
+            }
+            if (!"REFUSEE".equals(status)) {
+                quickReplies.add(QuickReply.builder()
+                        .text("❌ Notes refusées")
+                        .payload("FILTER_REFUSEE")
+                        .icon("❌")
+                        .build());
+            }
+            if (!"REMBOURSEE".equals(status)) {
+                quickReplies.add(QuickReply.builder()
+                        .text("💰 Notes remboursées")
+                        .payload("FILTER_REMBOURSEE")
+                        .icon("💰")
+                        .build());
+            }
+
+            quickReplies.add(QuickReply.builder()
+                    .text(isManager ? "📋 Toutes les notes" : "📋 Mes notes")
+                    .payload(isManager ? "ALL_NOTES" : "VIEW_NOTES")
+                    .icon("📋")
+                    .build());
+            quickReplies.add(QuickReply.builder()
+                    .text("❓ Aide")
+                    .payload("HELP")
+                    .icon("❓")
+                    .build());
+
+            return ChatResponse.builder()
+                    .answer(formattedAnswer)  // ✅ RÉPONSE FORMATÉE
+                    .sessionId(request.getSessionId())
+                    .timestamp(LocalDateTime.now())
+                    .quickReplies(quickReplies)
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Erreur lors du filtrage des notes par statut {}: {}", status, e.getMessage(), e);
+            return ChatResponse.builder()
+                    .answer("❌ Une erreur est survenue lors de la récupération des notes. Veuillez réessayer.")
+                    .sessionId(request.getSessionId())
+                    .timestamp(LocalDateTime.now())
+                    .build();
+        }
+    }
+
+    /**
+     * Helper method to get French status message
+     */
+    private String getStatusMessageInFrench(String status) {
+        return switch (status) {
+            case "EN_ATTENTE" -> "en attente";
+            case "VALIDEE" -> "validée";
+            case "REFUSEE" -> "refusée";
+            case "REMBOURSEE" -> "remboursée";
+            default -> "";
+        };
+    }
+
+    /**
+     * Helper method to get French status title
+     */
+    private String getStatusTitleInFrench(String status) {
+        return switch (status) {
+            case "EN_ATTENTE" -> "En attente";
+            case "VALIDEE" -> "Validées";
+            case "REFUSEE" -> "Refusées";
+            case "REMBOURSEE" -> "Remboursées";
+            default -> "";
+        };
+    }
     private ChatResponse handleViewNotes(ChatRequest request) {
-        List<ExpenseNoteDTO> notes = expenseApiService.getNotesByEmployee(request.getUserId());
+        log.info("📋 Récupération des notes pour l'utilisateur: {}", request.getUserId());
 
-        if (notes.isEmpty()) {
+        List<ExpenseNote> notes = expenseNoteRepository.findRecentByEmployee(request.getUserId());
+
+        if (notes == null || notes.isEmpty()) {
+            log.info("📭 Aucune note trouvée pour l'utilisateur: {}", request.getUserId());
             return ChatResponse.builder()
                     .answer("📭 Vous n'avez aucune note de frais pour le moment. Souhaitez-vous en créer une ?")
                     .sessionId(request.getSessionId())
                     .timestamp(LocalDateTime.now())
                     .quickReplies(List.of(
-                            QuickReply.builder().text("Créer une note").payload("CREATE_NOTE").icon("plus-circle").build()
+                            QuickReply.builder().text("Créer une note").payload("CREATE_NOTE").icon("➕").build()
                     ))
                     .build();
         }
+
+        log.info("✅ {} notes trouvées pour l'utilisateur", notes.size());
 
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
         StringBuilder sb = new StringBuilder();
         sb.append("📋 **Vos notes de frais**\n\n");
 
         notes.stream().limit(5).forEach(note -> {
-            String statusEmoji = getStatusEmoji(note.getStatus());
+            String statusEmoji = getStatusEmojiForNote(note.getStatus());
             sb.append(String.format("%s **Note #%d**\n", statusEmoji, note.getId()));
             sb.append(String.format("   💰 Montant: %.2f TND\n", note.getTotalAmount()));
             sb.append(String.format("   📅 Date: %s\n", note.getCreatedAt().format(formatter)));
-            sb.append(String.format("   📊 Statut: %s %s\n\n", note.getStatus(), statusEmoji));
+            sb.append(String.format("   📊 Statut: %s %s\n", note.getStatus(), statusEmoji));
+
+            int lineCount = note.getLines() != null ? note.getLines().size() : 0;
+            if (lineCount > 0) {
+                sb.append(String.format("   📋 %d ligne(s)\n", lineCount));
+            }
+            sb.append("\n");
         });
 
         if (notes.size() > 5) {
             sb.append(String.format("... et %d autre(s) note(s)", notes.size() - 5));
         }
 
+        double total = notes.stream()
+                .mapToDouble(ExpenseNote::getTotalAmount)
+                .sum();
+        sb.append(String.format("\n💰 **Total toutes notes:** %.2f TND", total));
+
+        // ✅ FORMATER LA RÉPONSE
+        String formattedAnswer = responseFormatter.formatResponse(
+                sb.toString(),
+                "VIEW_NOTES",
+                request.getUserRole()
+        );
+
         return ChatResponse.builder()
-                .answer(sb.toString())
+                .answer(formattedAnswer)  // ✅ RÉPONSE FORMATÉE
                 .sessionId(request.getSessionId())
                 .timestamp(LocalDateTime.now())
                 .quickReplies(List.of(
-                        QuickReply.builder().text("Voir statut").payload("NOTE_STATUS").icon("info-circle").build(),
-                        QuickReply.builder().text("Total dépenses").payload("TOTAL_AMOUNT").icon("cash-stack").build()
+                        QuickReply.builder().text("Voir statut").payload("NOTE_STATUS").icon("ℹ️").build(),
+                        QuickReply.builder().text("Total dépenses").payload("TOTAL_AMOUNT").icon("💰").build(),
+                        QuickReply.builder().text("Créer une note").payload("CREATE_NOTE").icon("➕").build()
                 ))
                 .build();
     }
@@ -783,32 +1262,40 @@ public class ChatbotServiceImpl implements ChatbotService {
         Long noteId = extractNoteId(request.getQuestion());
 
         if (noteId == null) {
+            String response = "Pour connaître le statut d'une note, veuillez préciser son numéro\n\nExemples:\n• 'statut note 123'\n• 'où en est la note 45?'";
+            String formatted = responseFormatter.formatResponse(response, "NOTE_STATUS", request.getUserRole());
             return ChatResponse.builder()
-                    .answer("Pour connaître le statut d'une note, veuillez préciser son numéro\n\nExemples:\n• 'statut note 123'\n• 'où en est la note 45?'")
+                    .answer(formatted)
                     .sessionId(request.getSessionId())
                     .timestamp(LocalDateTime.now())
                     .build();
         }
 
-        ExpenseNoteDTO note = expenseApiService.getNoteById(noteId);
+        Optional<ExpenseNote> noteOpt = expenseNoteRepository.findById(noteId);
 
-        if (note == null) {
+        if (noteOpt.isEmpty()) {
+            String response = "❌ Désolé, je n'ai pas trouvé la note #" + noteId;
+            String formatted = responseFormatter.formatResponse(response, "NOTE_STATUS", request.getUserRole());
             return ChatResponse.builder()
-                    .answer("❌ Désolé, je n'ai pas trouvé la note #" + noteId)
+                    .answer(formatted)
                     .sessionId(request.getSessionId())
                     .timestamp(LocalDateTime.now())
                     .build();
         }
+
+        ExpenseNote note = noteOpt.get();
 
         if (!note.getEmployeeId().equals(request.getUserId())) {
+            String response = "❌ Vous n'êtes pas autorisé à voir cette note.";
+            String formatted = responseFormatter.formatResponse(response, "NOTE_STATUS", request.getUserRole());
             return ChatResponse.builder()
-                    .answer("❌ Vous n'êtes pas autorisé à voir cette note.")
+                    .answer(formatted)
                     .sessionId(request.getSessionId())
                     .timestamp(LocalDateTime.now())
                     .build();
         }
 
-        String statusEmoji = getStatusEmoji(note.getStatus());
+        String statusEmoji = getStatusEmojiForNote(note.getStatus());
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
         StringBuilder sb = new StringBuilder();
@@ -821,21 +1308,147 @@ public class ChatbotServiceImpl implements ChatbotService {
             sb.append(String.format("🔄 **Mise à jour:** %s\n", note.getUpdatedAt().format(formatter)));
         }
 
-        if (note.getDecisionComment() != null && !note.getDecisionComment().isEmpty()) {
-            sb.append(String.format("\n💬 **Commentaire:** %s", note.getDecisionComment()));
+        List<ExpenseLine> lines = note.getLines();
+        if (lines != null && !lines.isEmpty()) {
+            sb.append("\n📋 **Lignes:**\n");
+            for (ExpenseLine line : lines) {
+                String categoryName = getCategoryNameById(line.getCategoryId());
+                sb.append(String.format("  • %s: %.2f TND\n", categoryName, line.getAmount()));
+            }
         }
 
-        if (note.getDecidedBy() != null) {
-            sb.append(String.format("\n👤 **Décidé par:** %s", note.getDecidedBy()));
-        }
+        // ✅ FORMATER LA RÉPONSE
+        String formattedAnswer = responseFormatter.formatResponse(
+                sb.toString(),
+                "NOTE_STATUS",
+                request.getUserRole()
+        );
 
         return ChatResponse.builder()
-                .answer(sb.toString())
+                .answer(formattedAnswer)
                 .sessionId(request.getSessionId())
                 .timestamp(LocalDateTime.now())
                 .build();
     }
+    /**
+     * Handle quick reply for filtered notes
+     */
+    public ChatResponse handleFilteredNotesByStatus(String status, ChatRequest request) {
+        return handleFilterNotesByStatus(request, status);
+    }
+// Ajouter cette méthode dans ChatbotServiceImpl.java
 
+    private ChatResponse handleNoteDetails(ChatRequest request) {
+        Long noteId = extractNoteId(request.getQuestion());
+
+        if (noteId == null) {
+            String response = "Pour voir les détails d'une note, veuillez préciser son numéro.\n\nExemples:\n• 'détails de la note #92'\n• 'afficher la note 123'\n• 'lister la note 45'";
+            String formatted = responseFormatter.formatResponse(response, "NOTE_DETAILS", request.getUserRole());
+            return ChatResponse.builder()
+                    .answer(formatted)
+                    .sessionId(request.getSessionId())
+                    .timestamp(LocalDateTime.now())
+                    .build();
+        }
+
+        log.info("🔍 Récupération des détails de la note #{} pour l'utilisateur {}", noteId, request.getUserId());
+
+        Optional<ExpenseNote> noteOpt = expenseNoteRepository.findById(noteId);
+
+        if (noteOpt.isEmpty()) {
+            String response = "❌ La note #" + noteId + " n'existe pas.";
+            String formatted = responseFormatter.formatResponse(response, "NOTE_DETAILS", request.getUserRole());
+            return ChatResponse.builder()
+                    .answer(formatted)
+                    .sessionId(request.getSessionId())
+                    .timestamp(LocalDateTime.now())
+                    .build();
+        }
+
+        ExpenseNote note = noteOpt.get();
+
+        boolean hasAccess = note.getEmployeeId().equals(request.getUserId()) ||
+                "MANAGER".equalsIgnoreCase(request.getUserRole()) ||
+                "ADMIN".equalsIgnoreCase(request.getUserRole());
+
+        if (!hasAccess) {
+            log.warn("⛔ Accès refusé pour l'utilisateur {} à la note #{}", request.getUserId(), noteId);
+            String response = "❌ Vous n'êtes pas autorisé à consulter cette note.";
+            String formatted = responseFormatter.formatResponse(response, "NOTE_DETAILS", request.getUserRole());
+            return ChatResponse.builder()
+                    .answer(formatted)
+                    .sessionId(request.getSessionId())
+                    .timestamp(LocalDateTime.now())
+                    .build();
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("📝 **Détails de la note #").append(noteId).append("**\n\n");
+        sb.append(String.format("• 💰 **Montant total:** %.2f TND\n", note.getTotalAmount()));
+        sb.append(String.format("• 📊 **Statut:** %s %s\n", note.getStatus(), getStatusEmojiForNote(note.getStatus())));
+        sb.append(String.format("• 📅 **Créée le:** %s\n", formatDate(note.getCreatedAt())));
+
+        if (note.getUpdatedAt() != null && !note.getUpdatedAt().equals(note.getCreatedAt())) {
+            sb.append(String.format("• 🔄 **Mise à jour:** %s\n", formatDate(note.getUpdatedAt())));
+        }
+
+        List<ExpenseLine> lines = note.getLines();
+        if (lines != null && !lines.isEmpty()) {
+            sb.append("\n📋 **Lignes de la note:**\n");
+            int lineNumber = 1;
+            for (ExpenseLine line : lines) {
+                String categoryName = getCategoryNameById(line.getCategoryId());
+                sb.append(String.format("  • **Ligne %d:** [%s] %.2f TND", lineNumber++, categoryName, line.getAmount()));
+
+                if (line.getDescription() != null && !line.getDescription().isEmpty()) {
+                    sb.append(" - ").append(line.getDescription());
+                }
+
+                List<String> details = new ArrayList<>();
+                if (line.getNombrePersonnes() != null && line.getNombrePersonnes() > 0) {
+                    details.add(line.getNombrePersonnes() + " personnes");
+                }
+                if (line.getNombreNuits() != null && line.getNombreNuits() > 0) {
+                    details.add(line.getNombreNuits() + " nuits");
+                }
+                if (line.getRepasType() != null && !line.getRepasType().isEmpty()) {
+                    details.add("Repas: " + line.getRepasType());
+                }
+                if (line.getDepart() != null && line.getDestination() != null) {
+                    details.add(line.getDepart() + " → " + line.getDestination());
+                }
+
+                if (!details.isEmpty()) {
+                    sb.append(" (").append(String.join(", ", details)).append(")");
+                }
+
+                if (line.getJustificatifPath() != null && !line.getJustificatifPath().isEmpty()) {
+                    sb.append(" 📎");
+                }
+                sb.append("\n");
+            }
+        } else {
+            sb.append("\n📋 Aucune ligne de détail pour cette note.");
+        }
+
+        // ✅ FORMATER LA RÉPONSE
+        String formattedAnswer = responseFormatter.formatResponse(
+                sb.toString(),
+                "NOTE_DETAILS",
+                request.getUserRole()
+        );
+
+        return ChatResponse.builder()
+                .answer(formattedAnswer)
+                .sessionId(request.getSessionId())
+                .timestamp(LocalDateTime.now())
+                .quickReplies(List.of(
+                        QuickReply.builder().text("📊 Statut").payload("NOTE_STATUS_" + noteId).icon("ℹ️").build(),
+                        QuickReply.builder().text("📋 Mes notes").payload("VIEW_NOTES").icon("📋").build(),
+                        QuickReply.builder().text("❓ Aide").payload("HELP").icon("❓").build()
+                ))
+                .build();
+    }
     private ChatResponse handleTotalAmount(ChatRequest request) {
         List<ExpenseNoteDTO> notes = expenseApiService.getNotesByEmployee(request.getUserId());
 
@@ -865,19 +1478,224 @@ public class ChatbotServiceImpl implements ChatbotService {
                 .timestamp(LocalDateTime.now())
                 .build();
     }
-
+    // Helper pour obtenir le nom d'une catégorie
+    private String getCategoryNameById(Long categoryId) {
+        if (categoryId == null) return "Catégorie inconnue";
+        Optional<Category> category = categoryRepository.findById(categoryId);
+        return category.map(Category::getName).orElse("Catégorie " + categoryId);
+    }
     private ChatResponse handleCategoryPlafond(ChatRequest request) {
+        log.info("💰 Récupération des plafonds depuis la BASE DE DONNÉES");
+
         String categoryName = extractCategoryName(request.getQuestion());
 
+        List<Category> categories = categoryRepository.findByActiveTrue();
+        log.info("📊 {} catégories trouvées en base", categories.size());
+
+        if (categories.isEmpty()) {
+            log.warn("⚠️ Aucune catégorie trouvée en base, fallback vers configuration");
+            return buildCategoryPlafondFromConfig(request);
+        }
+
         if (categoryName != null) {
-            CategoryRule category = rulesConfig.getCategoryByName(categoryName);
-            if (category != null) {
-                return buildCategoryDetailResponse(category, request);
+            log.info("🔍 Recherche de la catégorie spécifique: {}", categoryName);
+
+            Optional<Category> categoryOpt = categories.stream()
+                    .filter(c -> c.getName().equalsIgnoreCase(categoryName))
+                    .findFirst();
+
+            if (categoryOpt.isEmpty()) {
+                categoryOpt = categories.stream()
+                        .filter(c -> c.getName().toLowerCase().contains(categoryName.toLowerCase()) ||
+                                categoryName.toLowerCase().contains(c.getName().toLowerCase()))
+                        .findFirst();
             }
+
+            if (categoryOpt.isPresent()) {
+                Category category = categoryOpt.get();
+                log.info("✅ Catégorie trouvée: {} - Plafond: {} TND",
+                        category.getName(), category.getPlafond());
+
+                ChatResponse response = buildCategoryDetailResponseFromDatabase(category, request);
+
+                // ✅ FORMATER LA RÉPONSE
+                String formattedAnswer = responseFormatter.formatResponse(
+                        response.getAnswer(),
+                        "CATEGORY_PLAFOND",
+                        request.getUserRole()
+                );
+                response.setAnswer(formattedAnswer);
+                return response;
+            }
+
+            log.warn("⚠️ Catégorie non trouvée: {}", categoryName);
+
+            List<String> similarCategories = categories.stream()
+                    .map(Category::getName)
+                    .filter(name -> name.toLowerCase().contains(categoryName.toLowerCase()) ||
+                            categoryName.toLowerCase().contains(name.toLowerCase()))
+                    .limit(3)
+                    .collect(Collectors.toList());
+
+            if (!similarCategories.isEmpty()) {
+                String response = String.format("❌ La catégorie **%s** n'existe pas.\n\n💡 Catégories similaires :\n%s\n\n💡 Pour voir tous les plafonds, dites 'tous les plafonds'",
+                        categoryName,
+                        similarCategories.stream().map(n -> "• " + n).collect(Collectors.joining("\n")));
+
+                String formatted = responseFormatter.formatResponse(response, "CATEGORY_PLAFOND", request.getUserRole());
+                return ChatResponse.builder()
+                        .answer(formatted)
+                        .sessionId(request.getSessionId())
+                        .timestamp(LocalDateTime.now())
+                        .build();
+            }
+
+            return showAllPlafonds(categories, request);
+        }
+
+        if (shouldShowAllPlafonds(request.getQuestion())) {
+            return showAllPlafonds(categories, request);
+        }
+
+        return showAllPlafonds(categories, request);
+    }
+    /**
+     * ✅ BUG 1: Affiche tous les plafonds (pour la question "plafond" seul)
+     */
+    private ChatResponse handleAllPlafonds(ChatRequest request) {
+        List<Category> categories = categoryRepository.findByActiveTrue();
+
+        if (categories.isEmpty()) {
+            return ChatResponse.builder()
+                    .answer("❌ Aucune catégorie trouvée.")
+                    .sessionId(request.getSessionId())
+                    .timestamp(LocalDateTime.now())
+                    .build();
+        }
+
+        // Grouper par nom pour éviter les doublons
+        Map<String, Double> uniqueCategories = new LinkedHashMap<>();
+        for (Category cat : categories) {
+            uniqueCategories.put(cat.getName(), cat.getPlafond());
         }
 
         StringBuilder sb = new StringBuilder();
         sb.append("💰 **Plafonds par catégorie**\n\n");
+
+        for (Map.Entry<String, Double> entry : uniqueCategories.entrySet()) {
+            String emoji = getCategoryEmoji(entry.getKey());
+            sb.append(String.format("%s **%s**: %.2f TND\n", emoji, entry.getKey(), entry.getValue()));
+        }
+
+        // Statistiques
+        Double avgPlafond = categoryRepository.getAveragePlafond();
+        Double maxPlafond = categoryRepository.getMaxPlafond();
+
+        if (avgPlafond != null && maxPlafond != null) {
+            sb.append("\n📊 **Statistiques:**\n");
+            sb.append(String.format("• Plafond moyen: %.2f TND\n", avgPlafond));
+            sb.append(String.format("• Plafond maximum: %.2f TND\n", maxPlafond));
+        }
+
+        sb.append("\n💡 **Pour plus de détails:** dites par exemple:\n");
+        sb.append("• 'plafond restauration'\n");
+        sb.append("• 'plafond transport'");
+
+        return ChatResponse.builder()
+                .answer(sb.toString())
+                .sessionId(request.getSessionId())
+                .timestamp(LocalDateTime.now())
+                .build();
+    }
+    /**
+     * Vérifie si la question demande explicitement tous les plafonds
+     */
+    private boolean shouldShowAllPlafonds(String question) {
+        String lower = question.toLowerCase();
+        return lower.contains("tous les plafonds") ||
+                lower.contains("tous plafonds") ||
+                lower.equals("plafonds") ||
+                lower.contains("liste des plafonds") ||
+                lower.contains("quels sont les plafonds");
+    }
+
+    /**
+     * Affiche tous les plafonds (utilisé uniquement quand demandé explicitement)
+     */
+    private ChatResponse showAllPlafonds(List<Category> categories, ChatRequest request) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("💰 **Plafonds par catégorie**\n\n");
+
+        for (Category cat : categories) {
+            String emoji = getCategoryEmoji(cat.getName());
+            sb.append(String.format("%s **%s**: %.2f TND\n", emoji, cat.getName(), cat.getPlafond()));
+        }
+
+        // Ajouter les statistiques
+        Double avgPlafond = categoryRepository.getAveragePlafond();
+        Double maxPlafond = categoryRepository.getMaxPlafond();
+
+        if (avgPlafond != null && maxPlafond != null) {
+            sb.append("\n📊 **Statistiques:**\n");
+            sb.append(String.format("• Plafond moyen: %.2f TND\n", avgPlafond));
+            sb.append(String.format("• Plafond maximum: %.2f TND\n", maxPlafond));
+        }
+
+        sb.append("\n💡 **Pour plus de détails:** dites par exemple:\n");
+        sb.append("• 'plafond transport'\n");
+        sb.append("• 'plafond hébergement'");
+
+        return ChatResponse.builder()
+                .answer(sb.toString())
+                .sessionId(request.getSessionId())
+                .timestamp(LocalDateTime.now())
+                .quickReplies(categories.stream()
+                        .limit(3)
+                        .map(cat -> QuickReply.builder()
+                                .text(cat.getName())
+                                .payload("CATEGORY_" + cat.getId())
+                                .build())
+                        .collect(Collectors.toList()))
+                .build();
+    }
+    /**
+     * Trouve une catégorie par mots-clés
+     */
+    private Category findCategoryByKeywords(String keyword) {
+        List<Category> categories = categoryRepository.findByActiveTrue();
+
+        Map<String, String> keywordMap = Map.of(
+                "restauration", "Restauration",
+                "repas", "Restauration",
+                "hébergement", "Hébergement",
+                "hebergement", "Hébergement",
+                "hotel", "Hébergement",
+                "hôtel", "Hébergement",
+                "transport", "Transport",
+                "voiture", "Transport",
+                "carburant", "Carburant",
+                "essence", "Carburant"
+        );
+
+        String targetName = keywordMap.get(keyword.toLowerCase());
+        if (targetName != null) {
+            return categories.stream()
+                    .filter(c -> c.getName().equalsIgnoreCase(targetName))
+                    .findFirst()
+                    .orElse(null);
+        }
+
+        return null;
+    }
+
+    /**
+     * Fallback vers la configuration si la base est vide
+     */
+    private ChatResponse buildCategoryPlafondFromConfig(ChatRequest request) {
+        log.info("📋 Utilisation des plafonds depuis la configuration (fallback)");
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("💰 **Plafonds par catégorie (Configuration)**\n\n");
 
         for (CategoryRule cat : rulesConfig.getCategories()) {
             String emoji = getCategoryEmoji(cat.getName());
@@ -905,13 +1723,6 @@ public class ChatbotServiceImpl implements ChatbotService {
                 .answer(sb.toString())
                 .sessionId(request.getSessionId())
                 .timestamp(LocalDateTime.now())
-                .quickReplies(rulesConfig.getCategories().stream()
-                        .limit(3)
-                        .map(cat -> QuickReply.builder()
-                                .text(cat.getName())
-                                .payload("CATEGORY_" + cat.getId())
-                                .build())
-                        .collect(Collectors.toList()))
                 .build();
     }
 
@@ -1142,8 +1953,11 @@ public class ChatbotServiceImpl implements ChatbotService {
         sb.append(String.format("  • Plafond moyen: %.2f TND\n", rulesConfig.getAveragePlafond()));
         sb.append(String.format("  • Plafond maximum: %.2f TND\n", rulesConfig.getMaxPlafond()));
 
+        // ✅ UTILISER formatRulesResponse POUR LES RÈGLES
+        String formattedAnswer = responseFormatter.formatRulesResponse(sb.toString(), request.getUserRole());
+
         return ChatResponse.builder()
-                .answer(sb.toString())
+                .answer(formattedAnswer)
                 .sessionId(request.getSessionId())
                 .timestamp(LocalDateTime.now())
                 .quickReplies(List.of(
@@ -1564,6 +2378,27 @@ public class ChatbotServiceImpl implements ChatbotService {
     private String extractCategoryName(String question) {
         String lowerQuestion = question.toLowerCase();
 
+        // ✅ Pattern pour capturer "plafond de la categorie X" ou "plafond categorie X"
+        Pattern pattern = Pattern.compile("plafond\\s+(?:de\\s+)?(?:la\\s+)?(?:cat[eé]gorie\\s+)?([a-zA-Z0-9_-]+)", Pattern.CASE_INSENSITIVE);
+        Matcher matcher = pattern.matcher(question);
+
+        if (matcher.find()) {
+            String extracted = matcher.group(1);
+            log.info("📝 Catégorie extraite de la question: {}", extracted);
+            return extracted;
+        }
+
+        // ✅ Pattern pour "categorie test" sans "plafond"
+        Pattern pattern2 = Pattern.compile("cat[eé]gorie\\s+([a-zA-Z0-9_-]+)", Pattern.CASE_INSENSITIVE);
+        Matcher matcher2 = pattern2.matcher(question);
+
+        if (matcher2.find()) {
+            String extracted = matcher2.group(1);
+            log.info("📝 Catégorie extraite (sans plafond): {}", extracted);
+            return extracted;
+        }
+
+        // Fallback: recherche par mots-clés
         for (CategoryRule cat : rulesConfig.getCategories()) {
             if (lowerQuestion.contains(cat.getName().toLowerCase())) {
                 return cat.getName();
@@ -1580,7 +2415,8 @@ public class ChatbotServiceImpl implements ChatbotService {
                 "restaurant", "Restauration",
                 "carburant", "Carburant",
                 "essence", "Carburant",
-                "professionnel", "Frais professionnels"
+                "professionnel", "Frais professionnels",
+                "test", "test"  // ✅ Ajout pour "test"
         );
 
         for (Map.Entry<String, String> entry : keywords.entrySet()) {
@@ -1897,5 +2733,135 @@ public class ChatbotServiceImpl implements ChatbotService {
 
         return category.map(com.coralio.chatbotmicroservice.entity.Category::getName)
                 .orElse("Catégorie " + categoryId);
+    }
+    /**
+     * Construit les détails d'une catégorie depuis la base de données (sans LLM)
+     * Format comme le Smart Chatbot
+     */
+    /**
+     * Construit les détails d'une catégorie depuis la base de données (sans LLM)
+     * Format comme le Smart Chatbot
+     */
+    private ChatResponse buildCategoryDetailResponseFromDatabase(Category category, ChatRequest request) {
+        StringBuilder sb = new StringBuilder();
+
+        // En-tête comme dans Smart Chatbot
+        sb.append("La catégorie est : **").append(category.getName()).append("**\n\n");
+        sb.append("Voici les détails :\n");
+
+        // Plafond
+        sb.append("* Plafond : ").append(String.format("%.2f", category.getPlafond())).append(" TND\n");
+
+        // Description (si disponible)
+        if (category.getDescription() != null && !category.getDescription().isEmpty()) {
+            sb.append("* Description : ").append(category.getDescription()).append("\n");
+        }
+
+        // ✅ Champs - Utiliser la liste de CategoryField
+        List<CategoryField> fields = category.getFields();
+
+        if (fields != null && !fields.isEmpty()) {
+            sb.append("* Champs : \n");
+
+            // Séparer les champs obligatoires et optionnels
+            List<CategoryField> requiredFields = fields.stream()
+                    .filter(CategoryField::isRequired)
+                    .toList();
+            List<CategoryField> optionalFields = fields.stream()
+                    .filter(f -> !f.isRequired())
+                    .toList();
+
+            // Champs obligatoires
+            for (CategoryField field : requiredFields) {
+                sb.append("  - ").append(field.getFieldName())
+                        .append(" (").append(field.getFieldType()).append(")")
+                        .append(" [OBLIGATOIRE]\n");
+            }
+
+            // Champs optionnels
+            for (CategoryField field : optionalFields) {
+                sb.append("  - ").append(field.getFieldName())
+                        .append(" (").append(field.getFieldType()).append(")")
+                        .append(" [OPTIONNEL]\n");
+            }
+        }
+
+        // Conseils pour créer une note
+        sb.append("\n💡 Pour créer une note avec cette catégorie, dites : 'créer note ").append(category.getName().toLowerCase()).append("'");
+
+        return ChatResponse.builder()
+                .answer(sb.toString())
+                .sessionId(request.getSessionId())
+                .timestamp(LocalDateTime.now())
+                .quickReplies(List.of(
+                        QuickReply.builder().text("📝 Créer une note").payload("CREATE_NOTE").icon("📝").build(),
+                        QuickReply.builder().text("💰 Tous les plafonds").payload("CATEGORY_PLAFOND").icon("💰").build(),
+                        QuickReply.builder().text("❓ Aide").payload("HELP").icon("❓").build()
+                ))
+                .build();
+    }
+    /**
+     * Handle social intents (greetings, gratitude, farewell, positive feedback)
+     */
+    private ChatResponse handleSocialIntent(String intent, ChatRequest request) {
+        Random random = new Random();
+        String response;
+
+        switch (intent) {
+            case "GREETING":
+                List<String> greetings = Arrays.asList(
+                        "Bonjour ! 👋 Comment puis-je vous aider aujourd'hui ?",
+                        "Bonjour ! 😊 Je suis votre assistant Coral.io. Comment puis-je vous assister ?",
+                        "Bonjour et bienvenue ! 🌟 N'hésitez pas à me poser des questions sur vos notes de frais.",
+                        "Salut ! 👋 Je suis là pour vous aider avec vos demandes de notes de frais.",
+                        "Bonjour ! ☀️ Que puis-je faire pour vous aujourd'hui ?"
+                );
+                response = greetings.get(random.nextInt(greetings.size()));
+                break;
+
+            case "GRATITUDE":
+                List<String> gratitudes = Arrays.asList(
+                        "Avec plaisir ! 😊 N'hésitez pas si vous avez d'autres questions.",
+                        "Je vous en prie ! 🙏 Je suis là pour vous aider.",
+                        "C'est un plaisir ! ✨ Si vous avez besoin d'autre chose, je suis disponible.",
+                        "Merci à vous ! 🌟 Puis-je faire autre chose pour vous ?",
+                        "De rien ! 😊 Je suis ravi de pouvoir vous aider."
+                );
+                response = gratitudes.get(random.nextInt(gratitudes.size()));
+                break;
+
+            case "FAREWELL":
+                List<String> farewells = Arrays.asList(
+                        "Au revoir ! 👋 À bientôt sur Coral.io !",
+                        "Bonne journée ! 🌟 N'hésitez pas à revenir si vous avez besoin d'aide.",
+                        "À bientôt ! 😊 Prenez soin de vous.",
+                        "Salut ! 👋 Je vous souhaite une excellente journée.",
+                        "À la prochaine ! 👋 Bonne continuation."
+                );
+                response = farewells.get(random.nextInt(farewells.size()));
+                break;
+
+            case "POSITIVE_FEEDBACK":
+                List<String> feedbacks = Arrays.asList(
+                        "😊 Merci beaucoup ! Je suis ravi de pouvoir vous aider.",
+                        "🎉 Génial ! Je suis content que cela vous plaise.",
+                        "🌟 Merci ! N'hésitez pas si vous avez besoin d'autre chose.",
+                        "😄 Super ! Je suis là pour vous aider avec plaisir.",
+                        "✨ C'est formidable ! Je suis heureux de vous assister."
+                );
+                response = feedbacks.get(random.nextInt(feedbacks.size()));
+                break;
+
+            default:
+                response = "Je suis là pour vous aider ! 😊";
+        }
+
+        return ChatResponse.builder()
+                .answer(response)
+                .sessionId(request.getSessionId())
+                .timestamp(LocalDateTime.now())
+                .responseType("social")
+                .quickReplies(generateContextualQuickReplies(request, List.of()))
+                .build();
     }
 }

@@ -2,10 +2,11 @@ package com.coralio.chatbotmicroservice.controller;
 
 import com.coralio.chatbotmicroservice.dto.ChatRequest;
 import com.coralio.chatbotmicroservice.dto.ChatResponse;
-import com.coralio.chatbotmicroservice.service.HybridChatbotService;
-import com.coralio.chatbotmicroservice.service.SmartChatbotService;
-import com.coralio.chatbotmicroservice.service.ChatbotService;
-import com.coralio.chatbotmicroservice.service.AccessControlService;
+import com.coralio.chatbotmicroservice.dto.SessionContextUpdate;
+import com.coralio.chatbotmicroservice.dto.SessionResponse;
+import com.coralio.chatbotmicroservice.entity.ChatMessage;
+import com.coralio.chatbotmicroservice.entity.ChatSession;
+import com.coralio.chatbotmicroservice.service.*;
 import com.coralio.chatbotmicroservice.repository.CategoryRepository;
 import com.coralio.chatbotmicroservice.repository.ExpenseNoteRepository;
 import jakarta.validation.Valid;
@@ -19,7 +20,9 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
@@ -43,6 +46,8 @@ public class HybridChatbotController {
     @Autowired
     private ExpenseNoteRepository expenseNoteRepository;
 
+    @Autowired
+    private ChatSessionService sessionService;
     @Value("${chatbot.hybrid.enabled:true}")
     private boolean hybridEnabled;
 
@@ -285,5 +290,105 @@ public class HybridChatbotController {
             log.warn("⚠️ Impossible d'extraire le token: {}", e.getMessage());
         }
         return null;
+    }
+    /**
+     * CREATE OR GET EXISTING SESSION
+     */
+    @PostMapping("/sessions")
+    public ResponseEntity<SessionResponse> createSession(@RequestBody Map<String, String> request) {
+        String userId = request.get("userId");
+        String userRole = request.getOrDefault("userRole", "EMPLOYEE");
+
+        log.info("📱 Creating session for user: {} (role: {})", userId, userRole);
+
+        ChatSession session = sessionService.createSession(userId, userRole);
+
+        SessionResponse response = SessionResponse.builder()
+                .sessionToken(session.getSessionToken())
+                .userId(session.getUserId())
+                .userRole(session.getUserRole())
+                .status(session.getStatus().name())
+                .createdAt(session.getCreatedAt())
+                .lastActivity(session.getLastActivity())
+                .build();
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * VALIDATE SESSION
+     */
+    @GetMapping("/sessions/{sessionToken}/validate")
+    public ResponseEntity<Boolean> validateSession(@PathVariable String sessionToken) {
+        boolean isValid = sessionService.isValidSession(sessionToken);
+        log.debug("Session {} validation: {}", sessionToken, isValid);
+        return ResponseEntity.ok(isValid);
+    }
+
+    /**
+     * UPDATE SESSION CONTEXT
+     */
+    @PatchMapping("/sessions/{sessionToken}/context")
+    public ResponseEntity<Void> updateSessionContext(
+            @PathVariable String sessionToken,
+            @RequestBody SessionContextUpdate contextUpdate) {
+
+        Map<String, Object> updates = new HashMap<>();
+        if (contextUpdate.getCurrentPage() != null) {
+            updates.put("currentPage", contextUpdate.getCurrentPage());
+        }
+        if (contextUpdate.getLastAction() != null) {
+            updates.put("lastAction", contextUpdate.getLastAction());
+        }
+        if (contextUpdate.getMetadata() != null) {
+            updates.put("metadata", contextUpdate.getMetadata());
+        }
+
+        sessionService.updateSessionContext(sessionToken, updates);
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * GET SESSION HISTORY
+     */
+    @GetMapping("/sessions/{sessionToken}/history")
+    public ResponseEntity<List<Map<String, Object>>> getSessionHistory(
+            @PathVariable String sessionToken,
+            @RequestParam(defaultValue = "50") int limit) {
+
+        List<ChatMessage> messages = sessionService.getSessionHistory(sessionToken, limit);
+
+        List<Map<String, Object>> history = messages.stream()
+                .map(msg -> {
+                    Map<String, Object> m = new HashMap<>();
+                    m.put("id", msg.getId());
+                    m.put("messageText", msg.getMessageText());
+                    m.put("isUser", msg.isUser());
+                    m.put("intent", msg.getIntent());
+                    m.put("confidence", msg.getConfidence());
+                    m.put("createdAt", msg.getCreatedAt());
+                    return m;
+                })
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(history);
+    }
+
+    /**
+     * CLOSE SESSION
+     */
+    @DeleteMapping("/sessions/{sessionToken}")
+    public ResponseEntity<Void> closeSession(@PathVariable String sessionToken) {
+        sessionService.closeSession(sessionToken);
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * HEARTBEAT - Keep session alive
+     */
+    @PostMapping("/sessions/{sessionToken}/heartbeat")
+    public ResponseEntity<Void> heartbeat(@PathVariable String sessionToken) {
+        sessionService.extendSession(sessionToken);
+        return ResponseEntity.ok().build();
     }
 }
