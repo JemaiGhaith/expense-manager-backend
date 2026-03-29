@@ -21,6 +21,10 @@ public class ExpenseLineDetailDTO {
     private String description;
     private String justificatifPath;
 
+    // ✅ Nouveaux champs pour les anomalies
+    private Boolean isAnomalyDepense;
+    private String anomalyExpenseMessage;
+
     // ✅ Tous les champs dynamiques seront stockés ici
     private Map<String, Object> dynamicFields = new HashMap<>();
 
@@ -32,7 +36,9 @@ public class ExpenseLineDetailDTO {
         this.expenseDate = line.getExpenseDate();
         this.description = line.getDescription();
         this.justificatifPath = line.getJustificatifPath();
-
+        // ✅ Ajouter les champs d'anomalie
+        this.isAnomalyDepense = line.getIsAnomalyDepense();
+        this.anomalyExpenseMessage = line.getAnomalyExpenseMessage();
         // ✅ Copier tous les champs dynamiques
         if (line.getDynamicFields() != null) {
             this.dynamicFields = new HashMap<>(line.getDynamicFields());

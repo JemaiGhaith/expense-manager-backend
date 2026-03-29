@@ -59,6 +59,13 @@ public class ExpenseLine {
     // 📦 DIVERS
     private String detail;
 
+    @Column(name = "is_anomaly_depense")
+    private Boolean isAnomalyDepense = false;
+
+    @Column(name = "anomaly_expense_message", columnDefinition = "TEXT")
+    private String anomalyExpenseMessage;
+
+
     // ✅ CHAMPS DYNAMIQUES - Pour les colonnes non déclarées
     @Transient
     @Builder.Default

@@ -2,10 +2,8 @@ package com.coralio.expense_management_microservice.controllers;
 
 import com.coralio.expense_management_microservice.dto.ExpenseLineDetailDTO;
 import com.coralio.expense_management_microservice.dto.ExpenseRequest;
-import com.coralio.expense_management_microservice.entities.ExpenseLine;
-import com.coralio.expense_management_microservice.entities.ExpenseNote;
-import com.coralio.expense_management_microservice.entities.ExpenseStatus;
-import com.coralio.expense_management_microservice.entities.Project;
+import com.coralio.expense_management_microservice.entities.*;
+import com.coralio.expense_management_microservice.repos.ExpenseDuplicateRepository;
 import com.coralio.expense_management_microservice.repos.ExpenseLineRepository;
 import com.coralio.expense_management_microservice.services.ExpenseService;
 import com.coralio.expense_management_microservice.services.FileStorageService;
@@ -35,7 +33,8 @@ public class ExpenseController {
     private final JdbcTemplate jdbcTemplate;
     private final ExpenseService expenseService;
     private final ProjectService projectService;
-
+    @Autowired
+    private ExpenseDuplicateRepository duplicateRepository;
     @Autowired
     private FileStorageService fileStorageService;
 
@@ -543,5 +542,52 @@ public class ExpenseController {
         } else {
             return "application/octet-stream";
         }
+    }
+
+
+
+    // ✅ Sauvegarder les doublons détectés (appelé par Angular après soumission)
+    @PostMapping("/{noteId}/duplicates")
+    public ResponseEntity<?> saveDuplicates(
+            @PathVariable Long noteId,
+            @RequestBody List<Map<String, Object>> duplicates
+    ) {
+        try {
+            // Supprimer les anciens doublons pour cette note (en cas de re-soumission)
+            duplicateRepository.deleteByExpenseNoteId(noteId);
+
+            List<ExpenseDuplicate> saved = new ArrayList<>();
+
+            for (Map<String, Object> d : duplicates) {
+                ExpenseDuplicate dup = new ExpenseDuplicate();
+                dup.setExpenseNoteId(noteId);
+
+                // expenseLineId peut être null (pour l'accord)
+                if (d.get("expenseLineId") != null) {
+                    dup.setExpenseLineId(Long.parseLong(d.get("expenseLineId").toString()));
+                }
+
+                // ✅ On sauvegarde uniquement les chemins (pas les fichiers)
+                dup.setUploadedFile(d.get("uploadedFile") != null ? d.get("uploadedFile").toString() : null);
+                dup.setDuplicateFile(d.get("duplicateFile") != null ? d.get("duplicateFile").toString() : null);
+                dup.setSimilarity(d.get("similarity") != null ? Double.parseDouble(d.get("similarity").toString()) : null);
+
+                saved.add(duplicateRepository.save(dup));
+            }
+
+            System.out.println("✅ " + saved.size() + " doublon(s) sauvegardé(s) pour note #" + noteId);
+            return ResponseEntity.ok(Map.of("saved", saved.size()));
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    // ✅ Récupérer les doublons d'une note (pour le manager)
+    @GetMapping("/{noteId}/duplicates")
+    public ResponseEntity<List<ExpenseDuplicate>> getDuplicates(@PathVariable Long noteId) {
+        return ResponseEntity.ok(duplicateRepository.findByExpenseNoteId(noteId));
     }
 }

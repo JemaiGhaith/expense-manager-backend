@@ -26,7 +26,7 @@ import java.util.HashSet;
 import java.util.stream.Collectors;
 import java.util.Objects;
 import java.util.function.Function;
-
+import org.springframework.web.client.RestTemplate;
 @Service
 public class ExpenseService {
 
@@ -35,14 +35,15 @@ public class ExpenseService {
     private final ExpenseLineRepository lineRepository;
     private final DatabaseMigrationService migrationService;
     private final JdbcTemplate jdbcTemplate;
-
+    private final RestTemplate restTemplate = new RestTemplate();
     private static final Set<String> TUNISIA_HOLIDAYS = Set.of(
             "01-01", "14-01", "20-03", "09-04", "01-05",
             "25-07", "13-08", "15-10", "17-12"
     );
 
     private final Map<String, String> columnTypeCache = new java.util.concurrent.ConcurrentHashMap<>();
-
+    @Autowired
+    private OCRService ocrService;
     @Autowired
     private FileStorageService fileStorageService;
 
@@ -76,6 +77,7 @@ public class ExpenseService {
         if (note.getStatus() == null) {
             note.setStatus(ExpenseStatus.EN_ATTENTE);
         }
+
         note.setCreatedAt(LocalDateTime.now());
         note.setUpdatedAt(LocalDateTime.now());
 
@@ -83,6 +85,7 @@ public class ExpenseService {
             note.setAccordPath(accordFileName);
         }
 
+        // ✅ validation dates
         for (ExpenseLine line : lines) {
             if (line.getExpenseDate() == null) {
                 line.setExpenseDate(LocalDate.now());
@@ -90,9 +93,12 @@ public class ExpenseService {
             validateExpenseDate(line.getExpenseDate());
         }
 
+        // ✅ sauvegarde note
         ExpenseNote savedNote = noteRepository.save(note);
 
+        // ================== TRAITEMENT DES LIGNES ==================
         for (int i = 0; i < lines.size(); i++) {
+
             ExpenseLine line = lines.get(i);
             line.setExpenseNoteId(savedNote.getId());
 
@@ -100,9 +106,48 @@ public class ExpenseService {
                 line.setJustificatifPath(factureFileNames.get(i));
             }
 
+            try {
+
+                String extractedText = "";
+
+                if (line.getJustificatifPath() != null) {
+
+                    MultipartFile file = fileStorageService.getFileAsMultipart(
+                            note.getEmployeeId(),
+                            line.getJustificatifPath()
+                    );
+
+                    extractedText = ocrService.extractText(file);
+                }
+
+                Map<String, Object> result = restTemplate.postForObject(
+                        "http://localhost:9000/analyze-invoice-ai",
+                        Map.of(
+                                "ocr_text", extractedText,
+                                "amount", line.getAmount(),
+                                "date", line.getExpenseDate().toString(),
+                                "description", line.getDescription(),
+                                "currency", "TND"
+                        ),
+                        Map.class
+                );
+
+                Boolean isAnomaly = (Boolean) result.get("anomaly");
+                String message = (String) result.get("message");
+
+                line.setIsAnomalyDepense(isAnomaly != null ? isAnomaly : false);
+                line.setAnomalyExpenseMessage(message);
+
+            } catch (Exception e) {
+                line.setIsAnomalyDepense(false);
+                line.setAnomalyExpenseMessage("IA indisponible");
+            }
+
+            // ✅ INSERT APRES IA
             insertExpenseLineWithDynamicColumns(line);
         }
 
+        // ================== TOTAL ==================
         double total = lines.stream()
                 .mapToDouble(ExpenseLine::getAmount)
                 .sum();
@@ -110,9 +155,54 @@ public class ExpenseService {
         savedNote.setTotalAmount(total);
         savedNote.setUpdatedAt(LocalDateTime.now());
 
+        // ================== IA FAISS ==================
+        for (ExpenseLine line : lines) {
+            if (line.getJustificatifPath() != null) {
+
+                String text = line.getDescription() != null
+                        ? line.getDescription()
+                        : "facture";
+
+                String filename = line.getJustificatifPath();
+                String filepath = "uploads/" + filename;
+
+                addToFaissIndex(text, filename, filepath);
+            }
+        }
+
+        // ================== ACCORD FAISS ==================
+        if (savedNote.getAccordPath() != null) {
+
+            String filename = savedNote.getAccordPath();
+            String filepath = "uploads/" + filename;
+
+            addToFaissIndex("accord", filename, filepath);
+
+            System.out.println("✅ Accord ajouté à FAISS : " + filename);
+        }
+
         return noteRepository.save(savedNote);
     }
 
+
+    private void addToFaissIndex(String text, String filename, String filepath) {
+        try {
+            String url = "http://localhost:9000/add-to-index";
+
+            Map<String, Object> body = Map.of(
+                    "text", text,
+                    "filename", filename,
+                    "filepath", filepath
+            );
+
+            restTemplate.postForObject(url, body, Map.class);
+
+            System.out.println("✅ Ajouté à FAISS : " + filename);
+
+        } catch (Exception e) {
+            System.err.println("❌ Erreur FAISS : " + e.getMessage());
+        }
+    }
     @Transactional
     public ExpenseNote createExpenseNoteWithFiles(
             ExpenseNote note,
@@ -253,6 +343,8 @@ public class ExpenseService {
             case "kilometrage" -> line.getKilometrage();
             case "vehicule" -> line.getVehicule();
             case "detail" -> line.getDetail();
+            case "is_anomaly_depense" -> line.getIsAnomalyDepense();
+            case "anomaly_expense_message" -> line.getAnomalyExpenseMessage();
             default -> null;
         };
 
@@ -515,7 +607,6 @@ public class ExpenseService {
         return getNotesByDepartment(departmentId);
     }
 
-    // ========== NOUVELLES MÉTHODES POUR MANAGER ==========
 // ========== NOUVELLES MÉTHODES POUR MANAGER ==========
 
     @Transactional
@@ -631,4 +722,9 @@ public class ExpenseService {
 
         return noteRepository.save(note);
     }
+
+
+//=========================== ANOMALY DETECTION ================================
+
+
 }

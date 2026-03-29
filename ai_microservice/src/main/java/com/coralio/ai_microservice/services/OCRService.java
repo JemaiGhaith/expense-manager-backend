@@ -72,7 +72,7 @@ public class OCRService {
 
                 Tesseract tesseract = new Tesseract();
                 tesseract.setDatapath("C:\\Program Files\\tessdata"); // dossier contenant .traineddata
-                tesseract.setLanguage("eng+fra");
+                tesseract.setLanguage("eng+fra+ara");
 
                 for (int i = 0; i < document.getNumberOfPages(); i++) {
 
