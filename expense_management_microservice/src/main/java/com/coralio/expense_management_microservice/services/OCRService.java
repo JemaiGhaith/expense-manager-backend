@@ -1,3 +1,4 @@
+package com.coralio.expense_management_microservice.services;
 /*package com.coralio.ai_microservice.services;
 
 import net.sourceforge.tess4j.ITesseract;
@@ -30,12 +31,10 @@ public class OCRService {
         }
     }
 }*/
-package com.coralio.expense_management_microservice.services;
-
 import net.sourceforge.tess4j.Tesseract;
+import org.apache.tika.Tika;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.PDFRenderer;
-import org.apache.tika.Tika;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -57,7 +56,7 @@ public class OCRService {
                 BufferedImage image = ImageIO.read(file.getInputStream());
 
                 Tesseract tesseract = new Tesseract();
-                tesseract.setDatapath("C:\\Program Files\\tessdata"); // dossier contenant .traineddata
+                tesseract.setDatapath("C:\\Program Files\\Tesseract-OCR\\tessdata"); // dossier contenant .traineddata
 
                 return tesseract.doOCR(image);
             }
@@ -71,8 +70,8 @@ public class OCRService {
                 StringBuilder text = new StringBuilder();
 
                 Tesseract tesseract = new Tesseract();
-                tesseract.setDatapath("C:\\Program Files\\tessdata"); // dossier contenant .traineddata
-                tesseract.setLanguage("eng+fra+ara");
+                tesseract.setDatapath("C:\\Program Files\\Tesseract-OCR\\tessdata"); // dossier contenant .traineddata
+                tesseract.setLanguage("eng+fra");
 
                 for (int i = 0; i < document.getNumberOfPages(); i++) {
 

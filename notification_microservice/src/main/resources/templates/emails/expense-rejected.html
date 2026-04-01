@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Expense Rejected</title>
+</head>
+<body>
+<div th:replace="~{emails/base :: container}">
+    <div th:fragment="content">
+        <p>Bonjour <strong th:text="${notification.data.firstName}">Utilisateur</strong>,</p>
+
+        <p>Votre note de frais a été <strong style="color: #dc3545;">rejetée</strong>. Veuillez consulter les commentaires ci-dessous :</p>
+
+        <div class="warning-box">
+            <strong>⚠️ Raison du rejet :</strong>
+            <p th:text="${notification.data.reason}" style="margin: 10px 0 0 0;">Justificatif manquant</p>
+        </div>
+
+        <div class="expense-details">
+            <h3 style="margin-top: 0;">📋 Détails de la note</h3>
+            <table>
+                <tr>
+                    <td>Référence :</td>
+                    <td><strong th:text="${notification.data.expenseReference}">EXP-2024-001</strong></td>
+                </tr>
+                <tr>
+                    <td>Montant :</td>
+                    <td><strong th:text="${notification.data.amount} + ' €'">250.00 €</strong></td>
+                </tr>
+                <tr>
+                    <td>Rejeté par :</td>
+                    <td th:text="${notification.data.rejectedBy}">Manager Name</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="info-box">
+            <strong>📌 Actions à effectuer :</strong>
+            <ul style="margin: 10px 0 0 20px;">
+                <li>Corrigez la note selon les commentaires ci-dessus</li>
+                <li>Ajoutez les justificatifs manquants</li>
+                <li>Soumettez à nouveau la note pour validation</li>
+            </ul>
+        </div>
+
+        <p>Si vous avez des questions, n'hésitez pas à contacter votre manager.</p>
+    </div>
+</div>
+</body>
+</html>

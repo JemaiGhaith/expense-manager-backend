@@ -1,0 +1,110 @@
+# src/main/resources/application.yml
+spring:
+  application:
+    name: notification-microservice
+
+  # Disable security for now (like your expense service)
+  security:
+    enabled: false
+
+  # Config Server (optional)
+  config:
+    import: optional:configserver:${CONFIG_SERVICE_URL:http://localhost:9999}
+
+  # Database Configuration
+  datasource:
+    url: jdbc:postgresql://localhost:5432/notification_db
+    username: postgres
+    password: 112004
+    driver-class-name: org.postgresql.Driver
+
+  # JPA Configuration
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          time_zone: UTC
+
+  # Mail Configuration (using your actual Gmail credentials)
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: datalake.rh@gmail.com
+    password: yshwctetiasbkntj
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+    test-connection: false
+    default-encoding: UTF-8
+
+  # Thymeleaf for email templates
+  thymeleaf:
+    prefix: classpath:/templates/
+    suffix: .html
+    cache: false
+    encoding: UTF-8
+    mode: HTML
+
+  # Servlet Multipart
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+# Server Configuration
+server:
+  port: 8087  # Notification service port
+  servlet:
+    context-path: /
+
+# Eureka Configuration
+eureka:
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true
+    hostname: localhost
+    instance-id: ${spring.application.name}:${spring.application.instance_id:${random.value}}
+    lease-renewal-interval-in-seconds: 30
+    lease-expiration-duration-in-seconds: 90
+
+# Management endpoints
+management:
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+  endpoint:
+    health:
+      show-details: always
+
+# Application specific
+app:
+  frontend-url: http://localhost:4200
+  service-key: ${NOTIFICATION_SERVICE_KEY:notification-service-secret-key-2024}
+  company-name: Coral-io
+  support-email: support@coral-io.com
+
+# Logging
+logging:
+  level:
+    com.coralio.notification: DEBUG
+    org.springframework.web: INFO
+    org.springframework.mail: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE

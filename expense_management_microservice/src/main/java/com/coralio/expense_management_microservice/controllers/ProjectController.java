@@ -82,4 +82,22 @@ public class ProjectController {
                 .collect(Collectors.toList());
         return ResponseEntity.ok(projects);
     }
+
+
+
+
+
+    @GetMapping("/public/{id}")
+    public ResponseEntity<ProjectResponseDTO> getProjectByIdPublic(@PathVariable Long id) {
+        return projectService.getProjectById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/public/by-department/{departmentId}")
+    public ResponseEntity<List<ProjectResponseDTO>> getProjectsByDepartmentPublic(
+            @PathVariable Long departmentId) {
+        List<ProjectResponseDTO> projects = projectService.getProjectsByDepartment(departmentId);
+        return ResponseEntity.ok(projects);
+    }
 }

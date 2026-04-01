@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Daily Digest</title>
+</head>
+<body>
+<div th:replace="~{emails/base :: container}">
+    <div th:fragment="content">
+        <p>Bonjour <strong th:text="${userName}">Utilisateur</strong>,</p>
+
+        <p>Voici votre résumé quotidien des activités Coral-io :</p>
+
+        <div class="expense-details">
+            <h3 style="margin-top: 0;">📊 Statistiques du jour</h3>
+            <table>
+                <tr>
+                    <td>Notes approuvées :</td>
+                    <td><strong th:text="${digestData.approvedCount}">0</strong></td>
+                </tr>
+                <tr>
+                    <td>Notes rejetées :</td>
+                    <td><strong th:text="${digestData.rejectedCount}">0</strong></td>
+                </tr>
+                <tr>
+                    <td>En attente :</td>
+                    <td><strong th:text="${digestData.pendingCount}">0</strong></td>
+                </tr>
+                <tr>
+                    <td>Montant total :</td>
+                    <td><strong th:text="${digestData.totalAmount} + ' €'">0 €</strong></td>
+                </tr>
+            </table>
+        </div>
+
+        <div th:if="${digestData.recentNotifications}">
+            <h3>🔔 Notifications récentes</h3>
+            <ul style="list-style: none; padding: 0;">
+                <li th:each="notif : ${digestData.recentNotifications}"
+                    style="padding: 10px; margin: 5px 0; background: #f8f9fa; border-radius: 5px;">
+                    <span th:text="${notif.title}"></span><br/>
+                    <small th:text="${notif.message}" style="color: #666;"></small>
+                </li>
+            </ul>
+        </div>
+
+        <p style="margin-top: 20px;">
+            <a th:href="${frontendUrl + '/notifications'}" style="color: #667eea;">Voir toutes les notifications</a>
+        </p>
+    </div>
+</div>
+</body>
+</html>

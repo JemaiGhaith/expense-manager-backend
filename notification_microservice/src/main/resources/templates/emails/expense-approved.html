@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Expense Approved</title>
+</head>
+<body>
+<div th:replace="~{emails/base :: container}">
+    <div th:fragment="content">
+        <p>Bonjour <strong th:text="${notification.data.firstName}">Utilisateur</strong>,</p>
+
+        <p>Nous avons le plaisir de vous informer que votre note de frais a été <strong style="color: #28a745;">approuvée</strong> !</p>
+
+        <div class="expense-details">
+            <h3 style="margin-top: 0;">📋 Détails de la note</h3>
+            <table>
+                <tr>
+                    <td>Référence :</td>
+                    <td><strong th:text="${notification.data.expenseReference}">EXP-2024-001</strong></td>
+                </tr>
+                <tr>
+                    <td>Montant :</td>
+                    <td><strong th:text="${notification.data.amount} + ' €'">250.00 €</strong></td>
+                </tr>
+                <tr>
+                    <td>Approuvé par :</td>
+                    <td th:text="${notification.data.approverName}">Manager Name</td>
+                </tr>
+                <tr>
+                    <td>Date d'approbation :</td>
+                    <td th:text="${notification.data.approvedDate}">2024-03-25</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="info-box">
+            <strong>📌 Prochaines étapes :</strong>
+            <ul style="margin: 10px 0 0 20px;">
+                <li>Votre note sera traitée pour remboursement sous 5-7 jours ouvrés</li>
+                <li>Vous recevrez une notification une fois le paiement effectué</li>
+                <li>Conservez vos justificatifs pendant 3 ans</li>
+            </ul>
+        </div>
+
+        <p>Merci d'utiliser Coral-io pour la gestion de vos notes de frais !</p>
+    </div>
+</div>
+</body>
+</html>

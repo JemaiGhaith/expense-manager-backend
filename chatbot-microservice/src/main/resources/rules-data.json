@@ -1,0 +1,129 @@
+{
+  "regles_statiques": {
+    "principes_generaux": [
+      "Remboursement sur justificatifs originaux",
+      "Délai de traitement : 5 jours ouvrés",
+      "Conservation des justificatifs : 6 mois",
+      "Devise : TND (conversion disponible en EUR, USD)"
+    ],
+
+    "regles_justificatifs": [
+      "Formats acceptés : PDF, JPG, PNG, DOC, DOCX",
+      "Taille max : 10 Mo par fichier",
+      "Un justificatif par ligne de frais",
+      "Justificatifs illisibles → ALERTE"
+    ],
+
+    "workflow_validation": [
+      {
+        "etape": 1,
+        "nom": "Brouillon",
+        "description": "Saisie par l'employé",
+        "acteur": "EMPLOYEE"
+      },
+      {
+        "etape": 2,
+        "nom": "Soumise",
+        "description": "En attente validation manager",
+        "acteur": "MANAGER"
+      },
+      {
+        "etape": 3,
+        "nom": "Validée / Refusée",
+        "description": "Décision du manager",
+        "acteur": "MANAGER"
+      },
+      {
+        "etape": 4,
+        "nom": "Contrôlée",
+        "description": "Vérification admin",
+        "acteur": "ADMIN"
+      },
+      {
+        "etape": 5,
+        "nom": "Remboursée",
+        "description": "Paiement effectué",
+        "acteur": "ADMIN"
+      }
+    ],
+
+    "alertes": [
+      {
+        "nom": "Dépassement plafond",
+        "code": "ALERTE_MONTANT_PLAFOND",
+        "description": "Le montant saisi dépasse le plafond autorisé pour cette catégorie",
+        "severite": "warning",
+        "action": "Remboursement limité au plafond"
+      },
+      {
+        "nom": "Facture en double",
+        "code": "ALERTE_FACTURE_DOUBLE",
+        "description": "Une facture similaire a déjà été soumise récemment",
+        "severite": "danger",
+        "action": "Vérification manuelle"
+      },
+      {
+        "nom": "Justificatif illisible",
+        "code": "ALERTE_JUSTIFICATIF_ILLISIBLE",
+        "description": "La qualité du justificatif est insuffisante",
+        "severite": "warning",
+        "action": "Re-scan ou original"
+      },
+      {
+        "nom": "Date incohérente",
+        "code": "ALERTE_DATE_INCOHERENTE",
+        "description": "La date de la dépense est incohérente (week-end/jour férié)",
+        "severite": "info",
+        "action": "Justificatif requis"
+      }
+    ],
+
+    "faq": [
+      {
+        "question": "Comment sont calculés les remboursements partiels ?",
+        "reponse": "Si votre dépense dépasse le plafond de la catégorie, vous serez remboursé uniquement jusqu'à concurrence du plafond. La différence reste à votre charge. Par exemple, si le plafond est 150 TND et que vous dépensez 200 TND, vous serez remboursé 150 TND."
+      },
+      {
+        "question": "Que faire si mon justificatif est illisible ?",
+        "reponse": "Le système générera une alerte. Vous pouvez quand même soumettre la note, mais elle sera examinée manuellement par l'administrateur."
+      },
+      {
+        "question": "Puis-je être remboursé sans justificatif ?",
+        "reponse": "Non, un justificatif valide est obligatoire pour chaque ligne de frais. Sans justificatif, la note sera refusée."
+      },
+      {
+        "question": "Combien de temps faut-il pour être remboursé ?",
+        "reponse": "Le délai standard est de 5 jours ouvrables après validation complète (manager + admin)."
+      }
+    ],
+
+    "remboursement_partiel_exemples": [
+      {
+        "scenario": "Dépense dans la limite du plafond",
+        "montant_declare": 100,
+        "plafond": 150,
+        "remboursement": 100,
+        "a_charge_employe": 0
+      },
+      {
+        "scenario": "Dépense dépassant le plafond",
+        "montant_declare": 200,
+        "plafond": 150,
+        "remboursement": 150,
+        "a_charge_employe": 50
+      }
+    ],
+
+    "jours_feries_tunisiens": [
+      "1er janvier (Nouvel an)",
+      "14 janvier (Fête de la Révolution)",
+      "20 mars (Fête de l'Indépendance)",
+      "9 avril (Fête des Martyrs)",
+      "1er mai (Fête du Travail)",
+      "25 juillet (Fête de la République)",
+      "13 août (Fête de la Femme)",
+      "15 octobre (Fête de l'Évacuation)",
+      "17 décembre (Fête de la Révolution)"
+    ]
+  }
+}

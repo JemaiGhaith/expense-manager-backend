@@ -1,0 +1,15 @@
+package com.coralio.notification_microservice.enums;
+
+public enum NotificationType {
+    EXPENSE_CREATED,
+    EXPENSE_APPROVED,
+    EXPENSE_REJECTED,
+    EXPENSE_REIMBURSED,
+    EXPENSE_PENDING,
+    DOCUMENTS_MISSING,
+    DOCUMENTS_UPLOADED,
+    PAYMENT_PROCESSED,
+    USER_WELCOME,
+    PASSWORD_CHANGED,
+    SYSTEM_ALERT
+}
