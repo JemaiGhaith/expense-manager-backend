@@ -1,10 +1,5 @@
 server:
   port: 8888
-  # ✅ Remove all timeouts at server level
-  tomcat:
-    connection-timeout: -1
-    keep-alive-timeout: -1
-    max-keep-alive-requests: -1
 
 spring:
   application:
@@ -24,21 +19,6 @@ spring:
       discovery:
         locator:
           enabled: false
-
-      # ✅ Global HTTP client configuration - NO TIMEOUTS
-      httpclient:
-        connect-timeout: -1
-        response-timeout: -1
-        pool:
-          type: ELASTIC
-          max-idle-time: -1
-          acquire-timeout: -1
-
-      # ✅ Netty configuration - NO TIMEOUTS
-      netty:
-        connect-timeout: -1
-        read-timeout: -1
-        write-timeout: -1
 
       routes:
         - id: expense-ms
@@ -81,26 +61,16 @@ spring:
               args:
                 name: chatbotService
                 fallbackUri: forward:/fallback/chatbot
-          metadata:
-            response-timeout: -1
-            connect-timeout: -1
 
-# ✅ Eureka client timeouts - increase to very high values
 eureka:
   client:
     register-with-eureka: true
     fetch-registry: true
     service-url:
       defaultZone: http://localhost:8761/eureka/
-    eureka-server-connect-timeout-seconds: 60
-    eureka-server-read-timeout-seconds: 60
   instance:
     prefer-ip-address: true
-    instance-id: ${spring.application.name}:${spring.application.instance_id:${random.value}}
-    lease-renewal-interval-in-seconds: 30
-    lease-expiration-duration-in-seconds: 90
 
-# ✅ Resilience4j configuration - NO TIMEOUTS
 resilience4j:
   circuitbreaker:
     instances:
@@ -111,8 +81,6 @@ resilience4j:
         permittedNumberOfCallsInHalfOpenState: 3
         waitDurationInOpenState: 30000
         failureRateThreshold: 50
-        slowCallDurationThreshold: 600000
-        slowCallRateThreshold: 100
       userService:
         registerHealthIndicator: true
         slidingWindowSize: 10
@@ -130,8 +98,6 @@ resilience4j:
         permittedNumberOfCallsInHalfOpenState: 3
         waitDurationInOpenState: 30000
         failureRateThreshold: 50
-        slowCallDurationThreshold: 600000
-        slowCallRateThreshold: 100
   timelimiter:
     instances:
       expenseService:
@@ -141,23 +107,4 @@ resilience4j:
       aiService:
         timeoutDuration: 600000
       chatbotService:
-        timeoutDuration: 3600000  # 1 hour
-  retry:
-    instances:
-      expenseService:
-        maxAttempts: 1
-      userService:
-        maxAttempts: 1
-      aiService:
-        maxAttempts: 1
-      chatbotService:
-        maxAttempts: 1
-
-logging:
-  level:
-    com.netflix.eureka: DEBUG
-    com.netflix.discovery: DEBUG
-    org.springframework.cloud.gateway: DEBUG
-    org.springframework.security: DEBUG
-    org.springframework.web.reactive: DEBUG
-    reactor.netty: DEBUG
+        timeoutDuration: 3600000
