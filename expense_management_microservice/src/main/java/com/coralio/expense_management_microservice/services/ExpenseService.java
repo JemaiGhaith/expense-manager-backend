@@ -106,28 +106,14 @@ public class ExpenseService {
                 line.setJustificatifPath(factureFileNames.get(i));
             }
 
+            // ================== IA ANOMALY DETECTION ==================
             try {
-
-                String extractedText = "";
-
-                if (line.getJustificatifPath() != null) {
-
-                    MultipartFile file = fileStorageService.getFileAsMultipart(
-                            note.getEmployeeId(),
-                            line.getJustificatifPath()
-                    );
-
-                    extractedText = ocrService.extractText(file);
-                }
-
                 Map<String, Object> result = restTemplate.postForObject(
-                        "http://localhost:9000/analyze-invoice-ai",
+                        "http://localhost:9000/detect-anomaly-ai",
                         Map.of(
-                                "ocr_text", extractedText,
+                                "employeeId", note.getEmployeeId(),
                                 "amount", line.getAmount(),
-                                "date", line.getExpenseDate().toString(),
-                                "description", line.getDescription(),
-                                "currency", "TND"
+                                "categoryId", line.getCategoryId()
                         ),
                         Map.class
                 );
@@ -138,9 +124,17 @@ public class ExpenseService {
                 line.setIsAnomalyDepense(isAnomaly != null ? isAnomaly : false);
                 line.setAnomalyExpenseMessage(message);
 
+                if (Boolean.TRUE.equals(isAnomaly)) {
+                    System.out.println("🚨 ANOMALIE DETECTEE !");
+                    System.out.println(message);
+                }
+
             } catch (Exception e) {
+                // ✅ sécurité si IA down
                 line.setIsAnomalyDepense(false);
                 line.setAnomalyExpenseMessage("IA indisponible");
+
+                System.err.println("❌ Erreur appel IA: " + e.getMessage());
             }
 
             // ✅ INSERT APRES IA
@@ -183,7 +177,6 @@ public class ExpenseService {
 
         return noteRepository.save(savedNote);
     }
-
 
     private void addToFaissIndex(String text, String filename, String filepath) {
         try {
