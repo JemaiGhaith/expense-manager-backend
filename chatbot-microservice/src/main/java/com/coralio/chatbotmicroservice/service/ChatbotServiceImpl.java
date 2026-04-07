@@ -2,10 +2,7 @@ package com.coralio.chatbotmicroservice.service;
 
 import com.coralio.chatbotmicroservice.config.RulesConfig;
 import com.coralio.chatbotmicroservice.dto.*;
-import com.coralio.chatbotmicroservice.entity.Category;
-import com.coralio.chatbotmicroservice.entity.CategoryField;
-import com.coralio.chatbotmicroservice.entity.ExpenseLine;
-import com.coralio.chatbotmicroservice.entity.ExpenseNote;
+import com.coralio.chatbotmicroservice.entity.*;
 import com.coralio.chatbotmicroservice.model.*;
 import com.coralio.chatbotmicroservice.model.Currency;
 import com.coralio.chatbotmicroservice.repository.CategoryRepository;
@@ -53,6 +50,8 @@ public class ChatbotServiceImpl implements ChatbotService {
     private CategoryRepository categoryRepository;
     @Autowired
     private ResponseFormatter responseFormatter;
+    @Autowired
+    private ChatSessionService sessionService;
     private static final String PROJECT_SERVICE_URL = "http://localhost:8888/api/projects";
     private static final String USER_SERVICE_URL = "http://localhost:8888/api/users";
 
@@ -86,13 +85,108 @@ public class ChatbotServiceImpl implements ChatbotService {
     public ChatResponse processQuestion(ChatRequest request) {
         log.info("Processing question from user {}: {}", request.getUserId(), request.getQuestion());
 
-        // ✅ Passer le rôle à detectIntent
-        String intent = detectIntent(request.getQuestion(), request.getUserRole());
+        // ✅ Récupérer l'historique de la session
+        String sessionToken = request.getSessionId();
+        List<ChatMessage> history = getConversationHistory(sessionToken);
+
+        log.info("🔍 DEBUG - Historique récupéré: {} messages", history.size());
+        for (ChatMessage m : history) {
+            log.info("  -> {}: {}", m.isUser() ? "User" : "Bot", m.getContent());
+        }
+
+        // ✅ Extraire le contexte (dernière note mentionnée)
+        Long lastMentionedNoteId = extractLastNoteIdFromHistory(history);
+        log.info("🔍 DEBUG - lastMentionedNoteId: {}", lastMentionedNoteId);
+
+        // ✅ Vérifier si "cette note" fait référence à une note précédente
+        String question = request.getQuestion();
+        String lowerQuestion = question.toLowerCase();
+        boolean refersToPreviousNote = lowerQuestion.contains("cette note") ||
+                (lowerQuestion.contains("cette") && !lowerQuestion.contains("cette note")) ||
+                (lowerQuestion.contains("la note") && !lowerQuestion.matches(".*\\d+.*"));
+
+        log.info("🔍 DEBUG - refersToPreviousNote: {}, question: '{}'", refersToPreviousNote, question);
+
+        Long effectiveNoteId = null;
+
+        // Si la question fait référence à une note précédente, utiliser le contexte
+        if (refersToPreviousNote && lastMentionedNoteId != null) {
+            effectiveNoteId = lastMentionedNoteId;
+            log.info("🔍 Contexte détecté dans SIMPLE CHATBOT: 'cette note' fait référence à la note #{}", lastMentionedNoteId);
+        } else {
+            // Sinon, extraire normalement
+            effectiveNoteId = extractNoteId(question);
+        }
+
+        // Si toujours pas de note ID, chercher dans l'historique
+        if (effectiveNoteId == null && lastMentionedNoteId != null) {
+            if (lowerQuestion.contains("cette") && !lowerQuestion.contains("note")) {
+                effectiveNoteId = lastMentionedNoteId;
+                log.info("🔍 Contexte détecté dans SIMPLE CHATBOT: 'cette' fait référence à la note #{}", lastMentionedNoteId);
+            }
+        }
+
+        log.info("📝 Note ID final dans SIMPLE CHATBOT: {}", effectiveNoteId);
+
+        // ✅ Passer le rôle à detectIntent avec le contexte
+        String intent = detectIntentWithContext(question, request.getUserRole(), effectiveNoteId);
         log.info("Detected intent: {}", intent);
 
-        return processIntent(intent, request);
+        return processIntent(intent, request, effectiveNoteId);
     }
+    /**
+     * Détecte l'intent en tenant compte du contexte de note
+     */
+    private String detectIntentWithContext(String question, String userRole, Long contextNoteId) {
+        String lowerQuestion = question.toLowerCase();
 
+        // ✅ FORCER la détection si on a un contexte ET la question parle de "cette note"
+        if (contextNoteId != null && (lowerQuestion.contains("cette note") || lowerQuestion.contains("cette"))) {
+            // Pour l'analyse des règles
+            if (lowerQuestion.contains("respecte") ||
+                    lowerQuestion.contains("règle") ||
+                    lowerQuestion.contains("règles") ||
+                    lowerQuestion.contains("conformité") ||
+                    lowerQuestion.contains("valide")) {
+                log.info("📊 FORCAGE: Intent ANALYSE_NOTE avec contexte: note #{}", contextNoteId);
+                return "ANALYSE_NOTE";
+            }
+            // Pour le statut
+            if (lowerQuestion.contains("statut") ||
+                    lowerQuestion.contains("status") ||
+                    lowerQuestion.contains("où en est")) {
+                log.info("📊 FORCAGE: Intent NOTE_STATUS avec contexte: note #{}", contextNoteId);
+                return "NOTE_STATUS";
+            }
+            // Pour les détails (si l'utilisateur dit "cette note" seul)
+            if (lowerQuestion.contains("détail") ||
+                    lowerQuestion.contains("details") ||
+                    lowerQuestion.equals("cette note")) {
+                log.info("📊 FORCAGE: Intent NOTE_DETAILS avec contexte: note #{}", contextNoteId);
+                return "NOTE_DETAILS";
+            }
+        }
+
+        // ✅ Si on a un contexte de note (mais pas de "cette note")
+        if (contextNoteId != null) {
+            if (lowerQuestion.contains("respecte") ||
+                    lowerQuestion.contains("règle") ||
+                    lowerQuestion.contains("conformité") ||
+                    lowerQuestion.contains("valide")) {
+                log.info("📊 Intent ANALYSE_NOTE avec contexte: note #{}", contextNoteId);
+                return "ANALYSE_NOTE";
+            }
+            if (lowerQuestion.contains("statut") ||
+                    lowerQuestion.contains("où en est") ||
+                    lowerQuestion.contains("status")) {
+                log.info("📊 Intent NOTE_STATUS avec contexte: note #{}", contextNoteId);
+                return "NOTE_STATUS";
+            }
+        }
+
+        // Sinon, utiliser la détection normale
+        return detectIntent(question, userRole);
+    }
     private String detectIntent(String question, String userRole) {
         String lowerQuestion = question.toLowerCase();
         // ✅ PRIORITÉ 0: Détection pour les notes filtrées par statut (MUST COME FIRST!)
@@ -327,7 +421,7 @@ public class ChatbotServiceImpl implements ChatbotService {
         return "HELP";
     }
 
-    private ChatResponse processIntent(String intent, ChatRequest request) {
+    private ChatResponse processIntent(String intent, ChatRequest request, Long contextNoteId) {
         // Si l'intention est HELP et que c'est le fallback, on utilise notre nouvelle méthode
         if ("HELP".equals(intent) && !request.getQuestion().toLowerCase().contains("aide")) {
             return handleUnknownIntent(request);
@@ -356,8 +450,8 @@ public class ChatbotServiceImpl implements ChatbotService {
 
                 yield handleFilterNotesByStatus(request, status);
             }
-            case "NOTE_DETAILS" -> handleNoteDetails(request);
-            case "NOTE_STATUS" -> handleNoteStatus(request);
+            case "NOTE_DETAILS" -> handleNoteDetails(request, contextNoteId);
+            case "NOTE_STATUS" -> handleNoteStatus(request, contextNoteId);
             case "UPLOAD_FILE" -> handleUploadFile(request);
             case "VALIDATION_RULES" -> handleValidationRules(request);
             case "DELETE_NOTE" -> handleDeleteNote(request);
@@ -368,7 +462,26 @@ public class ChatbotServiceImpl implements ChatbotService {
             case "FILE_INFO" -> handleFileInfo(request);
             case "CATEGORY_PLAFOND" -> handleCategoryPlafond(request);
             case "CATEGORY_PLAFOND_ALL" -> handleAllPlafonds(request);
-            case "ANALYSE_NOTE" -> smartChatbotService.processSmartQuestion(request);
+
+            // ✅ MODIFICATION ICI : Passer le contexte au Smart Chatbot
+            case "ANALYSE_NOTE" -> {
+                // Si on a un contexte, l'ajouter à la requête
+                if (contextNoteId != null) {
+                    log.info("📤 Transmission du contexte note #{} au Smart Chatbot", contextNoteId);
+                    // ✅ Créer une nouvelle map mutable (HashMap)
+                    Map<String, Object> context = new HashMap<>();
+
+                    // Copier l'ancien contexte s'il existe
+                    if (request.getContext() != null) {
+                        context.putAll(request.getContext());
+                    }
+
+                    // Ajouter le nouveau contexte
+                    context.put("contextNoteId", contextNoteId);
+                    request.setContext(context);
+                }
+                yield smartChatbotService.processSmartQuestion(request);
+            }
             case "COMPARAISON_NOTES" -> smartChatbotService.processSmartQuestion(request);
             case "SPECIAL_RULES" -> handleSpecialRules(request);
             case "ALERT_RULES" -> handleAlertRules(request);
@@ -1258,8 +1371,9 @@ public class ChatbotServiceImpl implements ChatbotService {
                 .build();
     }
 
-    private ChatResponse handleNoteStatus(ChatRequest request) {
-        Long noteId = extractNoteId(request.getQuestion());
+    private ChatResponse handleNoteStatus(ChatRequest request, Long contextNoteId) {
+        // Utiliser le contexte si fourni
+        Long noteId = contextNoteId != null ? contextNoteId : extractNoteId(request.getQuestion());
 
         if (noteId == null) {
             String response = "Pour connaître le statut d'une note, veuillez préciser son numéro\n\nExemples:\n• 'statut note 123'\n• 'où en est la note 45?'";
@@ -1338,8 +1452,9 @@ public class ChatbotServiceImpl implements ChatbotService {
     }
 // Ajouter cette méthode dans ChatbotServiceImpl.java
 
-    private ChatResponse handleNoteDetails(ChatRequest request) {
-        Long noteId = extractNoteId(request.getQuestion());
+    private ChatResponse handleNoteDetails(ChatRequest request, Long contextNoteId) {
+        // Utiliser le contexte si fourni
+        Long noteId = contextNoteId != null ? contextNoteId : extractNoteId(request.getQuestion());
 
         if (noteId == null) {
             String response = "Pour voir les détails d'une note, veuillez préciser son numéro.\n\nExemples:\n• 'détails de la note #92'\n• 'afficher la note 123'\n• 'lister la note 45'";
@@ -2863,5 +2978,103 @@ public class ChatbotServiceImpl implements ChatbotService {
                 .responseType("social")
                 .quickReplies(generateContextualQuickReplies(request, List.of()))
                 .build();
+    }
+    /**
+     * Représente un message de l'historique
+     */
+    private static class ChatMessage {
+        private String content;
+        private boolean isUser;
+        private LocalDateTime timestamp;
+
+        public ChatMessage(String content, boolean isUser, LocalDateTime timestamp) {
+            this.content = content;
+            this.isUser = isUser;
+            this.timestamp = timestamp;
+        }
+
+        public String getContent() { return content; }
+        public boolean isUser() { return isUser; }
+        public LocalDateTime getTimestamp() { return timestamp; }
+    }
+    /**
+     * Récupère l'historique de la conversation depuis la session
+     */
+    /**
+     * Récupère l'historique de la conversation depuis la session
+     */
+    private List<ChatMessage> getConversationHistory(String sessionToken) {
+        List<ChatMessage> history = new ArrayList<>();
+
+        try {
+            log.info("🔍 Récupération de l'historique pour session: {}", sessionToken);
+
+            // ✅ Utiliser getSessionHistory qui est déjà testé et fonctionnel
+            List<com.coralio.chatbotmicroservice.entity.ChatMessage> messages =
+                    sessionService.getSessionHistory(sessionToken, 50);
+
+            log.info("📜 Messages récupérés: {}", messages != null ? messages.size() : 0);
+
+            if (messages != null) {
+                for (com.coralio.chatbotmicroservice.entity.ChatMessage msg : messages) {
+                    history.add(new ChatMessage(
+                            msg.getMessageText(),
+                            msg.isUser(),
+                            msg.getCreatedAt()
+                    ));
+                }
+                log.info("📜 Historique chargé: {} messages", history.size());
+                for (ChatMessage m : history) {
+                    log.info("  -> {}: {}", m.isUser() ? "User" : "Bot", m.getContent());
+                }
+            }
+        } catch (Exception e) {
+            log.error("❌ Erreur lors de la récupération de l'historique: {}", e.getMessage(), e);
+        }
+
+        return history;
+    }
+    /**
+     * Extrait le dernier ID de note mentionné dans l'historique
+     */
+    private Long extractLastNoteIdFromHistory(List<ChatMessage> history) {
+        for (int i = history.size() - 1; i >= 0; i--) {
+            ChatMessage msg = history.get(i);
+            if (msg.isUser()) {
+                Long noteId = extractNoteIdFromText(msg.getContent());
+                if (noteId != null) {
+                    log.info("📝 Note #{} trouvée dans l'historique: '{}'", noteId, msg.getContent());
+                    return noteId;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Extrait un ID de note d'un texte
+     */
+    private Long extractNoteIdFromText(String text) {
+        if (text == null) return null;
+
+        Pattern[] patterns = {
+                Pattern.compile("note\\s*#?\\s*(\\d+)", Pattern.CASE_INSENSITIVE),
+                Pattern.compile("#(\\d+)", Pattern.CASE_INSENSITIVE),
+                Pattern.compile("n°\\s*(\\d+)", Pattern.CASE_INSENSITIVE),
+                Pattern.compile("num[ée]ro\\s*(\\d+)", Pattern.CASE_INSENSITIVE),
+                Pattern.compile("détails de la note (\\d+)", Pattern.CASE_INSENSITIVE)
+        };
+
+        for (Pattern pattern : patterns) {
+            Matcher matcher = pattern.matcher(text);
+            if (matcher.find()) {
+                try {
+                    return Long.parseLong(matcher.group(1));
+                } catch (NumberFormatException e) {
+                    // Ignorer
+                }
+            }
+        }
+        return null;
     }
 }

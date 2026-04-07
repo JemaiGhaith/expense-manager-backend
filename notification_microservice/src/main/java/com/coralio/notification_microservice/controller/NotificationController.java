@@ -16,7 +16,6 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/notifications")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:4200", allowCredentials = "true")
 public class NotificationController {
 
     private final NotificationService notificationService;
@@ -30,23 +29,24 @@ public class NotificationController {
     }
 
     // User endpoints
+    // NotificationController.java - Modifier pour accepter userId en query param
     @GetMapping
     public ResponseEntity<List<NotificationResponse>> getUserNotifications(
-            @RequestHeader("X-User-Id") UUID userId,
+            @RequestParam UUID userId,  // ✅ Changer de header à param
             @RequestParam(defaultValue = "50") int limit) {
         return ResponseEntity.ok(notificationService.getUserNotifications(userId, limit));
     }
 
     @GetMapping("/unread-count")
     public ResponseEntity<UnreadCountResponse> getUnreadCount(
-            @RequestHeader("X-User-Id") UUID userId) {
+            @RequestParam UUID userId) {  // ✅ Changer de header à param
         return ResponseEntity.ok(new UnreadCountResponse(notificationService.getUnreadCount(userId)));
     }
 
     @PatchMapping("/{notificationId}/read")
     public ResponseEntity<Void> markAsRead(
             @PathVariable UUID notificationId,
-            @RequestHeader("X-User-Id") UUID userId) {
+            @RequestParam UUID userId) {  // ✅ Changer de header à param
         notificationService.markAsRead(notificationId, userId);
         return ResponseEntity.ok().build();
     }

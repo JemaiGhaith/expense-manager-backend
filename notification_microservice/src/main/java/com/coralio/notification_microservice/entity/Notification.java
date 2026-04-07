@@ -62,13 +62,12 @@ public class Notification {
     private String sourceService;
 
     @Column(name = "source_entity_id")
-    private UUID sourceEntityId;
+    private String sourceEntityId;
 
     @Column(name = "source_entity_type")
     private String sourceEntityType;
 
-    @CreationTimestamp
-    @Column(name = "created_at")
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @Column(name = "read_at")
@@ -82,4 +81,12 @@ public class Notification {
 
     @Column(name = "error_message")
     private String errorMessage;
+
+    @PrePersist
+    protected void onCreate() {
+        createdAt = LocalDateTime.now();
+        if (priority == null) priority = NotificationPriority.NORMAL;
+        if (status == null) status = NotificationStatus.PENDING;
+        if (retryCount == null) retryCount = 0;
+    }
 }

@@ -23,6 +23,7 @@ public interface ChatSessionRepository extends JpaRepository<ChatSession, UUID> 
     @Query("SELECT s FROM ChatSession s WHERE s.status = :status AND s.lastActivity < :cutoff")
     List<ChatSession> findByStatusAndLastActivityBefore(@Param("status") SessionStatus status,
                                                         @Param("cutoff") LocalDateTime cutoff);
-
+    @Query("SELECT DISTINCT s FROM ChatSession s LEFT JOIN FETCH s.messages WHERE s.sessionToken = :sessionToken AND s.status = :status")
+    Optional<ChatSession> findBySessionTokenAndStatusWithMessages(@Param("sessionToken") String sessionToken, @Param("status") SessionStatus status);
     long countByUserIdAndStatus(String userId, SessionStatus status);
 }

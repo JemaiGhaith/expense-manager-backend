@@ -30,7 +30,7 @@ public class CreateNotificationRequest {
     private String priority;
 
     private String sourceService;
-    private UUID sourceEntityId;
+    private String sourceEntityId;
     private String sourceEntityType;
 
     private Integer expiresInHours;

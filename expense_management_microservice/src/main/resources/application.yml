@@ -59,6 +59,10 @@ management:
       exposure:
         include: '*'
 
+notification:
+  service:
+    url: http://localhost:8087
+    enabled: true
 build:
   version: 1.0
 

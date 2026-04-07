@@ -11,5 +11,11 @@ public enum NotificationType {
     PAYMENT_PROCESSED,
     USER_WELCOME,
     PASSWORD_CHANGED,
-    SYSTEM_ALERT
-}
+    SYSTEM_ALERT,
+    // NOUVEAUX TYPES
+    PENDING_APPROVAL,           // Note en attente pour manager
+    CATEGORY_LIMIT_EXCEEDED,    // Dépassement plafond catégorie
+    BUDGET_LIMIT_EXCEEDED,      // Dépassement budget projet
+    NOTES_READY_FOR_REIMBURSEMENT, // Notes validées prêtes pour remboursement (Admin)
+    EXPENSE_VALIDATED_BY_MANAGER,  // ✅ NOUVEAU : Pour admin
+    }

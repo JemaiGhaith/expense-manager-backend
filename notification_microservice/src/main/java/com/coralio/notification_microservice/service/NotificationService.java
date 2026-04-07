@@ -45,6 +45,7 @@ public class NotificationService {
         }
 
         // Build notification
+        // Build notification
         Notification notification = Notification.builder()
                 .userId(request.getUserId())
                 .userEmail(request.getUserEmail())
@@ -60,6 +61,7 @@ public class NotificationService {
                 .sourceEntityId(request.getSourceEntityId())
                 .sourceEntityType(request.getSourceEntityType())
                 .retryCount(0)
+                .createdAt(LocalDateTime.now())  // ✅ Explicitly set
                 .build();
 
         // Set expiration

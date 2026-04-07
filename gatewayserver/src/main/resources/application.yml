@@ -61,6 +61,15 @@ spring:
               args:
                 name: chatbotService
                 fallbackUri: forward:/fallback/chatbot
+        - id: notification-ms
+          uri: lb://NOTIFICATION-MICROSERVICE
+          predicates:
+              - Path=/api/notifications/**
+          filters:
+              - name: CircuitBreaker
+                args:
+                  name: notificationService
+                  fallbackUri: forward:/fallback/notification
 
 eureka:
   client:

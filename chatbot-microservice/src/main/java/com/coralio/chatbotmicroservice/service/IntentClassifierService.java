@@ -2,6 +2,8 @@ package com.coralio.chatbotmicroservice.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -97,25 +99,45 @@ public class IntentClassifierService {
             return new ClassificationResult("SIMPLE", "POSITIVE_FEEDBACK", 0.95);
         }
 
-        // ✅ PRIORITÉ 4: Détection des questions sur les catégories et plafonds
+        // ✅ PRIORITÉ 4: Détection des questions de conformité AVEC note (ANALYSE_NOTE)
+        // Ceci doit venir AVANT les règles statiques et les patterns SIMPLE
+        boolean hasNoteNumber = lowerQuestion.matches(".*note\\s*#?\\s*\\d+.*") ||
+                lowerQuestion.matches(".*#\\d+.*") ||
+                (lowerQuestion.contains("note") && lowerQuestion.matches(".*\\d+.*"));
+
+        boolean isComplianceQuestion = lowerQuestion.contains("respecte") ||
+                lowerQuestion.contains("règle") ||
+                lowerQuestion.contains("règles") ||
+                lowerQuestion.contains("conformité") ||
+                lowerQuestion.contains("valide") ||
+                lowerQuestion.contains("vérifie") ||
+                lowerQuestion.contains("analyse");
+
+        if (hasNoteNumber && isComplianceQuestion) {
+            log.info("✅ Classification: COMPLEX - ANALYSE_NOTE (note #{} avec question conformité)",
+                    extractNoteNumber(lowerQuestion));
+            return new ClassificationResult("COMPLEX", "ANALYSE_NOTE", 0.95);
+        }
+
+        // ✅ PRIORITÉ 5: Détection des questions sur les catégories et plafonds
         if (isCategoryPlafondQuestion(question)) {
             log.info("✅ Classification: SIMPLE - CATEGORY_PLAFOND");
             return new ClassificationResult("SIMPLE", "CATEGORY_PLAFOND", 0.95);
         }
 
-        // ✅ PRIORITÉ 5: Règles statiques
+        // ✅ PRIORITÉ 6: Règles statiques (MAIS SEULEMENT si ce n'est PAS une question sur une note)
         if (isStaticRulesQuestion(question)) {
             log.info("✅ Classification: RULES_STATIC (question sur les règles)");
             return new ClassificationResult("RULES", "STATIC_RULES", 1.0);
         }
 
-        // ✅ PRIORITÉ 6: Questions sur les notes personnelles
+        // ✅ PRIORITÉ 7: Questions sur les notes personnelles
         if (lowerQuestion.contains("mes notes") || lowerQuestion.contains("ma note")) {
             log.info("✅ Classification: SIMPLE - VIEW_NOTES");
             return new ClassificationResult("SIMPLE", "VIEW_NOTES", 0.95);
         }
 
-        // ✅ PRIORITÉ 7: Détection pour "devise"
+        // ✅ PRIORITÉ 8: Détection pour "devise"
         if (lowerQuestion.contains("devise") || lowerQuestion.contains("conversion") ||
                 lowerQuestion.contains("euro") || lowerQuestion.contains("dollar") ||
                 lowerQuestion.contains("usd") || lowerQuestion.contains("eur")) {
@@ -123,15 +145,7 @@ public class IntentClassifierService {
             return new ClassificationResult("SIMPLE", "CURRENCY", 0.95);
         }
 
-        // 8. Patterns SIMPLE
-        for (Map.Entry<String, Pattern> entry : SIMPLE_PATTERNS.entrySet()) {
-            if (entry.getValue().matcher(question).matches()) {
-                log.info("✅ Pattern SIMPLE détecté: {} → confiance 0.9", entry.getKey());
-                return new ClassificationResult("SIMPLE", entry.getKey(), 0.9);
-            }
-        }
-
-        // 9. Patterns COMPLEXES
+        // ✅ PRIORITÉ 9: Patterns COMPLEXES (AVANT les patterns SIMPLES)
         for (Map.Entry<String, Pattern> entry : COMPLEX_PATTERNS.entrySet()) {
             if (entry.getValue().matcher(question).matches()) {
                 log.info("✅ Pattern COMPLEXE détecté: {} → confiance 0.9", entry.getKey());
@@ -139,7 +153,15 @@ public class IntentClassifierService {
             }
         }
 
-        // 10. Analyse par mots-clés pour les règles (fallback)
+        // ✅ PRIORITÉ 10: Patterns SIMPLE
+        for (Map.Entry<String, Pattern> entry : SIMPLE_PATTERNS.entrySet()) {
+            if (entry.getValue().matcher(question).matches()) {
+                log.info("✅ Pattern SIMPLE détecté: {} → confiance 0.9", entry.getKey());
+                return new ClassificationResult("SIMPLE", entry.getKey(), 0.9);
+            }
+        }
+
+        // 11. Analyse par mots-clés pour les règles (fallback)
         if (lowerQuestion.contains("remboursement") && (lowerQuestion.contains("calcul") || lowerQuestion.contains("partiel"))) {
             log.info("📊 Règle détectée: remboursement partiel");
             return new ClassificationResult("RULES", "STATIC_RULES", 0.95);
@@ -165,7 +187,7 @@ public class IntentClassifierService {
             return new ClassificationResult("RULES", "STATIC_RULES", 0.95);
         }
 
-        // 11. Analyse par longueur et complexité
+        // 12. Analyse par longueur et complexité
         double complexityScore = calculateComplexity(question);
 
         if (complexityScore > 0.7) {
@@ -173,11 +195,21 @@ public class IntentClassifierService {
             return new ClassificationResult("COMPLEX", "GENERAL_COMPLEX", complexityScore);
         }
 
-        // 12. Par défaut
+        // 13. Par défaut
         log.info("📊 Question simple par défaut (score: {})", complexityScore);
         return new ClassificationResult("SIMPLE", "GENERAL_SIMPLE", 0.5);
     }
-
+    /**
+     * Extrait le numéro de note d'une question
+     */
+    private String extractNoteNumber(String question) {
+        Pattern pattern = Pattern.compile("note\\s*#?\\s*(\\d+)", Pattern.CASE_INSENSITIVE);
+        Matcher matcher = pattern.matcher(question);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        return "inconnu";
+    }
     // ✅ ADD THESE HELPER METHODS
 
     private boolean isGreeting(String question) {
@@ -205,6 +237,44 @@ public class IntentClassifierService {
      */
     private boolean isStaticRulesQuestion(String question) {
         String lower = question.toLowerCase();
+
+        // ✅ PRIORITÉ ABSOLUE: Si c'est une question de conformité avec note, ce n'est PAS une règle statique
+        boolean hasNoteNumber = lower.matches(".*note\\s*#?\\s*\\d+.*") || lower.matches(".*#\\d+.*");
+        boolean isComplianceQuestion = lower.contains("respecte") ||
+                lower.contains("règle") ||
+                lower.contains("règles") ||
+                lower.contains("conformité") ||
+                lower.contains("valide") ||
+                lower.contains("vérifie");
+
+        if (hasNoteNumber && isComplianceQuestion) {
+            log.debug("Question sur la conformité d'une note → pas une règle statique");
+            return false;
+        }
+
+        // Si la question contient un numéro de note (ex: "note 126")
+        if (lower.contains("note") && lower.matches(".*\\d+.*")) {
+            log.debug("Question contient un numéro de note → pas une règle statique");
+            return false;
+        }
+
+        // Si la question parle de "cette note"
+        if (lower.contains("cette note")) {
+            log.debug("Question parle de 'cette note' → pas une règle statique");
+            return false;
+        }
+
+        // Si la question contient "cette" ET "respecte" (cas: "cette note respecte les règles")
+        if (lower.contains("cette") && (lower.contains("respecte") || lower.contains("règle") || lower.contains("règles"))) {
+            log.debug("Question parle de 'cette' note → pas une règle statique");
+            return false;
+        }
+
+        // Si la question contient "la note" sans numéro (cas: "la note respecte les règles")
+        if (lower.contains("la note") && (lower.contains("respecte") || lower.contains("règle") || lower.contains("règles"))) {
+            log.debug("Question parle de 'la note' → pas une règle statique");
+            return false;
+        }
 
         // ✅ Exclure les questions sur les plafonds
         boolean isCategoryPlafond = (lower.contains("plafond") || lower.contains("montant max") || lower.contains("limite")) &&

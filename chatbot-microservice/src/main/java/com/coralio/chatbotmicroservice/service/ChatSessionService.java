@@ -19,7 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-
+import org.hibernate.Hibernate;
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -221,5 +221,35 @@ public class ChatSessionService {
             this.session = session;
             this.cachedAt = cachedAt;
         }
+    }
+    /**
+     * Récupère une session avec ses messages chargés (pour éviter LazyInitializationException)
+     */
+    /**
+     * Récupère une session avec ses messages chargés (pour éviter LazyInitializationException)
+     */
+    @Transactional(readOnly = true)
+    public Optional<ChatSession> getSessionWithMessages(String sessionToken) {
+        // Vérifier le cache d'abord
+        CachedSession cached = sessionCache.get(sessionToken);
+        if (cached != null && !isExpired(cached)) {
+            log.debug("Session {} found in cache", sessionToken);
+            // Si en cache, charger depuis la DB avec JOIN FETCH pour éviter les problèmes Lazy
+            // Ne pas utiliser Hibernate.initialize sur l'objet en cache
+            return sessionRepository.findBySessionTokenAndStatusWithMessages(sessionToken, SessionStatus.ACTIVE);
+        }
+
+        // Cache miss, charger depuis la DB avec JOIN FETCH
+        Optional<ChatSession> sessionOpt = sessionRepository.findBySessionTokenAndStatusWithMessages(sessionToken, SessionStatus.ACTIVE);
+
+        sessionOpt.ifPresent(session -> {
+            if (!isExpired(session)) {
+                cacheSession(session);
+            } else {
+                expireSession(session);
+            }
+        });
+
+        return sessionOpt;
     }
 }

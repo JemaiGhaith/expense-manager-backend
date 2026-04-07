@@ -4,6 +4,7 @@ import com.coralio.chatbotmicroservice.dto.ChatRequest;
 import com.coralio.chatbotmicroservice.dto.ChatResponse;
 import com.coralio.chatbotmicroservice.dto.QuickReply;
 import com.coralio.chatbotmicroservice.entity.Category;
+import com.coralio.chatbotmicroservice.entity.ChatSession;
 import com.coralio.chatbotmicroservice.entity.ExpenseNote;
 import com.coralio.chatbotmicroservice.entity.ExpenseLine;
 import com.coralio.chatbotmicroservice.repository.CategoryRepository;
@@ -47,26 +48,23 @@ public class SmartChatbotService {
     private ExpenseNoteRepository expenseNoteRepository;
 
     @Autowired
-    @Lazy  // ✅ AJOUTER CETTE ANNOTATION
+    @Lazy
     private ChatbotService simpleChatbotService;
 
     @Autowired
     private RulesDataService staticRulesService;
-    // ✅ AJOUTER CES INJECTIONS
+
     @Autowired
     private ResponseFormatter responseFormatter;
 
     @Autowired
-    private PromptTemplates promptTemplates;
+    private ChatSessionService sessionService;
 
     @Value("${chatbot.smart.fallback-to-simple:true}")
     private boolean fallbackToSimple;
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
-    /**
-     * Extrait le token de la requête
-     */
     private String extractAuthToken() {
         try {
             ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
@@ -88,7 +86,6 @@ public class SmartChatbotService {
         log.info("🧠 Processing SMART question: {}", request.getQuestion());
 
         try {
-            // ✅ Vérifier si le token est présent
             String authToken = extractAuthToken();
             if (authToken == null || authToken.isEmpty()) {
                 log.error("🔒 Token manquant pour SMART chatbot - utilisateur {}", request.getUserId());
@@ -102,72 +99,118 @@ public class SmartChatbotService {
                         .build();
             }
 
-            // 1. Database context
-            String databaseContext = getDatabaseContext();
+            String sessionToken = request.getSessionId();
+            List<ChatMessage> history = getConversationHistory(sessionToken);
 
-            // 2. User context
-            String userContext = getUserContext(request.getUserId());
+            Long lastMentionedNoteId = extractLastNoteIdFromHistory(history);
 
-            // 3. Detect specific note
-            Long noteId = extractNoteIdFromQuestion(request.getQuestion());
-            String noteDetails = "";
-            boolean hasNoteAccess = false;
+            String question = request.getQuestion();
+            String lowerQuestion = question.toLowerCase();
 
-            if (noteId != null) {
-                noteDetails = getNoteDetails(noteId, request.getUserId(), request.getUserRole());
-                hasNoteAccess = noteDetails != null && !noteDetails.isEmpty() &&
-                        !noteDetails.contains("n'existe pas") &&
-                        !noteDetails.contains("pas les droits");
-                log.info("📝 Note spécifique détectée #{} - Access: {}", noteId, hasNoteAccess);
+            boolean refersToPreviousNote = lowerQuestion.contains("cette note") ||
+                    (lowerQuestion.contains("cette") && !lowerQuestion.contains("cette note")) ||
+                    (lowerQuestion.contains("la note") && !lowerQuestion.matches(".*\\d+.*")) ||
+                    lowerQuestion.contains("celle-ci") ||
+                    lowerQuestion.contains("celle ci");
+
+            Long effectiveNoteId = null;
+
+            if (refersToPreviousNote && lastMentionedNoteId != null) {
+                effectiveNoteId = lastMentionedNoteId;
+                log.info("🔍 PRIORITÉ 1 - Contexte détecté: '{}' fait référence à la note #{} (historique)",
+                        lowerQuestion.contains("cette note") ? "cette note" : "cette", lastMentionedNoteId);
+            } else {
+                effectiveNoteId = extractNoteIdFromQuestion(question);
+                if (effectiveNoteId != null) {
+                    log.info("🔍 PRIORITÉ 2 - Note #{} trouvée explicitement dans la question", effectiveNoteId);
+                }
             }
 
-            // 4. Vector search
-            List<Document> relevantDocs = vectorStore.similaritySearch(request.getQuestion());
-            String vectorContext = relevantDocs.stream()
-                    .map(Document::getText)
-                    .collect(Collectors.joining("\n\n"));
+            if (effectiveNoteId == null && lastMentionedNoteId != null) {
+                if (lowerQuestion.contains("cette") && !lowerQuestion.contains("note")) {
+                    effectiveNoteId = lastMentionedNoteId;
+                    log.info("🔍 PRIORITÉ 3 - Contexte détecté: 'cette' fait référence à la note #{}", lastMentionedNoteId);
+                }
+            }
 
-            // 5. Build prompt
-// 5. Build prompt - Utiliser PromptTemplates
-            String systemPrompt = PromptTemplates.buildPrompt(
-                    request.getQuestion(),
+            log.info("📝 Note ID final après priorisation: {}", effectiveNoteId);
+
+            String databaseContext = getDatabaseContext();
+            String userContext = getUserContext(request.getUserId());
+
+            String noteDetails = "";
+            boolean hasNoteAccess = false;
+            ExpenseNote fullNote = null;
+
+            if (effectiveNoteId != null) {
+                Optional<ExpenseNote> noteOpt = expenseNoteRepository.findById(effectiveNoteId);
+                if (noteOpt.isPresent()) {
+                    ExpenseNote note = noteOpt.get();
+
+                    hasNoteAccess = note.getEmployeeId().equals(request.getUserId()) ||
+                            "MANAGER".equalsIgnoreCase(request.getUserRole()) ||
+                            "ADMIN".equalsIgnoreCase(request.getUserRole());
+
+                    if (hasNoteAccess) {
+                        fullNote = note;
+                        noteDetails = buildCompleteNoteDetails(note);
+                        log.info("📝 Note #{} trouvée avec {} lignes", effectiveNoteId,
+                                note.getLines() != null ? note.getLines().size() : 0);
+                    } else {
+                        log.warn("⛔ Accès refusé pour la note #{}", effectiveNoteId);
+                    }
+                }
+            }
+
+            // ✅ CORRIGÉ: similaritySearch sans paramètre int
+            List<Document> relevantDocs = vectorStore.similaritySearch(question);
+            String vectorContext = relevantDocs.stream()
+                    .limit(3)  // Prendre seulement les 3 premiers
+                    .map(Document::getText)
+                    .limit(2)  // Limiter à 2 documents
+                    .collect(Collectors.joining("\n"));
+
+            String systemPrompt = buildPromptWithHistory(
+                    question,
                     databaseContext,
                     userContext,
                     vectorContext,
-                    detectIntentFromContext(noteId, request.getQuestion()),
-                    request.getUserRole()
-            );            log.debug("📝 PROMPT:\n{}", systemPrompt);
+                    noteDetails,
+                    fullNote,
+                    request.getUserRole(),
+                    history,
+                    lastMentionedNoteId,
+                    effectiveNoteId
+            );
 
-            // 6. LLM call
+            log.debug("📝 PROMPT size: {} chars", systemPrompt.length());
+
             List<Message> messages = List.of(
                     new SystemMessage(systemPrompt),
-                    new UserMessage(request.getQuestion())
+                    new UserMessage(question)
             );
             Prompt prompt = new Prompt(messages);
+
             var springAiResponse = chatModel.call(prompt);
             String answer = springAiResponse.getResult().getOutput().getText();
 
-            // 7. POST-PROCESSING CORRECTION
-            if (noteId != null && hasNoteAccess) {
-                answer = forceCorrectAnswerForNoteQuestion(answer, request.getQuestion(), noteDetails, noteId);
+            if (effectiveNoteId != null && hasNoteAccess && fullNote != null) {
+                answer = forceCorrectAnswerWithRealData(answer, question, fullNote);
             }
 
-            // ✅ 8. FORMATER LA RÉPONSE AVEC RESPONSE FORMATTER
             String formattedAnswer = responseFormatter.formatResponse(
                     answer,
-                    detectIntentFromContext(noteId, request.getQuestion()),
+                    detectIntentFromContext(effectiveNoteId, question),
                     request.getUserRole()
             );
 
-            // 9. Generate quick replies
             List<QuickReply> quickReplies = generateQuickReplies(request);
 
             long duration = System.currentTimeMillis() - startTime;
 
-            // 10. Build response with formatted answer
             return ChatResponse.builder()
-                    .answer(formattedAnswer)  // ✅ UTILISER LA RÉPONSE FORMATÉE
-                    .sessionId(request.getSessionId())
+                    .answer(formattedAnswer)
+                    .sessionId(sessionToken)
                     .timestamp(LocalDateTime.now())
                     .quickReplies(quickReplies)
                     .requiresAction(detectAction(formattedAnswer))
@@ -179,11 +222,8 @@ public class SmartChatbotService {
         } catch (Exception e) {
             log.error("❌ Error in smart processing: {}", e.getMessage(), e);
 
-            // ✅ Vérifier si l'erreur est une 401
-            String errorMessage = e.getMessage();
-            if (errorMessage != null && (errorMessage.contains("401") ||
-                    errorMessage.contains("UNAUTHORIZED") ||
-                    errorMessage.contains("authentifié"))) {
+            if (e.getMessage() != null && (e.getMessage().contains("401") ||
+                    e.getMessage().contains("UNAUTHORIZED"))) {
                 return ChatResponse.builder()
                         .answer("🔒 Vous n'êtes pas authentifié. Veuillez vous reconnecter.")
                         .sessionId(request.getSessionId())
@@ -194,14 +234,12 @@ public class SmartChatbotService {
                         .build();
             }
 
-            String errorResponse = responseFormatter.formatErrorResponse(e.getMessage(), request.getUserRole());
-
             if (fallbackToSimple) {
                 return simpleChatbotService.processQuestion(request);
             }
 
             return ChatResponse.builder()
-                    .answer(errorResponse)
+                    .answer(responseFormatter.formatErrorResponse(e.getMessage(), request.getUserRole()))
                     .sessionId(request.getSessionId())
                     .timestamp(LocalDateTime.now())
                     .responseType("error")
@@ -209,9 +247,137 @@ public class SmartChatbotService {
                     .build();
         }
     }
-    /**
-     * ✅ AJOUTER CETTE MÉTHODE POUR DÉTECTER L'INTENTION
-     */
+
+    private String buildCompleteNoteDetails(ExpenseNote note) {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("📝 **NOTE #").append(note.getId()).append("**\n");
+        sb.append("• 💰 Montant total: **").append(String.format("%.2f", note.getTotalAmount())).append(" TND**\n");
+        sb.append("• 📊 Statut: **").append(note.getStatus()).append("** ").append(getStatusEmoji(note.getStatus())).append("\n");
+        sb.append("• 📅 Créée le: ").append(formatDateTime(note.getCreatedAt())).append("\n");
+
+        List<ExpenseLine> lines = note.getLines();
+        if (lines != null && !lines.isEmpty()) {
+            sb.append("\n📋 **Lignes:**\n");
+            for (ExpenseLine line : lines) {
+                String categoryName = getCategoryNameById(line.getCategoryId());
+                sb.append("  • [").append(categoryName).append("] ");
+                sb.append(String.format("%.2f TND", line.getAmount()));
+
+                boolean hasJustificatif = line.getJustificatifPath() != null && !line.getJustificatifPath().isEmpty();
+                sb.append(hasJustificatif ? " 📎" : " ❌");
+                sb.append("\n");
+            }
+        }
+
+        return sb.toString();
+    }
+
+    private String forceCorrectAnswerWithRealData(String llmAnswer, String question, ExpenseNote realNote) {
+        String lowerAnswer = llmAnswer.toLowerCase();
+        String lowerQuestion = question.toLowerCase();
+
+        // ✅ Correction: Vérifier si le statut est incorrect
+        if (realNote != null && lowerAnswer.contains("refus") && !"REFUSEE".equals(realNote.getStatus())) {
+            log.warn("⚠️ LLM a dit 'refusée' mais le vrai statut est {}", realNote.getStatus());
+            return buildCorrectComplianceAnswer(realNote);
+        }
+
+        boolean isComplianceQuestion = lowerQuestion.contains("respecte") ||
+                lowerQuestion.contains("règle") ||
+                lowerQuestion.contains("conformité") ||
+                lowerQuestion.contains("valide");
+
+        if (isComplianceQuestion && realNote != null) {
+            String expectedAmount = String.format("%.2f", realNote.getTotalAmount());
+            boolean hasCorrectAmount = lowerAnswer.contains(expectedAmount);
+
+            if (!hasCorrectAmount || lowerAnswer.contains("refus")) {
+                log.warn("⚠️ Détection d'hallucination LLM - Reconstruction de la réponse correcte");
+                return buildCorrectComplianceAnswer(realNote);
+            }
+        }
+
+        return llmAnswer;
+    }
+
+    private String buildCorrectComplianceAnswer(ExpenseNote note) {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("📋 **Analyse de la note #").append(note.getId()).append("**\n\n");
+
+        sb.append("**Données réelles de la note:**\n");
+        sb.append(String.format("• 💰 Montant total: **%.2f TND**\n", note.getTotalAmount()));
+        sb.append(String.format("• 📊 Statut: **%s** %s\n", note.getStatus(), getStatusEmoji(note.getStatus())));
+        sb.append(String.format("• 📅 Date de création: %s\n", formatDateTime(note.getCreatedAt())));
+        sb.append("\n");
+
+        List<ExpenseLine> lines = note.getLines();
+        if (lines != null && !lines.isEmpty()) {
+            sb.append("**📎 Justificatifs:**\n");
+            for (ExpenseLine line : lines) {
+                String categoryName = getCategoryNameById(line.getCategoryId());
+                boolean hasJustif = line.getJustificatifPath() != null && !line.getJustificatifPath().isEmpty();
+                sb.append(String.format("  • [%s] %.2f TND: %s\n",
+                        categoryName, line.getAmount(), hasJustif ? "✅ Justificatif présent" : "❌ Justificatif manquant"));
+            }
+            sb.append("\n");
+        }
+
+        // ✅ Vérifier le plafond pour la catégorie
+        if (lines != null && !lines.isEmpty()) {
+            for (ExpenseLine line : lines) {
+                String categoryName = getCategoryNameById(line.getCategoryId());
+                Optional<Category> categoryOpt = categoryRepository.findByName(categoryName);
+
+                if (categoryOpt.isPresent()) {
+                    Category category = categoryOpt.get();
+                    double plafond = category.getPlafond();
+
+                    if (line.getAmount() > plafond) {
+                        sb.append("**⚠️ Alerte dépassement de plafond:**\n");
+                        sb.append(String.format("Le montant de %.2f TND dépasse le plafond de %.2f TND pour la catégorie %s.\n",
+                                line.getAmount(), plafond, categoryName));
+                        sb.append(String.format("Le remboursement sera limité à %.2f TND.\n\n", plafond));
+                    }
+                }
+            }
+        }
+
+        sb.append("**✅ Conclusion:**\n");
+        if ("EN_ATTENTE".equals(note.getStatus())) {
+            sb.append("La note est en attente de validation manager. ");
+            if (lines != null && lines.stream().anyMatch(l -> l.getAmount() > 150)) {
+                sb.append("⚠️ Attention: Le montant dépasse le plafond autorisé. ");
+                sb.append("Le remboursement sera limité au plafond de la catégorie.");
+            } else {
+                sb.append("Tous les justificatifs sont présents et les montants respectent les plafonds.");
+            }
+        } else if ("VALIDEE".equals(note.getStatus())) {
+            sb.append("La note a été validée et est en attente de remboursement.\n");
+        } else if ("REFUSEE".equals(note.getStatus())) {
+            sb.append("❌ La note a été refusée.\n");
+        }
+
+        return sb.toString();
+    }
+
+    private String formatDateTime(LocalDateTime dateTime) {
+        if (dateTime == null) return "Non spécifiée";
+        return dateTime.format(DATE_FORMATTER);
+    }
+
+    private String getStatusEmoji(String status) {
+        if (status == null) return "📝";
+        return switch (status.toUpperCase()) {
+            case "EN_ATTENTE" -> "⏳";
+            case "VALIDEE" -> "✅";
+            case "REFUSEE" -> "❌";
+            case "REMBOURSEE" -> "💰";
+            default -> "📝";
+        };
+    }
+
     private String detectIntentFromContext(Long noteId, String question) {
         String lowerQuestion = question.toLowerCase();
         if (noteId != null) {
@@ -230,65 +396,6 @@ public class SmartChatbotService {
             return "VIEW_NOTES";
         }
         return "HELP";
-    }
-    /**
-     * POST-PROCESSING: Force correct answer for note questions
-     */
-    private String forceCorrectAnswerForNoteQuestion(String answer, String question, String noteDetails, Long noteId) {
-        if (noteId == null || noteDetails == null || noteDetails.isEmpty()) {
-            return answer;
-        }
-
-        // Check if it's a question about categories
-        boolean isCategoriesQuestion = question.toLowerCase().contains("catégorie") ||
-                question.toLowerCase().contains("categories") ||
-                question.toLowerCase().contains("ligne") ||
-                question.toLowerCase().contains("lignes");
-
-        List<String> refusalPatterns = Arrays.asList(
-                "n'ai pas accès", "pas accès", "ne puis pas", "je ne peux pas",
-                "cannot", "désolé", "confidentiel", "privé", "private",
-                "informations personnelles", "ne peut pas", "impossible de",
-                "refuse de", "je refuse", "pas autorisé", "not authorized",
-                "je n'ai pas", "je ne peux"
-        );
-
-        String lowerAnswer = answer.toLowerCase();
-        boolean hasRefusal = refusalPatterns.stream().anyMatch(lowerAnswer::contains);
-
-        // Also check if answer only shows one line when there are multiple
-        boolean showsOnlyOneLine = lowerAnswer.contains("ligne") &&
-                !lowerAnswer.contains("ligne 2") &&
-                !lowerAnswer.contains("ligne 3") &&
-                noteDetails.contains("LIGNE 2");
-
-        if ((hasRefusal || showsOnlyOneLine) && noteDetails.contains("LIGNES DE LA NOTE")) {
-            log.warn("⚠️ Correcting LLM response for note #{}", noteId);
-
-            if (isCategoriesQuestion) {
-                String categories = extractAllCategoriesFromDetails(noteDetails);
-                if (categories != null) {
-                    return String.format("📊 Pour la note #%d, voici toutes les catégories utilisées :\n%s",
-                            noteId, categories);
-                }
-            }
-        }
-
-        return answer;
-    }
-
-    private String extractAllCategoriesFromDetails(String noteDetails) {
-        StringBuilder categories = new StringBuilder();
-        Pattern pattern = Pattern.compile("• Ligne \\d+: ([^\\n]+)");
-        Matcher matcher = pattern.matcher(noteDetails);
-
-        boolean found = false;
-        while (matcher.find()) {
-            found = true;
-            categories.append("  ").append(matcher.group(1).trim()).append("\n");
-        }
-
-        return found ? categories.toString() : null;
     }
 
     private Long extractNoteIdFromQuestion(String question) {
@@ -314,235 +421,35 @@ public class SmartChatbotService {
         return null;
     }
 
-    // ✅ CORRIGÉ : Utilisation correcte de la relation avec expenseNoteId
-    private String getNoteDetails(Long noteId, String userId, String userRole) {
-        log.info("🔍 Recherche de la note #{} pour l'utilisateur {}", noteId, userId);
-
-        Optional<ExpenseNote> noteOpt = expenseNoteRepository.findById(noteId);
-
-        if (noteOpt.isEmpty()) {
-            log.warn("❌ Note #{} non trouvée dans la base", noteId);
-            return "";
-        }
-
-        ExpenseNote note = noteOpt.get();
-
-        // Récupérer les lignes associées à cette note via expenseNoteId
-        List<ExpenseLine> lines = note.getLines(); // Utilise la relation définie dans ExpenseNote
-        int lineCount = lines != null ? lines.size() : 0;
-
-        log.info("✅ Note #{} trouvée: statut={}, {} lignes",
-                noteId, note.getStatus(), lineCount);
-
-        boolean hasAccess = note.getEmployeeId().equals(userId) ||
-                "MANAGER".equalsIgnoreCase(userRole) ||
-                "ADMIN".equalsIgnoreCase(userRole);
-
-        if (!hasAccess) {
-            log.warn("⛔ Accès refusé pour l'utilisateur {} à la note #{}", userId, noteId);
-            return "";
-        }
-
-        StringBuilder details = new StringBuilder();
-        details.append(String.format("\n📝 **DÉTAILS DE LA NOTE #%d**\n", note.getId()));
-        details.append(String.format("• 💰 Montant total: %.2f TND\n", note.getTotalAmount()));
-        details.append(String.format("• 📊 Statut: %s %s\n", note.getStatus(), note.getStatusEmoji()));
-        details.append(String.format("• 📅 Créée le: %s\n", note.getFormattedDate()));
-
-        // ✅ Afficher TOUTES les lignes avec TOUS les détails
-        if (lines != null && !lines.isEmpty()) {
-            details.append("\n📋 **LIGNES DE LA NOTE:**\n");
-            int lineNumber = 1;
-            for (ExpenseLine line : lines) {
-                details.append(String.format("  • Ligne %d: %s\n", lineNumber++,
-                        formatExpenseLineWithFullDetails(line)));
-            }
-        }
-
-        return details.toString();
-    }
-
-    private String formatExpenseLineWithFullDetails(ExpenseLine line) {
-        StringBuilder sb = new StringBuilder();
-
-        String categoryName = getCategoryNameById(line.getCategoryId());
-        sb.append(String.format("[%s] ", categoryName));
-        sb.append(String.format("%.2f TND", line.getAmount()));
-
-        if (line.getDescription() != null) {
-            sb.append(String.format(" - Description: %s", line.getDescription()));
-        }
-
-        // Ajouter TOUS les champs spécifiques
-        List<String> details = new ArrayList<>();
-        if (line.getNombrePersonnes() != null)
-            details.add(line.getNombrePersonnes() + " personnes");
-        if (line.getNombreNuits() != null)
-            details.add(line.getNombreNuits() + " nuits");
-        if (line.getRepasType() != null)
-            details.add("Repas: " + line.getRepasType());
-        if (line.getDepart() != null && line.getDestination() != null)
-            details.add(line.getDepart() + " → " + line.getDestination());
-
-        if (!details.isEmpty()) {
-            sb.append(" (").append(String.join(", ", details)).append(")");
-        }
-
-        if (line.getJustificatifPath() != null) {
-            sb.append(" 📎");
-        }
-
-        return sb.toString();
-    }
-    // Helper pour formater une ligne d'expense
-    private String formatExpenseLine(ExpenseLine line, String categoryName) {
-        StringBuilder lineInfo = new StringBuilder();
-
-        // Description ou info spécifique à la catégorie
-        String description = line.getDescription() != null ? line.getDescription() : "";
-
-        // Ajouter les infos spécifiques selon le type
-        String specificInfo = line.getCategorySpecificInfo();
-        if (!specificInfo.equals(description)) {
-            description = specificInfo;
-        }
-
-        lineInfo.append(String.format("%s - Catégorie: %s - Montant: %.2f TND",
-                description, categoryName, line.getAmount()));
-
-        // Ajouter la date si présente
-        if (line.getExpenseDate() != null) {
-            lineInfo.append(String.format(" (Date: %s)", line.getFormattedDate()));
-        }
-
-        // Ajouter le justificatif si présent
-        if (line.getJustificatifPath() != null && !line.getJustificatifPath().isEmpty()) {
-            lineInfo.append(" 📎");
-        }
-
-        return lineInfo.toString();
-    }
-
-    // Helper pour obtenir le nom de la catégorie (à implémenter selon votre structure)
     private String getCategoryNameById(Long categoryId) {
         if (categoryId == null) return "Catégorie inconnue";
-
-        // Vous pouvez implémenter un cache ou une requête
         Optional<Category> category = categoryRepository.findById(categoryId);
         return category.map(Category::getName).orElse("Catégorie " + categoryId);
     }
 
-    private ChatResponse buildErrorResponse(ChatRequest request, long duration) {
-        return ChatResponse.builder()
-                .answer("❌ Désolé, j'ai eu un problème technique. Veuillez réessayer.")
-                .sessionId(request.getSessionId())
-                .timestamp(LocalDateTime.now())
-                .responseType("error")
-                .processingTimeMs(duration)
-                .build();
-    }
-
-    private String buildSystemPrompt(String databaseContext, String userContext, String noteDetails, String vectorContext) {
-        StringBuilder prompt = new StringBuilder();
-
-        prompt.append("Tu es l'assistant virtuel de Coral.io, une application de gestion de notes de frais en Tunisie.\n\n");
-        prompt.append("Tu as accès à deux types d'informations :\n");
-        prompt.append("- Les règles de l'entreprise (plafonds, justificatifs, délais)\n");
-        prompt.append("- Les données des notes de frais des employés\n\n");
-
-        prompt.append("=== INSTRUCTIONS IMPORTANTES ===\n");
-        prompt.append("1️⃣ Réponds de façon **naturelle et humaine**, comme un collègue\n");
-        prompt.append("2️⃣ Ne mentionne JAMAIS les sources techniques (pas de 'source 1', 'règles officielles', etc.)\n");
-        prompt.append("3️⃣ Si on te demande une règle, donne l'information directement\n");
-        prompt.append("4️⃣ Si on te demande une note, donne les détails directement\n");
-        prompt.append("5️⃣ Si tu n'as pas l'information, dis simplement 'Je ne peux pas vous répondre' ou 'Je n'ai pas cette information'\n\n");
-
-        prompt.append("=== EXEMPLES DE BONNES RÉPONSES ===\n");
-        prompt.append("❌ À ÉVITER: 'D'après la SOURCE 2, votre dernière note est #92'\n");
-        prompt.append("✅ À FAIRE: 'Votre dernière note est la #92'\n\n");
-
-        prompt.append("❌ À ÉVITER: 'Selon les règles officielles, le plafond est 200 TND'\n");
-        prompt.append("✅ À FAIRE: 'Le plafond pour la restauration est de 200 TND'\n\n");
-
-        prompt.append("❌ À ÉVITER: 'Je ne trouve pas cette information dans les règles officielles'\n");
-        prompt.append("✅ À FAIRE: 'Je n'ai pas cette information'\n\n");
-
-        prompt.append("=== INFORMATIONS DISPONIBLES ===\n\n");
-        prompt.append(databaseContext).append("\n\n");
-        prompt.append(userContext).append("\n\n");
-
-        if (noteDetails != null && !noteDetails.isEmpty()) {
-            prompt.append(noteDetails).append("\n\n");
-        }
-
-        prompt.append(vectorContext).append("\n\n");
-
-        return prompt.toString();
-    }
     private String getDatabaseContext() {
         StringBuilder context = new StringBuilder();
         List<Category> categories = categoryRepository.findByActiveTrue();
 
-        // 1️⃣ RÈGLES STATIQUES (avec un titre TRÈS visible)
-        context.append("╔════════════════════════════════════════════════════════════╗\n");
-        context.append("║     SECTION 1: RÈGLES STATIQUES OFFICIELLES               ║\n");
-        context.append("║     (À UTILISER POUR TOUTES LES QUESTIONS SUR LES RÈGLES) ║\n");
-        context.append("╚════════════════════════════════════════════════════════════╝\n");
-        context.append(staticRulesService.getStaticRulesOnly());
-        context.append("\n");
-
-        // 2️⃣ CATÉGORIES DYNAMIQUES
-        context.append("╔════════════════════════════════════════════════════════════╗\n");
-        context.append("║     SECTION 2: CATÉGORIES ET PLAFONDS                     ║\n");
-        context.append("║     (DONNÉES DYNAMIQUES DE LA BASE)                       ║\n");
-        context.append("╚════════════════════════════════════════════════════════════╝\n");
-
-        context.append("📋 Catégories disponibles:\n");
-        for (Category cat : categories) {
-            context.append(String.format("• %s: plafond %.2f TND\n", cat.getName(), cat.getPlafond()));
+        context.append("📋 Catégories et plafonds:\n");
+        for (Category cat : categories.stream().limit(10).toList()) {
+            context.append(String.format("• %s: %.2f TND\n", cat.getName(), cat.getPlafond()));
         }
-
-        Double avgPlafond = categoryRepository.getAveragePlafond();
-        Double maxPlafond = categoryRepository.getMaxPlafond();
-
-        context.append("\n📊 Statistiques:\n");
-        context.append(String.format("• Plafond moyen: %.2f TND\n", avgPlafond != null ? avgPlafond : 0));
-        context.append(String.format("• Plafond maximum: %.2f TND\n", maxPlafond != null ? maxPlafond : 0));
 
         return context.toString();
     }
+
     private String getUserContext(String userId) {
         StringBuilder context = new StringBuilder();
         List<ExpenseNote> recentNotes = expenseNoteRepository.findRecentByEmployee(userId);
 
         if (recentNotes.isEmpty()) {
-            context.append("L'utilisateur n'a pas encore de notes de frais.\n");
+            context.append("Aucune note récente.\n");
         } else {
-            context.append("📝 Notes récentes de l'utilisateur:\n");
-            for (ExpenseNote note : recentNotes.stream().limit(5).toList()) {
-                int lineCount = note.getLines() != null ? note.getLines().size() : 0;
-                context.append(String.format("• #%d: %.2f TND %s (%s) - Statut: %s (%d lignes)\n",
-                        note.getId(),
-                        note.getTotalAmount(),
-                        note.getStatusEmoji(),
-                        note.getFormattedDate(),
-                        note.getStatus(),
-                        lineCount));
-            }
-
-            Map<String, Long> statusCount = recentNotes.stream()
-                    .collect(Collectors.groupingBy(
-                            note -> note.getStatus() != null ? note.getStatus() : "INCONNU",
-                            Collectors.counting()
-                    ));
-
-            context.append("\n📊 Résumé des statuts:\n");
-            statusCount.forEach((status, count) ->
-                    context.append(String.format("  • %s: %d note(s)\n", status, count)));
-
-            Double totalReimbursed = expenseNoteRepository.getTotalReimbursedForEmployee(userId);
-            if (totalReimbursed != null) {
-                context.append(String.format("💰 Total remboursé: %.2f TND\n", totalReimbursed));
+            context.append("Notes récentes:\n");
+            for (ExpenseNote note : recentNotes.stream().limit(3).toList()) {
+                context.append(String.format("• #%d: %.2f TND (%s)\n",
+                        note.getId(), note.getTotalAmount(), note.getStatus()));
             }
         }
 
@@ -596,5 +503,123 @@ public class SmartChatbotService {
         if (lower.contains("supprimer")) return "DELETE";
         if (lower.contains("télécharger")) return "UPLOAD";
         return null;
+    }
+
+    private static class ChatMessage {
+        private String content;
+        private boolean isUser;
+        private LocalDateTime timestamp;
+
+        public ChatMessage(String content, boolean isUser, LocalDateTime timestamp) {
+            this.content = content;
+            this.isUser = isUser;
+            this.timestamp = timestamp;
+        }
+
+        public String getContent() { return content; }
+        public boolean isUser() { return isUser; }
+        public LocalDateTime getTimestamp() { return timestamp; }
+    }
+
+    private List<ChatMessage> getConversationHistory(String sessionToken) {
+        List<ChatMessage> history = new ArrayList<>();
+
+        try {
+            List<com.coralio.chatbotmicroservice.entity.ChatMessage> messages =
+                    sessionService.getSessionHistory(sessionToken, 5);
+
+            if (messages != null) {
+                for (com.coralio.chatbotmicroservice.entity.ChatMessage msg : messages) {
+                    history.add(new ChatMessage(
+                            msg.getMessageText(),
+                            msg.isUser(),
+                            msg.getCreatedAt()
+                    ));
+                }
+                log.debug("📜 Historique chargé: {} messages", history.size());
+            }
+        } catch (Exception e) {
+            log.warn("Impossible de récupérer l'historique: {}", e.getMessage());
+        }
+
+        return history;
+    }
+
+    private Long extractLastNoteIdFromHistory(List<ChatMessage> history) {
+        for (int i = history.size() - 1; i >= 0; i--) {
+            ChatMessage msg = history.get(i);
+            if (msg.isUser()) {
+                Long noteId = extractNoteIdFromText(msg.getContent());
+                if (noteId != null) {
+                    log.info("📝 Note #{} trouvée dans l'historique: '{}'", noteId, msg.getContent());
+                    return noteId;
+                }
+            }
+        }
+        return null;
+    }
+
+    private Long extractNoteIdFromText(String text) {
+        if (text == null) return null;
+
+        Pattern[] patterns = {
+                Pattern.compile("note\\s*#?\\s*(\\d+)", Pattern.CASE_INSENSITIVE),
+                Pattern.compile("#(\\d+)", Pattern.CASE_INSENSITIVE),
+                Pattern.compile("n°\\s*(\\d+)", Pattern.CASE_INSENSITIVE),
+                Pattern.compile("num[ée]ro\\s*(\\d+)", Pattern.CASE_INSENSITIVE),
+                Pattern.compile("détails de la note (\\d+)", Pattern.CASE_INSENSITIVE)
+        };
+
+        for (Pattern pattern : patterns) {
+            Matcher matcher = pattern.matcher(text);
+            if (matcher.find()) {
+                try {
+                    return Long.parseLong(matcher.group(1));
+                } catch (NumberFormatException e) {
+                    // Ignorer
+                }
+            }
+        }
+        return null;
+    }
+
+    private String buildPromptWithHistory(String question, String databaseContext,
+                                          String userContext, String vectorContext,
+                                          String noteDetails, ExpenseNote fullNote,
+                                          String userRole, List<ChatMessage> history,
+                                          Long lastMentionedNoteId, Long effectiveNoteId) {
+        StringBuilder prompt = new StringBuilder();
+
+        prompt.append("Tu es l'assistant Coral.io. Réponds de façon concise et précise.\n\n");
+
+        if (history != null && !history.isEmpty()) {
+            prompt.append("Conversation récente:\n");
+            List<ChatMessage> recentHistory = history.size() > 3 ? history.subList(history.size() - 3, history.size()) : history;
+            for (ChatMessage msg : recentHistory) {
+                String role = msg.isUser() ? "Utilisateur" : "Assistant";
+                String content = msg.getContent().length() > 200 ? msg.getContent().substring(0, 200) + "..." : msg.getContent();
+                prompt.append(role).append(": ").append(content).append("\n");
+            }
+            prompt.append("\n");
+
+            if (lastMentionedNoteId != null) {
+                prompt.append("⚠️ CONTEXTE: La dernière note mentionnée est la #").append(lastMentionedNoteId).append(".\n");
+                prompt.append("Quand l'utilisateur dit 'cette note', il parle de la note #").append(lastMentionedNoteId).append(".\n\n");
+            }
+        }
+
+        if (noteDetails != null && !noteDetails.isEmpty()) {
+            prompt.append("DONNÉES DE LA NOTE:\n");
+            prompt.append(noteDetails).append("\n\n");
+        }
+
+        prompt.append("RÈGLES:\n");
+        prompt.append(databaseContext).append("\n\n");
+
+        if (effectiveNoteId != null) {
+            prompt.append("⚠️ IMPORTANT: Réponds UNIQUEMENT sur la note #").append(effectiveNoteId).append(".\n");
+        }
+
+        return prompt.toString();
     }
 }

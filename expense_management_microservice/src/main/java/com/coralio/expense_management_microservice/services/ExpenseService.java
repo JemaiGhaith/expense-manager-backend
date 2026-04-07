@@ -1,5 +1,6 @@
 package com.coralio.expense_management_microservice.services;
 
+import com.coralio.expense_management_microservice.client.UserServiceClient;
 import com.coralio.expense_management_microservice.entities.ExpenseLine;
 import com.coralio.expense_management_microservice.entities.ExpenseNote;
 import com.coralio.expense_management_microservice.entities.ExpenseStatus;
@@ -7,7 +8,12 @@ import com.coralio.expense_management_microservice.entities.Project;
 import com.coralio.expense_management_microservice.repos.ExpenseLineRepository;
 import com.coralio.expense_management_microservice.repos.ExpenseNoteRepository;
 import com.coralio.expense_management_microservice.repos.ProjectRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,9 +33,16 @@ import java.util.stream.Collectors;
 import java.util.Objects;
 import java.util.function.Function;
 import org.springframework.web.client.RestTemplate;
+
+import com.coralio.expense_management_microservice.client.NotificationClient;
+import java.util.UUID;
+
+@Slf4j
 @Service
 public class ExpenseService {
-
+    private final CategoryService categoryService;
+    private final UserServiceClient userServiceClient;
+    private final NotificationClient notificationClient;
     private final ProjectRepository projectRepository;
     private final ExpenseNoteRepository noteRepository;
     private final ExpenseLineRepository lineRepository;
@@ -52,15 +65,19 @@ public class ExpenseService {
             ExpenseLineRepository lineRepository,
             DatabaseMigrationService migrationService,
             ProjectRepository projectRepository,
-            JdbcTemplate jdbcTemplate) {
+            JdbcTemplate jdbcTemplate,
+            NotificationClient notificationClient,
+            UserServiceClient userServiceClient,
+            CategoryService categoryService) {
         this.noteRepository = noteRepository;
         this.lineRepository = lineRepository;
         this.migrationService = migrationService;
         this.jdbcTemplate = jdbcTemplate;
         this.projectRepository = projectRepository;
+        this.notificationClient = notificationClient;
+        this.userServiceClient = userServiceClient;
+        this.categoryService = categoryService;
     }
-
-    // ========== MÉTHODES EXISTANTES (inchangées) ==========
 
     @Transactional
     public ExpenseNote createExpenseNote(ExpenseNote note, List<ExpenseLine> lines) {
@@ -85,7 +102,7 @@ public class ExpenseService {
             note.setAccordPath(accordFileName);
         }
 
-        // ✅ validation dates
+        // validation dates
         for (ExpenseLine line : lines) {
             if (line.getExpenseDate() == null) {
                 line.setExpenseDate(LocalDate.now());
@@ -93,10 +110,10 @@ public class ExpenseService {
             validateExpenseDate(line.getExpenseDate());
         }
 
-        // ✅ sauvegarde note
+        // sauvegarde note
         ExpenseNote savedNote = noteRepository.save(note);
 
-        // ================== TRAITEMENT DES LIGNES ==================
+        // Traitement des lignes
         for (int i = 0; i < lines.size(); i++) {
 
             ExpenseLine line = lines.get(i);
@@ -106,7 +123,7 @@ public class ExpenseService {
                 line.setJustificatifPath(factureFileNames.get(i));
             }
 
-            // ================== IA ANOMALY DETECTION ==================
+            // IA ANOMALY DETECTION
             try {
                 Map<String, Object> result = restTemplate.postForObject(
                         "http://localhost:9000/detect-anomaly-ai",
@@ -130,18 +147,18 @@ public class ExpenseService {
                 }
 
             } catch (Exception e) {
-                // ✅ sécurité si IA down
                 line.setIsAnomalyDepense(false);
                 line.setAnomalyExpenseMessage("IA indisponible");
-
                 System.err.println("❌ Erreur appel IA: " + e.getMessage());
             }
 
-            // ✅ INSERT APRES IA
             insertExpenseLineWithDynamicColumns(line);
+
+            // Vérifier plafond catégorie APRÈS insertion
+            checkCategoryLimit(line, savedNote.getEmployeeId(), savedNote.getId(), savedNote.getProjectId());
         }
 
-        // ================== TOTAL ==================
+        // TOTAL
         double total = lines.stream()
                 .mapToDouble(ExpenseLine::getAmount)
                 .sum();
@@ -149,31 +166,64 @@ public class ExpenseService {
         savedNote.setTotalAmount(total);
         savedNote.setUpdatedAt(LocalDateTime.now());
 
-        // ================== IA FAISS ==================
+        // IA FAISS
         for (ExpenseLine line : lines) {
             if (line.getJustificatifPath() != null) {
-
-                String text = line.getDescription() != null
-                        ? line.getDescription()
-                        : "facture";
-
+                String text = line.getDescription() != null ? line.getDescription() : "facture";
                 String filename = line.getJustificatifPath();
                 String filepath = "uploads/" + filename;
-
                 addToFaissIndex(text, filename, filepath);
             }
         }
 
-        // ================== ACCORD FAISS ==================
+        // ACCORD FAISS
         if (savedNote.getAccordPath() != null) {
-
             String filename = savedNote.getAccordPath();
             String filepath = "uploads/" + filename;
-
             addToFaissIndex("accord", filename, filepath);
-
             System.out.println("✅ Accord ajouté à FAISS : " + filename);
         }
+
+        // Notification à l'employé
+        try {
+            String employeeEmail = getEmployeeEmail(savedNote.getEmployeeId());
+            notificationClient.notifyExpenseCreated(
+                    UUID.fromString(savedNote.getEmployeeId()),
+                    employeeEmail,
+                    "EXP-" + savedNote.getId(),
+                    savedNote.getTotalAmount(),
+                    savedNote.getId()
+            );
+            System.out.println("✅ Creation notification sent to employee: " + savedNote.getEmployeeId());
+        } catch (Exception e) {
+            System.err.println("❌ Failed to send creation notification: " + e.getMessage());
+        }
+
+        // Notification au manager (basée sur le département du projet)
+        try {
+            String managerId = getManagerIdForProjectDepartment(savedNote.getProjectId());
+            if (managerId != null) {
+                String managerEmail = getEmployeeEmail(managerId);
+                String employeeName = getEmployeeName(savedNote.getEmployeeId());
+
+                notificationClient.notifyManagerPendingApproval(
+                        UUID.fromString(managerId),
+                        managerEmail,
+                        employeeName,
+                        "EXP-" + savedNote.getId(),
+                        savedNote.getTotalAmount(),
+                        savedNote.getId()
+                );
+                System.out.println("✅ Notification envoyée au manager du projet (département): " + managerId);
+            } else {
+                System.out.println("⚠️ Aucun manager trouvé pour le projet " + savedNote.getProjectId());
+            }
+        } catch (Exception e) {
+            System.err.println("❌ Erreur envoi notification manager: " + e.getMessage());
+        }
+
+        // Vérifier budget projet
+        checkProjectBudget(savedNote, savedNote.getId());
 
         return noteRepository.save(savedNote);
     }
@@ -181,21 +231,18 @@ public class ExpenseService {
     private void addToFaissIndex(String text, String filename, String filepath) {
         try {
             String url = "http://localhost:9000/add-to-index";
-
             Map<String, Object> body = Map.of(
                     "text", text,
                     "filename", filename,
                     "filepath", filepath
             );
-
             restTemplate.postForObject(url, body, Map.class);
-
             System.out.println("✅ Ajouté à FAISS : " + filename);
-
         } catch (Exception e) {
             System.err.println("❌ Erreur FAISS : " + e.getMessage());
         }
     }
+
     @Transactional
     public ExpenseNote createExpenseNoteWithFiles(
             ExpenseNote note,
@@ -256,26 +303,17 @@ public class ExpenseService {
                 columnTypeCache.put(columnName, "unknown");
             }
         }
-
         String dataType = columnTypeCache.get(columnName);
         return dataType != null && dataType.contains(targetType.toLowerCase());
     }
 
     private LocalDate convertToLocalDate(Object value, String columnName) {
         if (value == null) return null;
-
-        if (value instanceof LocalDate) {
-            return (LocalDate) value;
-        }
-
-        if (value instanceof java.sql.Date) {
-            return ((java.sql.Date) value).toLocalDate();
-        }
+        if (value instanceof LocalDate) return (LocalDate) value;
+        if (value instanceof java.sql.Date) return ((java.sql.Date) value).toLocalDate();
 
         if (value instanceof String) {
-            String str = (String) value;
-            str = str.trim();
-
+            String str = ((String) value).trim();
             if (str.matches("\\d{4}-\\d{2}-\\d{2}")) {
                 try {
                     return LocalDate.parse(str);
@@ -285,22 +323,14 @@ public class ExpenseService {
             } else if (str.matches("\\d{2}/\\d{2}/\\d{4}")) {
                 try {
                     String[] parts = str.split("/");
-                    return LocalDate.of(
-                            Integer.parseInt(parts[2]),
-                            Integer.parseInt(parts[1]),
-                            Integer.parseInt(parts[0])
-                    );
+                    return LocalDate.of(Integer.parseInt(parts[2]), Integer.parseInt(parts[1]), Integer.parseInt(parts[0]));
                 } catch (Exception e) {
                     System.err.println("❌ Erreur parsing français date: " + str);
                 }
             } else if (str.matches("\\d{2}-\\d{2}-\\d{4}")) {
                 try {
                     String[] parts = str.split("-");
-                    return LocalDate.of(
-                            Integer.parseInt(parts[2]),
-                            Integer.parseInt(parts[1]),
-                            Integer.parseInt(parts[0])
-                    );
+                    return LocalDate.of(Integer.parseInt(parts[2]), Integer.parseInt(parts[1]), Integer.parseInt(parts[0]));
                 } catch (Exception e) {
                     System.err.println("❌ Erreur parsing tirets date: " + str);
                 }
@@ -313,8 +343,7 @@ public class ExpenseService {
                 }
             }
         }
-
-        System.err.println("⚠️ Utilisation date courante pour " + columnName + " (valeur: " + value + ")");
+        System.err.println("⚠️ Utilisation date courante pour " + columnName);
         return LocalDate.now();
     }
 
@@ -349,12 +378,9 @@ public class ExpenseService {
             }
         }
 
-        if (value != null) {
-            if (isColumnOfType(columnName, "date")) {
-                return convertToLocalDate(value, columnName);
-            }
+        if (value != null && isColumnOfType(columnName, "date")) {
+            return convertToLocalDate(value, columnName);
         }
-
         return value;
     }
 
@@ -366,12 +392,8 @@ public class ExpenseService {
             if (c == '_') {
                 nextUpper = true;
             } else {
-                if (nextUpper) {
-                    result.append(Character.toUpperCase(c));
-                    nextUpper = false;
-                } else {
-                    result.append(c);
-                }
+                result.append(nextUpper ? Character.toUpperCase(c) : c);
+                nextUpper = false;
             }
         }
         return result.toString();
@@ -380,20 +402,12 @@ public class ExpenseService {
     private void validateExpenseDate(LocalDate date) {
         DayOfWeek day = date.getDayOfWeek();
         if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
-            throw new IllegalArgumentException(
-                    "Les dépenses ne sont pas autorisées le week-end"
-            );
+            throw new IllegalArgumentException("Les dépenses ne sont pas autorisées le week-end");
         }
 
-        String formatted = String.format("%02d-%02d",
-                date.getDayOfMonth(),
-                date.getMonthValue()
-        );
-
+        String formatted = String.format("%02d-%02d", date.getDayOfMonth(), date.getMonthValue());
         if (TUNISIA_HOLIDAYS.contains(formatted)) {
-            throw new IllegalArgumentException(
-                    "Les dépenses ne sont pas autorisées pendant les jours fériés"
-            );
+            throw new IllegalArgumentException("Les dépenses ne sont pas autorisées pendant les jours fériés");
         }
     }
 
@@ -584,15 +598,12 @@ public class ExpenseService {
 
     public List<ExpenseNote> getNotesByDepartment(Long departmentId) {
         List<Project> departmentProjects = projectRepository.findByDepartmentId(departmentId);
-
         if (departmentProjects.isEmpty()) {
             return List.of();
         }
-
         List<Long> projectIds = departmentProjects.stream()
                 .map(Project::getId)
                 .collect(Collectors.toList());
-
         return noteRepository.findByProjectIdIn(projectIds);
     }
 
@@ -600,7 +611,7 @@ public class ExpenseService {
         return getNotesByDepartment(departmentId);
     }
 
-// ========== NOUVELLES MÉTHODES POUR MANAGER ==========
+    // ========== MANAGER METHODS ==========
 
     @Transactional
     public ExpenseNote managerValidateNote(Long noteId, String comment, String managerId, String managerName) {
@@ -609,13 +620,204 @@ public class ExpenseService {
 
         note.setStatus(ExpenseStatus.VALIDEE);
         note.setDecisionComment(comment);
-        // ✅ Stocker avec le préfixe "M:" pour les managers
         note.setDecidedBy("M:" + managerName);
         note.setManagerId(managerId);
         note.setDecidedAt(LocalDateTime.now());
         note.setUpdatedAt(LocalDateTime.now());
 
-        return noteRepository.save(note);
+        ExpenseNote savedNote = noteRepository.save(note);
+
+        String employeeEmail = getEmployeeEmail(note.getEmployeeId());
+        notificationClient.notifyExpenseApproved(
+                UUID.fromString(note.getEmployeeId()),
+                employeeEmail,
+                "EXP-" + note.getId(),
+                note.getTotalAmount(),
+                note.getId(),
+                managerName,
+                comment
+        );
+        // ✅ NOUVEAU : Notification à l'admin
+        notifyAdminsAboutValidatedNote(savedNote, managerName);
+
+        // ✅ NOUVEAU : Vérifier les dépassements APRÈS validation
+        checkForOverrunsAfterValidation(savedNote);
+        return savedNote;
+    }
+
+    // Ajoutez cette méthode pour notifier les admins
+    private void notifyAdminsAboutValidatedNote(ExpenseNote note, String managerName) {
+        try {
+            // Récupérer tous les admins
+            String adminsUrl = "http://localhost:8083/api/users/admins";
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> admins = restTemplate.getForObject(adminsUrl, List.class);
+
+            if (admins == null || admins.isEmpty()) {
+                log.warn("⚠️ Aucun admin trouvé pour la notification");
+                return;
+            }
+
+            String employeeName = getEmployeeName(note.getEmployeeId());
+            String expenseReference = "EXP-" + note.getId();
+
+            for (Map<String, Object> admin : admins) {
+                String adminId = (String) admin.get("id");
+                String adminEmail = (String) admin.get("email");
+
+                if (adminId != null && adminEmail != null) {
+                    notificationClient.notifyAdminExpenseValidated(
+                            UUID.fromString(adminId),
+                            adminEmail,
+                            employeeName,
+                            expenseReference,
+                            note.getTotalAmount(),
+                            note.getId(),
+                            managerName
+                    );
+                    log.info("✅ Notification admin envoyée à: {}", adminEmail);
+                }
+            }
+        } catch (Exception e) {
+            log.error("❌ Erreur envoi notification admin: {}", e.getMessage());
+        }
+    }
+
+    // Ajoutez cette méthode pour vérifier les dépassements APRÈS validation
+    private void checkForOverrunsAfterValidation(ExpenseNote note) {
+        // 1. Vérifier le budget projet
+        checkProjectBudgetOverrun(note);
+        // 2. Vérifier les dépassements de plafond par ligne
+        checkCategoryLimitOverruns(note);
+    }
+
+    // Vérifier le dépassement de budget projet (avec budget restant)
+    private void checkProjectBudgetOverrun(ExpenseNote note) {
+        try {
+            if (note.getProjectId() != null) {
+                // 1. Récupérer le budget du projet
+                HttpHeaders headers = new HttpHeaders();
+                headers.set("X-Employee-Id", note.getEmployeeId());
+                HttpEntity<?> entity = new HttpEntity<>(headers);
+
+                String projectUrl = "http://localhost:8082/api/projects/" + note.getProjectId();
+                ResponseEntity<Map> projectResponse = restTemplate.exchange(projectUrl, HttpMethod.GET, entity, Map.class);
+                Map<String, Object> project = projectResponse.getBody();
+
+                if (project != null) {
+                    Double budget = (Double) project.get("budget");
+
+                    if (budget != null && budget > 0) {
+                        // 2. Calculer le TOTAL des dépenses existantes (VALIDÉES + EN ATTENTE)
+                        List<ExpenseNote> projectNotes = noteRepository.findByProjectId(note.getProjectId());
+                        double totalExistingExpenses = projectNotes.stream()
+                                .filter(n -> n.getStatus() == ExpenseStatus.VALIDEE || n.getStatus() == ExpenseStatus.EN_ATTENTE)
+                                .mapToDouble(ExpenseNote::getTotalAmount)
+                                .sum();
+
+                        // 3. Calculer le budget restant
+                        double remainingBudget = budget - totalExistingExpenses;
+
+                        // 4. Vérifier si la note individuelle dépasse le budget restant
+                        if (note.getTotalAmount() > remainingBudget) {
+                            String adminsUrl = "http://localhost:8083/api/users/admins";
+                            @SuppressWarnings("unchecked")
+                            List<Map<String, Object>> admins = restTemplate.getForObject(adminsUrl, List.class);
+
+                            if (admins != null) {
+                                String projectName = (String) project.get("name");
+                                String employeeName = getEmployeeName(note.getEmployeeId());
+
+                                for (Map<String, Object> admin : admins) {
+                                    String adminId = (String) admin.get("id");
+                                    String adminEmail = (String) admin.get("email");
+
+                                    if (adminId != null && adminEmail != null) {
+                                        notificationClient.notifyAdminBudgetOverrun(
+                                                UUID.fromString(adminId),
+                                                adminEmail,
+                                                projectName,
+                                                employeeName,
+                                                note.getTotalAmount(),
+                                                remainingBudget,
+                                                note.getId()
+                                        );
+                                        log.info("✅ Notification admin budget dépassé envoyée (Note: {} > Budget restant: {})",
+                                                note.getTotalAmount(), remainingBudget);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Erreur vérification budget projet: {}", e.getMessage());
+        }
+    }
+
+    // Vérifier les dépassements de plafond par catégorie (avec plafond restant par employé)
+    private void checkCategoryLimitOverruns(ExpenseNote note) {
+        try {
+            List<ExpenseLine> lines = lineRepository.findByExpenseNoteId(note.getId());
+
+            for (ExpenseLine line : lines) {
+                Double plafond = categoryService.getPlafondByCategoryId(line.getCategoryId());
+                String categoryName = categoryService.getCategoryName(line.getCategoryId());
+
+                if (plafond != null && plafond > 0) {
+                    // Récupérer toutes les notes de l'employé
+                    List<ExpenseNote> userNotes = noteRepository.findByEmployeeId(note.getEmployeeId());
+
+                    // Calculer le TOTAL des dépenses de l'employé pour cette catégorie (excluant la note actuelle)
+                    double totalExistingForCategory = 0.0;
+                    for (ExpenseNote userNote : userNotes) {
+                        if (!userNote.getId().equals(note.getId())) {
+                            List<ExpenseLine> userLines = lineRepository.findByExpenseNoteId(userNote.getId());
+                            totalExistingForCategory += userLines.stream()
+                                    .filter(l -> l.getCategoryId().equals(line.getCategoryId()))
+                                    .mapToDouble(ExpenseLine::getAmount)
+                                    .sum();
+                        }
+                    }
+
+                    // 2. Calculer le plafond restant
+                    double remainingLimit = plafond - totalExistingForCategory;
+
+                    // 3. Vérifier si la ligne individuelle dépasse le plafond restant
+                    if (line.getAmount() > remainingLimit) {
+                        String adminsUrl = "http://localhost:8083/api/users/admins";
+                        @SuppressWarnings("unchecked")
+                        List<Map<String, Object>> admins = restTemplate.getForObject(adminsUrl, List.class);
+
+                        if (admins != null) {
+                            String employeeName = getEmployeeName(note.getEmployeeId());
+
+                            for (Map<String, Object> admin : admins) {
+                                String adminId = (String) admin.get("id");
+                                String adminEmail = (String) admin.get("email");
+
+                                if (adminId != null && adminEmail != null) {
+                                    notificationClient.notifyAdminCategoryLimitOverrun(
+                                            UUID.fromString(adminId),
+                                            adminEmail,
+                                            categoryName,
+                                            employeeName,
+                                            line.getAmount(),
+                                            remainingLimit,
+                                            note.getId()
+                                    );
+                                    log.info("✅ Notification admin dépassement plafond catégorie envoyée");
+                                }
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Erreur vérification plafond catégorie: {}", e.getMessage());
+        }
     }
 
     @Transactional
@@ -625,16 +827,31 @@ public class ExpenseService {
 
         note.setStatus(ExpenseStatus.REFUSEE);
         note.setDecisionComment(comment);
-        // ✅ Stocker avec le préfixe "M:" pour les managers
         note.setDecidedBy("M:" + managerName);
         note.setManagerId(managerId);
         note.setDecidedAt(LocalDateTime.now());
         note.setUpdatedAt(LocalDateTime.now());
 
-        return noteRepository.save(note);
+        ExpenseNote savedNote = noteRepository.save(note);
+
+        String employeeEmail = getEmployeeEmail(note.getEmployeeId());
+        notificationClient.notifyExpenseRejected(
+                UUID.fromString(note.getEmployeeId()),
+                employeeEmail,
+                "EXP-" + note.getId(),
+                note.getTotalAmount(),
+                note.getId(),
+                managerName,
+                comment
+        );
+
+        // ✅ AJOUTER LA NOTIFICATION ADMIN POUR REFUS
+        notifyAdminsAboutRejectedNote(savedNote, managerName, comment);
+
+        return savedNote;
     }
-    // ========== NOUVELLES MÉTHODES POUR ADMIN ==========
-// ========== NOUVELLES MÉTHODES POUR ADMIN ==========
+
+    // ========== ADMIN METHODS ==========
 
     @Transactional
     public ExpenseNote adminRejectNote(Long noteId, String comment) {
@@ -647,11 +864,24 @@ public class ExpenseService {
 
         note.setStatus(ExpenseStatus.REFUSEE);
         note.setDecisionComment(comment);
-        note.setDecidedBy("Admin");  // ✅ Garder "Admin" sans préfixe
+        note.setDecidedBy("Admin");
         note.setDecidedAt(LocalDateTime.now());
         note.setUpdatedAt(LocalDateTime.now());
 
-        return noteRepository.save(note);
+        ExpenseNote savedNote = noteRepository.save(note);
+
+        String employeeEmail = getEmployeeEmail(note.getEmployeeId());
+        notificationClient.notifyExpenseRejected(
+                UUID.fromString(note.getEmployeeId()),
+                employeeEmail,
+                "EXP-" + note.getId(),
+                note.getTotalAmount(),
+                note.getId(),
+                "Admin",
+                comment
+        );
+
+        return savedNote;
     }
 
     @Transactional
@@ -667,13 +897,26 @@ public class ExpenseService {
         if (comment != null && !comment.trim().isEmpty()) {
             note.setDecisionComment(comment);
         }
-        note.setDecidedBy("Admin");  // ✅ Garder "Admin" sans préfixe
+        note.setDecidedBy("Admin");
         note.setDecidedAt(LocalDateTime.now());
         note.setUpdatedAt(LocalDateTime.now());
 
-        return noteRepository.save(note);
+        ExpenseNote savedNote = noteRepository.save(note);
+
+        String employeeEmail = getEmployeeEmail(note.getEmployeeId());
+        notificationClient.notifyExpenseReimbursed(
+                UUID.fromString(note.getEmployeeId()),
+                employeeEmail,
+                "EXP-" + note.getId(),
+                note.getTotalAmount(),
+                note.getId(),
+                "Admin"
+        );
+
+        return savedNote;
     }
-    // ========== MÉTHODES EXISTANTES CONSERVÉES POUR COMPATIBILITÉ ==========
+
+    // ========== LEGACY METHODS ==========
 
     @Transactional
     public ExpenseNote validateNote(Long noteId) {
@@ -701,7 +944,6 @@ public class ExpenseService {
         return noteRepository.save(note);
     }
 
-    // Dans ExpenseService.java - Méthode pour le manager (ancien endpoint)
     @Transactional
     public ExpenseNote refuseNote(Long noteId, String comment) {
         ExpenseNote note = noteRepository.findById(noteId)
@@ -709,15 +951,155 @@ public class ExpenseService {
 
         note.setStatus(ExpenseStatus.REFUSEE);
         note.setDecisionComment(comment);
-        note.setDecidedBy("M:Manager");  // ✅ Changé : "Manager" au lieu de "Admin (Legacy)"
+        note.setDecidedBy("M:Manager");
         note.setDecidedAt(LocalDateTime.now());
         note.setUpdatedAt(LocalDateTime.now());
 
         return noteRepository.save(note);
     }
 
+    // ========== HELPER METHODS ==========
 
-//=========================== ANOMALY DETECTION ================================
+    private String getEmployeeEmail(String employeeId) {
+        return userServiceClient.getUserEmail(employeeId);
+    }
 
+    private String getEmployeeName(String employeeId) {
+        return userServiceClient.getUserName(employeeId);
+    }
 
+    private String getProjectName(Long projectId) {
+        try {
+            String url = "http://localhost:8082/api/projects/" + projectId + "/name";
+            return restTemplate.getForObject(url, String.class);
+        } catch (Exception e) {
+            return "Projet #" + projectId;
+        }
+    }
+
+    private String getManagerIdForProjectDepartment(Long projectId) {
+        try {
+            String projectUrl = "http://localhost:8082/api/projects/" + projectId + "/department";
+            Long departmentId = restTemplate.getForObject(projectUrl, Long.class);
+
+            if (departmentId == null) {
+                log.warn("⚠️ Aucun département trouvé pour le projet: {}", projectId);
+                return null;
+            }
+
+            String managersUrl = "http://localhost:8083/api/users/managers";
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> managers = restTemplate.getForObject(managersUrl, List.class);
+
+            for (Map<String, Object> manager : managers) {
+                String managerDeptId = (String) manager.get("departmentId");
+                if (managerDeptId != null && managerDeptId.equals(String.valueOf(departmentId))) {
+                    String managerId = (String) manager.get("id");
+                    log.info("✅ Manager trouvé pour le département {}: {}", departmentId, managerId);
+                    return managerId;
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Erreur recherche manager par projet: {}", e.getMessage());
+        }
+        return null;
+    }
+
+    private void checkCategoryLimit(ExpenseLine line, String employeeId, Long expenseId, Long projectId) {
+        try {
+            Double plafond = categoryService.getPlafondByCategoryId(line.getCategoryId());
+            String categoryName = categoryService.getCategoryName(line.getCategoryId());
+
+            if (plafond != null && line.getAmount() > plafond) {
+                String managerId = getManagerIdForProjectDepartment(projectId);
+                if (managerId != null) {
+                    String managerEmail = getEmployeeEmail(managerId);
+                    String employeeName = getEmployeeName(employeeId);
+
+                    notificationClient.notifyCategoryLimitExceeded(
+                            UUID.fromString(managerId),
+                            managerEmail,
+                            employeeName,
+                            categoryName,
+                            line.getAmount(),
+                            plafond,
+                            expenseId
+                    );
+                    log.info("⚠️ Notification dépassement plafond envoyée pour catégorie: {}", categoryName);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Error checking category limit: {}", e.getMessage());
+        }
+    }
+
+    private void checkProjectBudget(ExpenseNote note, Long expenseId) {
+        try {
+            if (note.getProjectId() != null) {
+                String url = "http://localhost:8082/api/projects/" + note.getProjectId() + "/remaining-budget";
+                Double remainingBudget = restTemplate.getForObject(url, Double.class);
+
+                if (remainingBudget != null && note.getTotalAmount() > remainingBudget) {
+                    String managerId = getManagerIdForProjectDepartment(note.getProjectId());
+                    if (managerId != null) {
+                        String managerEmail = getEmployeeEmail(managerId);
+                        String employeeName = getEmployeeName(note.getEmployeeId());
+                        String projectName = getProjectName(note.getProjectId());
+
+                        notificationClient.notifyBudgetLimitExceeded(
+                                UUID.fromString(managerId),
+                                managerEmail,
+                                projectName,
+                                employeeName,
+                                note.getTotalAmount(),
+                                remainingBudget,
+                                expenseId
+                        );
+                        log.info("⚠️ Notification dépassement budget projet envoyée");
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Error checking project budget: {}", e.getMessage());
+        }
+    }
+
+    // Ajoutez cette méthode après notifyAdminsAboutValidatedNote
+    private void notifyAdminsAboutRejectedNote(ExpenseNote note, String managerName, String reason) {
+        try {
+            // Récupérer tous les admins
+            String adminsUrl = "http://localhost:8083/api/users/admins";
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> admins = restTemplate.getForObject(adminsUrl, List.class);
+
+            if (admins == null || admins.isEmpty()) {
+                log.warn("⚠️ Aucun admin trouvé pour la notification de refus");
+                return;
+            }
+
+            String employeeName = getEmployeeName(note.getEmployeeId());
+            String expenseReference = "EXP-" + note.getId();
+
+            for (Map<String, Object> admin : admins) {
+                String adminId = (String) admin.get("id");
+                String adminEmail = (String) admin.get("email");
+
+                if (adminId != null && adminEmail != null) {
+                    notificationClient.notifyAdminExpenseRejected(
+                            UUID.fromString(adminId),
+                            adminEmail,
+                            employeeName,
+                            expenseReference,
+                            note.getTotalAmount(),
+                            note.getId(),
+                            managerName,
+                            reason
+                    );
+                    log.info("✅ Notification refus admin envoyée à: {}", adminEmail);
+                }
+            }
+        } catch (Exception e) {
+            log.error("❌ Erreur envoi notification refus admin: {}", e.getMessage(), e);
+        }
+    }
 }

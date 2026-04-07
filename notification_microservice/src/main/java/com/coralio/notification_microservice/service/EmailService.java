@@ -65,7 +65,6 @@ public class EmailService {
             context.setVariable("buttonColor", getButtonColor(notification.getType()));
             context.setVariable("icon", getIcon(notification.getType()));
 
-
             String templateName = getTemplateName(notification.getType());
             String htmlContent = templateEngine.process(templateName, context);
             helper.setText(htmlContent, true);

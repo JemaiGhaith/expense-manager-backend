@@ -23,4 +23,5 @@ public interface ExpenseLineRepository extends JpaRepository<ExpenseLine, Long> 
             nativeQuery = true)
     List<ExpenseLine> findByExpenseNoteIdWithAllColumns(@Param("noteId") Long noteId);
     void deleteByExpenseNoteId(Long expenseNoteId);
+
 }

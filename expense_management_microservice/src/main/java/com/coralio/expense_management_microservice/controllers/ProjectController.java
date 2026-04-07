@@ -1,7 +1,10 @@
 package com.coralio.expense_management_microservice.controllers;
 
 import com.coralio.expense_management_microservice.dto.ProjectResponseDTO;
+import com.coralio.expense_management_microservice.entities.ExpenseNote;
+import com.coralio.expense_management_microservice.entities.ExpenseStatus;
 import com.coralio.expense_management_microservice.enums.ProjectStatus;
+import com.coralio.expense_management_microservice.repos.ExpenseNoteRepository;
 import com.coralio.expense_management_microservice.services.EmployeeProjectService;
 import com.coralio.expense_management_microservice.services.ProjectService;
 import org.springframework.http.ResponseEntity;
@@ -15,18 +18,23 @@ public class ProjectController {
 
     private final ProjectService projectService;
     private final EmployeeProjectService employeeProjectService;
+    private final ExpenseNoteRepository expenseNoteRepository;
 
     public ProjectController(ProjectService projectService,
-                             EmployeeProjectService employeeProjectService) {
+                             EmployeeProjectService employeeProjectService,
+                             ExpenseNoteRepository expenseNoteRepository) {
         this.projectService = projectService;
         this.employeeProjectService = employeeProjectService;
+        this.expenseNoteRepository = expenseNoteRepository;
     }
+
+    // ========== ENDPOINTS EXISTANTS (avec X-Employee-Id) ==========
 
     @GetMapping
     public ResponseEntity<List<ProjectResponseDTO>> getProjects(
             @RequestHeader(value = "X-Employee-Id", required = false) String employeeId) {
         if (employeeId == null) {
-            return ResponseEntity.badRequest().build(); // ou liste vide
+            return ResponseEntity.badRequest().build();
         }
         List<ProjectResponseDTO> projects = employeeProjectService.getProjectsForEmployee(employeeId)
                 .stream()
@@ -83,9 +91,7 @@ public class ProjectController {
         return ResponseEntity.ok(projects);
     }
 
-
-
-
+    // ========== ENDPOINTS PUBLICS (sans authentification) ==========
 
     @GetMapping("/public/{id}")
     public ResponseEntity<ProjectResponseDTO> getProjectByIdPublic(@PathVariable Long id) {
@@ -99,5 +105,37 @@ public class ProjectController {
             @PathVariable Long departmentId) {
         List<ProjectResponseDTO> projects = projectService.getProjectsByDepartment(departmentId);
         return ResponseEntity.ok(projects);
+    }
+
+    // ========== ENDPOINTS POUR NOTIFICATIONS ==========
+
+    @GetMapping("/{projectId}/department")
+    public ResponseEntity<Long> getProjectDepartment(@PathVariable Long projectId) {
+        return projectService.getProjectById(projectId)
+                .map(project -> ResponseEntity.ok(project.getDepartmentId()))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/{projectId}/remaining-budget")
+    public ResponseEntity<Double> getRemainingBudget(@PathVariable Long projectId) {
+        return projectService.getProjectById(projectId)
+                .map(project -> {
+                    Double totalExpenses = expenseNoteRepository
+                            .findByProjectId(projectId)
+                            .stream()
+                            .filter(note -> note.getStatus() == ExpenseStatus.VALIDEE)
+                            .mapToDouble(ExpenseNote::getTotalAmount)
+                            .sum();
+                    Double remainingBudget = project.getBudget() - totalExpenses;
+                    return ResponseEntity.ok(remainingBudget);
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/{projectId}/name")
+    public ResponseEntity<String> getProjectName(@PathVariable Long projectId) {
+        return projectService.getProjectById(projectId)
+                .map(project -> ResponseEntity.ok(project.getName()))
+                .orElse(ResponseEntity.notFound().build());
     }
 }

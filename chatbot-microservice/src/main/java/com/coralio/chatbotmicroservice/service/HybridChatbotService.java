@@ -303,11 +303,7 @@ public class HybridChatbotService {
     }
 
     private ChatResponse buildRulesResponse(String answer, ChatRequest request, long startTime) {
-        String formattedAnswer = PromptTemplates.buildRulesPrompt(
-                request.getQuestion(),
-                answer,
-                request.getUserRole()
-        );
+        String formattedAnswer = PromptTemplates.formatRulesAnswer(answer, request.getUserRole());
 
         return ChatResponse.builder()
                 .answer(formattedAnswer)

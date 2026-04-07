@@ -106,7 +106,23 @@ public class PromptTemplates {
                 question
         );
     }
+    public static String formatRulesAnswer(String rulesContent, String userRole) {
+        StringBuilder sb = new StringBuilder();
 
+        sb.append("📋 **Règles de remboursement**\n\n");
+
+        // Ajouter le contenu des règles
+        sb.append(rulesContent);
+
+        // Ajouter une conclusion
+        sb.append("\n\n---\n");
+        sb.append("💡 **Besoin d'aide supplémentaire ?**\n");
+        sb.append("• Voir les plafonds par catégorie\n");
+        sb.append("• Règles des justificatifs\n");
+        sb.append("• Workflow de validation");
+
+        return sb.toString();
+    }
     public static final String SYSTEM_PROMPT_SHORT = """
         Tu es l'assistant Coral.io.
         
