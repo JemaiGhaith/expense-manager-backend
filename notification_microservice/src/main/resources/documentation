@@ -1,0 +1,35 @@
+📋 Documentation de test – Notification Microservice (Coralio)
+🎯 Objectif
+Tester le système de notifications qui envoie des alertes aux utilisateurs via :
+
+WebSocket (temps réel dans l'application Angular)
+
+Email (Gmail SMTP)
+
+Base de données (persistance des notifications)
+
+📦 Prérequis
+Logiciel	Version	Vérification
+Java JDK	17+	java -version
+PostgreSQL	14+	psql --version
+Eureka Server	(déjà lancé)	http://localhost:8761
+Angular frontend	(pour WebSocket)	http://localhost:4200
+
+
+1️⃣ Configuration de la base de données
+bash
+# Créer la base de données dédiée aux notifications
+psql -U postgres -c "CREATE DATABASE notification_db;"
+
+# Vérifier
+psql -U postgres -l | grep notification_db
+
+
+2️⃣ Configuration Gmail (déjà configurée)
+Les identifiants sont déjà dans application.yml :
+
+yaml
+mail:
+  username: datalake.rh@gmail.com
+  password: yshwctetiasbkntj
+⚠️ Note : Ce mot de passe est un "mot de passe d'application" Gmail, pas le mot de passe personnel.
