@@ -16,54 +16,126 @@ public class UserServiceClient {
 
     private final RestTemplate restTemplate;
 
-    @Value("${user.service.url:http://localhost:8888}")
+    // ✅ Utilisez le GATEWAY au lieu du user-service direct
+    @Value("${gateway.url:http://localhost:8888}")
+    private String gatewayUrl;
+
+    // ✅ Alternative : garder les deux URLs avec fallback
+    @Value("${user.service.url:http://localhost:8083}")
     private String userServiceUrl;
 
     public String getUserEmail(String userId) {
-        try {
-            // First try to get from /email endpoint
-            String url = userServiceUrl + "/api/users/" + userId + "/email";
-            log.info("📧 Fetching email for user: {}", userId);
-            String email = restTemplate.getForObject(url, String.class);
-            if (email != null && !email.isEmpty()) {
-                log.info("✅ Found email: {}", email);
-                return email;
-            }
-        } catch (Exception e) {
-            log.warn("Could not get email from /email endpoint, trying full user endpoint");
+        if (userId == null) return null;
+
+        // ✅ Méthode 1: Essayer d'abord via le GATEWAY
+        String email = getUserEmailViaGateway(userId);
+        if (email != null && isValidEmail(email)) {
+            log.info("✅ Email trouvé via GATEWAY pour {}: {}", userId, email);
+            return email;
         }
 
-        // Fallback: Get full user object
+        // ✅ Méthode 2: Fallback direct vers user-service
+        email = getUserEmailViaDirect(userId);
+        if (email != null && isValidEmail(email)) {
+            log.info("✅ Email trouvé via DIRECT pour {}: {}", userId, email);
+            return email;
+        }
+
+        log.warn("⚠️ Aucun email trouvé pour l'utilisateur: {}", userId);
+        return null;  // ❌ Ne jamais retourner userId + "@coralio.com"
+    }
+
+    private String getUserEmailViaGateway(String userId) {
         try {
-            String url = userServiceUrl + "/api/users/" + userId;
+            // Appel via le gateway
+            String url = gatewayUrl + "/api/users/" + userId;
+            log.debug("📧 Fetching user via gateway: {}", url);
+
             Map<String, Object> user = restTemplate.getForObject(url, Map.class);
             if (user != null && user.containsKey("email")) {
                 String email = (String) user.get("email");
-                log.info("✅ Found email from user object: {}", email);
-                return email;
+                if (isValidEmail(email)) {
+                    return email;
+                }
             }
         } catch (Exception e) {
-            log.warn("Could not get user from user service");
+            log.warn("❌ Erreur appel gateway pour {}: {}", userId, e.getMessage());
         }
-
-        // Last resort fallback
-        log.warn("⚠️ Using fallback email for user: {}", userId);
-        return userId + "@coralio.com";
+        return null;
     }
-    // Dans UserServiceClient.java, ajoutez cette méthode:
+
+    private String getUserEmailViaDirect(String userId) {
+        try {
+            // Fallback direct vers user-service
+            String url = userServiceUrl + "/api/users/" + userId;
+            log.debug("📧 Fetching user via direct: {}", url);
+
+            Map<String, Object> user = restTemplate.getForObject(url, Map.class);
+            if (user != null && user.containsKey("email")) {
+                String email = (String) user.get("email");
+                if (isValidEmail(email)) {
+                    return email;
+                }
+            }
+        } catch (Exception e) {
+            log.warn("❌ Erreur appel direct pour {}: {}", userId, e.getMessage());
+        }
+        return null;
+    }
+
+    private boolean isValidEmail(String email) {
+        if (email == null) return false;
+        // ✅ Vérifier que c'est un vrai email, pas un UUID avec @coralio.com
+        if (email.contains("-") && email.length() > 30) return false;
+        return email.matches("^[A-Za-z0-9+_.-]+@(.+)$");
+    }
 
     public String getUserName(String userId) {
+        if (userId == null) return "Utilisateur";
+
+        // Essayer via gateway
         try {
-            String url = userServiceUrl + "/api/users/" + userId + "/name";
-            log.info("👤 Fetching name for user: {}", userId);
-            String name = restTemplate.getForObject(url, String.class);
-            if (name != null && !name.isEmpty()) {
-                log.info("✅ Found name: {}", name);
-                return name;
+            String url = gatewayUrl + "/api/users/" + userId;
+            Map<String, Object> user = restTemplate.getForObject(url, Map.class);
+
+            if (user != null) {
+                String firstName = (String) user.get("firstName");
+                String lastName = (String) user.get("lastName");
+                if (firstName != null && lastName != null) {
+                    return firstName + " " + lastName;
+                }
             }
         } catch (Exception e) {
-            log.warn("Could not get name for user: {}", userId);
+            log.warn("Erreur récupération nom via gateway: {}", e.getMessage());
         }
+
+        // Fallback direct
+        try {
+            String url = userServiceUrl + "/api/users/" + userId;
+            Map<String, Object> user = restTemplate.getForObject(url, Map.class);
+
+            if (user != null) {
+                String firstName = (String) user.get("firstName");
+                String lastName = (String) user.get("lastName");
+                if (firstName != null && lastName != null) {
+                    return firstName + " " + lastName;
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Erreur récupération nom direct: {}", e.getMessage());
+        }
+
         return "Utilisateur";
+    }
+
+    // Pour récupérer l'utilisateur complet
+    public Map<String, Object> getUser(String userId) {
+        try {
+            String url = gatewayUrl + "/api/users/" + userId;
+            return restTemplate.getForObject(url, Map.class);
+        } catch (Exception e) {
+            log.error("❌ Erreur récupération user: {}", e.getMessage());
+            return null;
+        }
     }
 }

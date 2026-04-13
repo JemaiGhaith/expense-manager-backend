@@ -286,7 +286,7 @@ public class NotificationClient {
                 data,
                 "HIGH",
                 expenseId,
-                true
+                false
         );
     }
 
@@ -313,7 +313,7 @@ public class NotificationClient {
                 data,
                 "CRITICAL",
                 expenseId,
-                true
+                false
         );
     }
     /**
@@ -405,7 +405,7 @@ public class NotificationClient {
                 data,
                 "CRITICAL",
                 expenseId,
-                true
+                false
         );
     }
 
@@ -436,7 +436,7 @@ public class NotificationClient {
                 data,
                 "HIGH",
                 expenseId,
-                true
+                false
         );
     }
     /**

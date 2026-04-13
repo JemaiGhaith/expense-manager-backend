@@ -36,6 +36,9 @@ public class ReimbursedLine {
 
     @CreationTimestamp
     private LocalDateTime createdAt;
+    // ✅ NOUVEAUX CHAMPS POUR DEVISE
+    @Column(name = "reimbursed_amount_display")
+    private Double reimbursedAmountDisplay;  // Montant dans la devise d'affichage
 
     // Méthode pour vérifier si le remboursement respecte les règles
     public boolean isValidReimbursement(Double categoryCeiling) {

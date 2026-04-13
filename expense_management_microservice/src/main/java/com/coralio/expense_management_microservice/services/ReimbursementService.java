@@ -48,6 +48,9 @@ public class ReimbursementService {
     /**
      * Crée un ordre de paiement basé sur les lignes sélectionnées et leurs montants remboursés
      */
+    /**
+     * Crée un ordre de paiement basé sur les lignes sélectionnées et leurs montants remboursés
+     */
     @Transactional
     public PaymentOrder createPaymentOrder(ReimbursementRequestDTO request) {
         log.info("Création d'un ordre de paiement pour la note #{}", request.getExpenseNoteId());
@@ -68,7 +71,7 @@ public class ReimbursementService {
             throw new IllegalStateException("Un ordre de paiement existe déjà pour cette note");
         }
 
-        // 3. Récupérer toutes les lignes de la note pour validation
+        // 3. Récupérer toutes les lignes de la note
         List<ExpenseLine> allLines = expenseLineRepository.findByExpenseNoteId(note.getId());
         Map<Long, ExpenseLine> linesMap = new HashMap<>();
         for (ExpenseLine line : allLines) {
@@ -83,8 +86,15 @@ public class ReimbursementService {
         paymentOrder.setPaymentReference(request.getPaymentReference());
         paymentOrder.setAdminComment(request.getAdminComment());
 
+        // ✅ AJOUTER LES INFOS DE DEVISE
+        String displayCurrency = request.getDisplayCurrency() != null ? request.getDisplayCurrency() : "TND";
+        Double exchangeRate = request.getExchangeRate() != null ? request.getExchangeRate() : 1.0;
+        paymentOrder.setDisplayCurrency(displayCurrency);
+        paymentOrder.setExchangeRate(exchangeRate);
+
         List<ReimbursedLine> reimbursedLines = new ArrayList<>();
         double totalReimbursed = 0.0;
+        double totalReimbursedTND = 0.0;
 
         // 5. Traiter chaque ligne de la requête
         for (LineReimbursementDTO lineReimb : request.getLines()) {
@@ -98,23 +108,18 @@ public class ReimbursementService {
 
             Double reimbursedAmount = lineReimb.getReimbursedAmount();
 
-            // Si montant null ou 0, on ne rembourse pas cette ligne
             if (reimbursedAmount == null || reimbursedAmount <= 0) {
                 log.debug("Ligne #{} non remboursée", line.getId());
                 continue;
             }
 
-            // Récupérer le plafond de la catégorie
             Double categoryCeiling = categoryService.getPlafondByCategoryId(line.getCategoryId());
             String categoryName = categoryService.getCategoryName(line.getCategoryId());
 
-            // Valider le montant selon les règles métier
             validateReimbursedAmount(line, reimbursedAmount, categoryCeiling, categoryName);
 
-            // Déterminer si c'est un remboursement total ou partiel
             boolean isFullyReimbursed = Math.abs(reimbursedAmount - line.getAmount()) < 0.01;
 
-            // Créer la ligne remboursée
             ReimbursedLine reimbursedLine = new ReimbursedLine();
             reimbursedLine.setExpenseLine(line);
             reimbursedLine.setPaymentOrder(paymentOrder);
@@ -123,28 +128,35 @@ public class ReimbursementService {
             reimbursedLine.setIsFullyReimbursed(isFullyReimbursed);
             reimbursedLine.setAdminComment(lineReimb.getComment());
 
+            // ✅ CALCULER LE MONTANT DANS LA DEVISE D'AFFICHAGE
+            double amountInDisplayCurrency = reimbursedAmount * exchangeRate;
+            reimbursedLine.setReimbursedAmountDisplay(amountInDisplayCurrency);
+
             reimbursedLines.add(reimbursedLine);
             totalReimbursed += reimbursedAmount;
+            totalReimbursedTND += reimbursedAmount;
 
             String reimbursementType = isFullyReimbursed ? "TOTAL" : "PARTIEL";
-            log.info("Ligne #{}: {} - {}€ (original: {}€, plafond: {}€)",
-                    line.getId(), reimbursementType, reimbursedAmount, line.getAmount(), categoryCeiling);
+            log.info("Ligne #{}: {} - {}{} (original: {}{}, plafond: {}{})",
+                    line.getId(), reimbursementType,
+                    String.format("%.2f", amountInDisplayCurrency), displayCurrency,
+                    line.getAmount(), "TND", categoryCeiling, "TND");
         }
 
-        // 6. Vérifier qu'au moins une ligne est remboursée
         if (reimbursedLines.isEmpty()) {
             throw new IllegalArgumentException("Aucune ligne sélectionnée pour le remboursement");
         }
 
-        // 7. Associer les lignes à l'ordre de paiement
         paymentOrder.setReimbursedLines(reimbursedLines);
         paymentOrder.setTotalAmount(totalReimbursed);
+        paymentOrder.setTotalAmountOriginalTND(totalReimbursedTND);
 
-        // 8. Sauvegarder l'ordre de paiement
         PaymentOrder savedOrder = paymentOrderRepository.save(paymentOrder);
 
-        log.info("Ordre de paiement #{} créé avec succès. Montant total: {}€",
-                savedOrder.getId(), totalReimbursed);
+        log.info("Ordre de paiement #{} créé avec succès. Montant total: {}{} (TND: {}{})",
+                savedOrder.getId(),
+                String.format("%.2f", totalReimbursed * exchangeRate), displayCurrency,
+                totalReimbursed, "TND");
 
         return savedOrder;
     }
