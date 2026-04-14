@@ -118,18 +118,15 @@ public class ProjectController {
                 .map(project -> ResponseEntity.ok(project.getDepartmentId()))
                 .orElse(ResponseEntity.notFound().build());
     }
-
     @GetMapping("/{projectId}/remaining-budget")
     public ResponseEntity<Double> getRemainingBudget(@PathVariable Long projectId) {
         return projectService.getProjectById(projectId)
                 .map(project -> {
-                    // ✅ CORRECTION : Inclure EN_ATTENTE, VALIDEE, REMBOURSEE
-                    // ❌ Exclure REFUSEE
+                    // ✅ CORRECTION : Uniquement VALIDEE + REMBOURSEE
                     Double totalExpenses = expenseNoteRepository
                             .findByProjectId(projectId)
                             .stream()
-                            .filter(note -> note.getStatus() == ExpenseStatus.EN_ATTENTE ||
-                                    note.getStatus() == ExpenseStatus.VALIDEE ||
+                            .filter(note -> note.getStatus() == ExpenseStatus.VALIDEE ||
                                     note.getStatus() == ExpenseStatus.REMBOURSEE)
                             .mapToDouble(ExpenseNote::getTotalAmount)
                             .sum();
@@ -158,10 +155,8 @@ public class ProjectController {
 
                     response.put("byStatus", byStatus);
 
-                    // Total consommé (excluant REFUSEE)
-                    double consumed = byStatus.get("EN_ATTENTE") +
-                            byStatus.get("VALIDEE") +
-                            byStatus.get("REMBOURSEE");
+                    // ✅ CORRECTION : Total consommé = VALIDEE + REMBOURSEE (exclure EN_ATTENTE)
+                    double consumed = byStatus.get("VALIDEE") + byStatus.get("REMBOURSEE");
                     response.put("consumed", consumed);
                     response.put("remaining", project.getBudget() - consumed);
                     response.put("isOverBudget", consumed > project.getBudget());
@@ -196,9 +191,8 @@ public class ProjectController {
                         byStatus.merge(note.getStatus().name(), note.getTotalAmount(), Double::sum);
                     }
 
-                    double consumed = byStatus.get("EN_ATTENTE") +
-                            byStatus.get("VALIDEE") +
-                            byStatus.get("REMBOURSEE");
+                    // ✅ CORRECTION : Consommé = VALIDEE + REMBOURSEE
+                    double consumed = byStatus.get("VALIDEE") + byStatus.get("REMBOURSEE");
 
                     result.put("byStatus", byStatus);
                     result.put("consumed", consumed);

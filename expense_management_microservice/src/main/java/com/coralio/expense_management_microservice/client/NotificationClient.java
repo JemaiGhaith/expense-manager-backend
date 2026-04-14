@@ -292,7 +292,8 @@ public class NotificationClient {
 
     public void notifyBudgetLimitExceeded(UUID managerId, String managerEmail,
                                           String projectName, String employeeName,
-                                          Double amount, Double remainingBudget, Long expenseId) {
+                                          Double amount, Double remainingBudget, Long expenseId,
+                                          String alertType) {  // "NOTE_EXCESSIVE" ou "BUDGET_OVERUN"
         if (!notificationEnabled) return;
 
         Map<String, Object> data = new HashMap<>();
@@ -301,15 +302,27 @@ public class NotificationClient {
         data.put("employeeName", employeeName);
         data.put("amount", amount);
         data.put("remainingBudget", remainingBudget);
+        data.put("alertType", alertType);
         data.put("detailsUrl", "/manager/expenses/" + expenseId);
+
+        String title, message;
+        if ("NOTE_EXCESSIVE".equals(alertType)) {
+            title = "⚠️ Note excessive";
+            message = "La dépense de " + amount + " € de " + employeeName +
+                    " dépasse à elle seule le budget total du projet '" + projectName + "'";
+        } else {
+            title = "⚠️ Dépassement de budget projet";
+            message = "La dépense de " + amount + " € de " + employeeName +
+                    " dépasse le budget restant du projet '" + projectName +
+                    "' (" + remainingBudget + " € restants)";
+        }
 
         sendNotification(
                 managerId,
                 managerEmail,
-                "SYSTEM_ALERT",  // ✅ Changé de "BUDGET_LIMIT_EXCEEDED" à "SYSTEM_ALERT"
-                "⚠️ Dépassement de budget projet",
-                "La dépense de " + amount + " € de " + employeeName + " dépasse le budget restant du projet '" +
-                        projectName + "' (" + remainingBudget + " € restants)",
+                "BUDGET_LIMIT_EXCEEDED",
+                title,
+                message,
                 data,
                 "CRITICAL",
                 expenseId,

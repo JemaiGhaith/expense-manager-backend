@@ -554,9 +554,33 @@ public class ExpenseService {
         }
 
         existingNote.setTotalAmount(total);
-        return noteRepository.save(existingNote);
-    }
+        ExpenseNote savedNote = noteRepository.save(existingNote);
 
+        // ========== AJOUT : VÉRIFICATIONS BUDGET ET PLAFOND (COMME À LA CRÉATION) ==========
+        // 1. Vérifier le plafond pour chaque ligne modifiée/ajoutée
+        for (ExpenseLine line : updatedLines) {
+            // Récupérer la ligne sauvegardée (avec son ID)
+            // Pour simplifier, on peut recharger la ligne depuis la base ou utiliser lineToSave.
+            // Ici, on va rechercher par l'ID de la note et l'index (moins fiable).
+            // Alternative : on a déjà lineToSave dans la boucle, mais on ne l'a pas gardé.
+            // On va donc récupérer les lignes après sauvegarde.
+            List<ExpenseLine> savedLines = lineRepository.findByExpenseNoteId(savedNote.getId());
+            for (ExpenseLine savedLine : savedLines) {
+                // On compare avec la ligne mise à jour (par catégorie, montant, description)
+                if (savedLine.getCategoryId().equals(line.getCategoryId())
+                        && Math.abs(savedLine.getAmount() - line.getAmount()) < 0.01
+                        && Objects.equals(savedLine.getDescription(), line.getDescription())) {
+                    checkCategoryLimit(savedLine, savedNote.getEmployeeId(), savedNote.getId(), savedNote.getProjectId());
+                    break;
+                }
+            }
+        }
+
+        // 2. Vérifier le budget projet
+        checkProjectBudget(savedNote, savedNote.getId());
+
+        return savedNote;
+    }
     private void updateExpenseLineWithDynamicColumns(ExpenseLine line) {
         List<String> allColumns = migrationService.getAllColumns();
         List<String> setClauses = new ArrayList<>();
@@ -695,7 +719,6 @@ public class ExpenseService {
     private void checkProjectBudgetOverrun(ExpenseNote note) {
         try {
             if (note.getProjectId() != null) {
-                // 1. Récupérer le budget du projet
                 HttpHeaders headers = new HttpHeaders();
                 headers.set("X-Employee-Id", note.getEmployeeId());
                 HttpEntity<?> entity = new HttpEntity<>(headers);
@@ -706,22 +729,19 @@ public class ExpenseService {
 
                 if (project != null) {
                     Double budget = (Double) project.get("budget");
-
                     if (budget != null && budget > 0) {
-                        // ✅ CORRECTION : Inclure EN_ATTENTE + VALIDEE + REMBOURSEE
                         List<ExpenseNote> projectNotes = noteRepository.findByProjectId(note.getProjectId());
+
+                        // ✅ Uniquement VALIDEE + REMBOURSEE (pas EN_ATTENTE)
                         double totalExistingExpenses = projectNotes.stream()
-                                .filter(n -> n.getStatus() == ExpenseStatus.EN_ATTENTE ||
-                                        n.getStatus() == ExpenseStatus.VALIDEE ||
+                                .filter(n -> n.getStatus() == ExpenseStatus.VALIDEE ||
                                         n.getStatus() == ExpenseStatus.REMBOURSEE)
-                                .filter(n -> !n.getId().equals(note.getId())) // Exclure la note actuelle
+                                .filter(n -> !n.getId().equals(note.getId()))
                                 .mapToDouble(ExpenseNote::getTotalAmount)
                                 .sum();
 
-                        // 3. Calculer le budget restant
                         double remainingBudget = budget - totalExistingExpenses;
 
-                        // 4. Vérifier si la note individuelle dépasse le budget restant
                         if (note.getTotalAmount() > remainingBudget) {
                             String adminsUrl = "http://localhost:8083/api/users/admins";
                             @SuppressWarnings("unchecked")
@@ -745,8 +765,7 @@ public class ExpenseService {
                                                 remainingBudget,
                                                 note.getId()
                                         );
-                                        log.info("✅ Notification admin budget dépassé envoyée (Note: {} > Budget restant: {})",
-                                                note.getTotalAmount(), remainingBudget);
+                                        log.info("✅ Notification admin budget dépassé envoyée");
                                     }
                                 }
                             }
@@ -1038,19 +1057,16 @@ public class ExpenseService {
     private void checkProjectBudget(ExpenseNote note, Long expenseId) {
         try {
             if (note.getProjectId() != null) {
-                // ✅ Utiliser l'endpoint public ou calculer directement
                 List<ExpenseNote> projectNotes = noteRepository.findByProjectId(note.getProjectId());
 
-                // ✅ CORRECTION : Inclure EN_ATTENTE + VALIDEE + REMBOURSEE
+                // ✅ Uniquement VALIDEE + REMBOURSEE (pas EN_ATTENTE)
                 double totalExistingExpenses = projectNotes.stream()
-                        .filter(n -> n.getStatus() == ExpenseStatus.EN_ATTENTE ||
-                                n.getStatus() == ExpenseStatus.VALIDEE ||
+                        .filter(n -> n.getStatus() == ExpenseStatus.VALIDEE ||
                                 n.getStatus() == ExpenseStatus.REMBOURSEE)
                         .filter(n -> !n.getId().equals(note.getId()))
                         .mapToDouble(ExpenseNote::getTotalAmount)
                         .sum();
 
-                // Récupérer le budget du projet
                 String projectUrl = "http://localhost:8082/api/projects/public/" + note.getProjectId();
                 ResponseEntity<Map> projectResponse = restTemplate.getForEntity(projectUrl, Map.class);
                 Map<String, Object> project = projectResponse.getBody();
@@ -1058,11 +1074,17 @@ public class ExpenseService {
                 if (project != null) {
                     Double budget = (Double) project.get("budget");
                     if (budget != null && budget > 0) {
+                        double noteAmount = note.getTotalAmount();
                         double remainingBudget = budget - totalExistingExpenses;
 
-                        if (note.getTotalAmount() > remainingBudget) {
+                        boolean isNoteExcessive = noteAmount > budget;
+                        boolean willExceedBudget = noteAmount > remainingBudget;
+
+                        if (isNoteExcessive || willExceedBudget) {
                             String managerId = getManagerIdForProjectDepartment(note.getProjectId());
                             if (managerId != null) {
+                                String alertType = isNoteExcessive ? "NOTE_EXCESSIVE" : "BUDGET_OVERUN";
+
                                 String managerEmail = getEmployeeEmail(managerId);
                                 String employeeName = getEmployeeName(note.getEmployeeId());
                                 String projectName = (String) project.get("name");
@@ -1072,11 +1094,13 @@ public class ExpenseService {
                                         managerEmail,
                                         projectName,
                                         employeeName,
-                                        note.getTotalAmount(),
+                                        noteAmount,
                                         remainingBudget,
-                                        expenseId
+                                        expenseId,
+                                        alertType
                                 );
-                                log.info("⚠️ Notification dépassement budget projet envoyée");
+                                log.info("⚠️ Notification manager: note {} (montant {}) dépasse budget restant {} (excessive: {})",
+                                        expenseId, noteAmount, remainingBudget, isNoteExcessive);
                             }
                         }
                     }
@@ -1126,11 +1150,8 @@ public class ExpenseService {
     }
     // Ajoutez cette méthode helper
     public double calculateConsumedBudget(Long projectId) {
-        List<ExpenseNote> projectNotes = noteRepository.findByProjectId(projectId);
-
-        return projectNotes.stream()
-                .filter(n -> n.getStatus() == ExpenseStatus.EN_ATTENTE ||
-                        n.getStatus() == ExpenseStatus.VALIDEE ||
+        return noteRepository.findByProjectId(projectId).stream()
+                .filter(n -> n.getStatus() == ExpenseStatus.VALIDEE ||
                         n.getStatus() == ExpenseStatus.REMBOURSEE)
                 .mapToDouble(ExpenseNote::getTotalAmount)
                 .sum();
