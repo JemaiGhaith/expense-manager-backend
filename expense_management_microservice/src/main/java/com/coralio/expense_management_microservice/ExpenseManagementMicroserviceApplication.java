@@ -10,6 +10,7 @@ public class ExpenseManagementMicroserviceApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(ExpenseManagementMicroserviceApplication.class, args);
+
     }
 
 }

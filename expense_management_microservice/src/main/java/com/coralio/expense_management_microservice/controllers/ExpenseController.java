@@ -221,7 +221,7 @@ public class ExpenseController {
             map.put("totalAmount", note.getTotalAmount());
             map.put("status", note.getStatus());
             map.put("accordPath", note.getAccordPath());
-
+            map.put("noteDescription", note.getNoteDescription());
             // ✅ NOUVEAUX CHAMPS
             map.put("decisionComment", note.getDecisionComment());
             map.put("decidedBy", note.getDecidedBy());

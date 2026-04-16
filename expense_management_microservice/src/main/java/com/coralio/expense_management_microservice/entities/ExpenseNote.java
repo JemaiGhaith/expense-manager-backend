@@ -32,6 +32,8 @@ public class ExpenseNote {
     @Column(name = "total_amount")
     private Double totalAmount = 0.0;
 
+    private String noteDescription;
+
     // ✅ NOUVEAU : Commentaire unique (manager OU admin)
     @Column(name = "decision_comment")
     private String decisionComment;
