@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.file.Paths;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -153,14 +154,28 @@ public class ExpenseService {
         for (ExpenseLine line : lines) {
             if (line.getJustificatifPath() != null) {
 
-                String text = line.getDescription() != null
-                        ? line.getDescription()
-                        : "facture";
+                MultipartFile file = fileStorageService.getFileAsMultipart(
+                        note.getEmployeeId(),
+                        line.getJustificatifPath()
+                );
+
+                String text = ocrService.extractText(file);
 
                 String filename = line.getJustificatifPath();
-                String filepath = "uploads/" + filename;
 
-                addToFaissIndex(text, filename, filepath);
+                String filepath = Paths.get(
+                        "uploads",
+                        note.getEmployeeId(),
+                        "factures",
+                        filename
+                ).toString().replace("\\", "/");
+
+                addToFaissIndex(
+                        text,
+                        filename,
+                        filepath,
+                        note.getEmployeeId()
+                );
             }
         }
 
@@ -168,9 +183,40 @@ public class ExpenseService {
         if (savedNote.getAccordPath() != null) {
 
             String filename = savedNote.getAccordPath();
-            String filepath = "uploads/" + filename;
+            String filepath = Paths.get(
+                    "uploads",
+                    savedNote.getEmployeeId(),
+                    "accords",
+                    filename
+            ).toString().replace("\\", "/");
+            try {
+                MultipartFile accordFile = fileStorageService.getFileAsMultipart(
+                        savedNote.getEmployeeId(),
+                        savedNote.getAccordPath()
+                );
 
-            addToFaissIndex("accord", filename, filepath);
+                String extractedText = ocrService.extractText(accordFile);
+
+                addToFaissIndex(
+                        extractedText,
+                        filename,
+                        filepath,
+                        savedNote.getEmployeeId()
+                );
+
+                System.out.println("✅ Accord indexé avec OCR : " + filename);
+
+            } catch (Exception e) {
+                System.err.println("❌ OCR Accord failed: " + e.getMessage());
+
+                // fallback
+                addToFaissIndex(
+                        "accord",
+                        filename,
+                        filepath,
+                        savedNote.getEmployeeId()
+                );
+            }
 
             System.out.println("✅ Accord ajouté à FAISS : " + filename);
         }
@@ -178,14 +224,20 @@ public class ExpenseService {
         return noteRepository.save(savedNote);
     }
 
-    private void addToFaissIndex(String text, String filename, String filepath) {
+    private void addToFaissIndex(
+            String text,
+            String filename,
+            String filepath,
+            String employeeId
+    ) {
         try {
             String url = "http://localhost:9000/add-to-index";
 
             Map<String, Object> body = Map.of(
                     "text", text,
                     "filename", filename,
-                    "filepath", filepath
+                    "filepath", filepath,
+                    "employeeId", employeeId
             );
 
             restTemplate.postForObject(url, body, Map.class);
