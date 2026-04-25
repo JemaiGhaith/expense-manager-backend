@@ -7,25 +7,28 @@ import com.coralio.expense_management_microservice.entities.Project;
 import com.coralio.expense_management_microservice.repos.ExpenseLineRepository;
 import com.coralio.expense_management_microservice.repos.ExpenseNoteRepository;
 import com.coralio.expense_management_microservice.repos.ProjectRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
 import java.nio.file.Paths;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.HashSet;
+import java.util.*;
 import java.util.stream.Collectors;
-import java.util.Objects;
 import java.util.function.Function;
 import org.springframework.web.client.RestTemplate;
 @Service
@@ -220,7 +223,14 @@ public class ExpenseService {
 
             System.out.println("✅ Accord ajouté à FAISS : " + filename);
         }
-
+        // ✅ NE PAS écraser si frontend a déjà envoyé
+        if (savedNote.getAiAnalysisResult() == null) {
+            String analysisResult = callFullAnalysis(savedNote, lines, accordFileName);
+            if (analysisResult != null) {
+                savedNote.setAiAnalysisResult(analysisResult);
+                savedNote = noteRepository.save(savedNote);
+            }
+        }
         return noteRepository.save(savedNote);
     }
 
@@ -770,5 +780,67 @@ public class ExpenseService {
 
 
 
+    // Ajouter dans ExpenseService.java
+    private String callFullAnalysis(ExpenseNote note, List<ExpenseLine> lines, String accordFileName) {
+        try {
+            // Construire le chemin complet du fichier accord
+            String accordFullPath = fileStorageService.getFullPath(note.getEmployeeId(), accordFileName);
+            File accordFile = new File(accordFullPath);
 
+            if (!accordFile.exists()) {
+                System.err.println("❌ Fichier accord introuvable: " + accordFullPath);
+                return null;
+            }
+
+            // Construire le formData pour l'API Python
+            Map<String, Object> formData = new HashMap<>();
+            formData.put("employeeId", note.getEmployeeId());
+            formData.put("employeeName", note.getEmployeeId()); // À améliorer
+            formData.put("employeeMatricule", "Non renseigné");
+            formData.put("projectId", note.getProjectId());
+            formData.put("projectName", "Projet");
+            formData.put("projectDepartment", "");
+            formData.put("noteDescription", note.getNoteDescription());
+
+            List<Map<String, Object>> expenseLines = new ArrayList<>();
+            for (ExpenseLine line : lines) {
+                Map<String, Object> lineData = new HashMap<>();
+                lineData.put("categoryId", line.getCategoryId());
+                lineData.put("categoryName", "");
+                lineData.put("amount", line.getAmount());
+                lineData.put("expenseDate", line.getExpenseDate().toString());
+                lineData.put("description", line.getDescription());
+                expenseLines.add(lineData);
+            }
+            formData.put("expenseLines", expenseLines);
+
+            List<String> expenseDates = lines.stream()
+                    .map(l -> l.getExpenseDate().toString())
+                    .collect(Collectors.toList());
+            formData.put("expenseDates", expenseDates);
+
+            // Appeler l'API Python /analyze-full
+            RestTemplate restTemplate = new RestTemplate();
+            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+            body.add("file", new FileSystemResource(accordFile));
+            body.add("form_data", new ObjectMapper().writeValueAsString(formData));
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+            HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+
+            String pythonResponse = restTemplate.postForObject(
+                    "http://localhost:9000/analyze-full",
+                    requestEntity,
+                    String.class
+            );
+
+            System.out.println("✅ Analyse complète obtenue pour note #" + note.getId());
+            return pythonResponse;
+
+        } catch (Exception e) {
+            System.err.println("❌ Erreur analyse complète: " + e.getMessage());
+            return null;
+        }
+    }
 }

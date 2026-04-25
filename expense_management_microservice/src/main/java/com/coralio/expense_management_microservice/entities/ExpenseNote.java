@@ -55,4 +55,16 @@ public class ExpenseNote {
 
     @Column(name = "accord_path")
     private String accordPath;
+
+    @Column(name = "ai_analysis_result", columnDefinition = "TEXT")
+    private String aiAnalysisResult;
+
+    // Getter et Setter
+    public String getAiAnalysisResult() {
+        return aiAnalysisResult;
+    }
+
+    public void setAiAnalysisResult(String aiAnalysisResult) {
+        this.aiAnalysisResult = aiAnalysisResult;
+    }
 }

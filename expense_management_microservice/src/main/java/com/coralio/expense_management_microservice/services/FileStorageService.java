@@ -239,5 +239,12 @@ public class FileStorageService {
         }
     }
 
-
+    // Dans FileStorageService.java
+    public String getFullPath(String employeeId, String filePath) {
+        Path fullPath = uploadRoot
+                .resolve(String.valueOf(employeeId))
+                .resolve(filePath)
+                .normalize();
+        return fullPath.toString();
+    }
 }
