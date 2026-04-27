@@ -52,7 +52,7 @@ public class NotificationController {
     }
 
     @PatchMapping("/read-all")
-    public ResponseEntity<Void> markAllAsRead(@RequestHeader("X-User-Id") UUID userId) {
+    public ResponseEntity<Void> markAllAsRead(@RequestParam UUID userId) {
         notificationService.markAllAsRead(userId);
         return ResponseEntity.ok().build();
     }
@@ -60,7 +60,7 @@ public class NotificationController {
     @DeleteMapping("/{notificationId}")
     public ResponseEntity<Void> deleteNotification(
             @PathVariable UUID notificationId,
-            @RequestHeader("X-User-Id") UUID userId) {
+            @RequestParam UUID userId) {   // ← changement : @RequestParam au lieu de @RequestHeader
         notificationService.deleteNotification(notificationId, userId);
         return ResponseEntity.ok().build();
     }

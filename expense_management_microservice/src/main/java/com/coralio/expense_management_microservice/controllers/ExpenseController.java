@@ -5,6 +5,7 @@ import com.coralio.expense_management_microservice.dto.ExpenseRequest;
 import com.coralio.expense_management_microservice.entities.*;
 import com.coralio.expense_management_microservice.repos.ExpenseDuplicateRepository;
 import com.coralio.expense_management_microservice.repos.ExpenseLineRepository;
+import com.coralio.expense_management_microservice.services.ExpenseProcessingService;
 import com.coralio.expense_management_microservice.services.ExpenseService;
 import com.coralio.expense_management_microservice.services.FileStorageService;
 import com.coralio.expense_management_microservice.services.ProjectService;
@@ -37,9 +38,10 @@ public class ExpenseController {
     private ExpenseDuplicateRepository duplicateRepository;
     @Autowired
     private FileStorageService fileStorageService;
-
     @Autowired
     private ObjectMapper objectMapper;
+    @Autowired
+    private ExpenseProcessingService expenseProcessingService; // ✅ NOUVEAU
 
     public ExpenseController(
             ExpenseService expenseService,
@@ -53,7 +55,65 @@ public class ExpenseController {
     }
 
     // =========================
-    // UPLOAD NOTE + FICHIERS (ACCORD + FACTURES)
+    // NOUVEAU ENDPOINT SOUMISSION ASYNCHRONE
+    // =========================
+    @PostMapping(value = "/submit", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> submitExpense(
+            @RequestPart("note") String noteJson,
+            @RequestPart("lines") String linesJson,
+            @RequestPart(value = "accordFile", required = false) MultipartFile accordFile,
+            @RequestPart(value = "factureFiles", required = false) List<MultipartFile> factureFiles
+    ) {
+        try {
+            ExpenseNote note = objectMapper.readValue(noteJson, ExpenseNote.class);
+            List<ExpenseLine> lines = objectMapper.readValue(
+                    linesJson,
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, ExpenseLine.class)
+            );
+
+            String accordFileName = null;
+            if (accordFile != null && !accordFile.isEmpty()) {
+                accordFileName = fileStorageService.storeFile(accordFile, note.getEmployeeId(), "accords");
+                note.setAccordPath(accordFileName);
+            }
+
+            List<String> factureFileNames = new ArrayList<>();
+            if (factureFiles != null) {
+                for (MultipartFile file : factureFiles) {
+                    if (file != null && !file.isEmpty()) {
+                        String savedFileName = fileStorageService.storeFile(file, note.getEmployeeId(), "factures");
+                        factureFileNames.add(savedFileName);
+                    }
+                }
+            }
+
+            // 1. Sauvegarde immédiate (statut EN_ATTENTE)
+            ExpenseNote savedNote = expenseService.createExpenseNoteWithFiles(
+                    note, lines, accordFileName, factureFileNames, accordFile   // ✅ pass the file
+            );
+
+            // 2. Récupérer les lignes sauvegardées pour le traitement asynchrone
+            List<ExpenseLine> savedLines = expenseService.getLines(savedNote.getId());
+
+            // 3. Lancer le traitement asynchrone (validation, doublon, etc.)
+            expenseProcessingService.processAfterSubmission(savedNote.getId(), savedLines);
+
+            // 4. Réponse immédiate avec statut ACCEPTED
+            return ResponseEntity.accepted().body(Map.of(
+                    "id", savedNote.getId(),
+                    "status", "PENDING",
+                    "message", "Note soumise, traitement en cours"
+            ));
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    // =========================
+    // UPLOAD NOTE + FICHIERS (ACCORD + FACTURES) - ANCIEN ENDPOINT (gardé pour compatibilité)
     // =========================
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> uploadExpense(
@@ -226,7 +286,7 @@ public class ExpenseController {
             map.put("decisionComment", note.getDecisionComment());
             map.put("decidedBy", note.getDecidedBy());
             map.put("decidedAt", note.getDecidedAt());
-            map.put("managerId", note.getManagerId()); // ✅ AJOUTÉ
+            map.put("managerId", note.getManagerId());
 
             projectService.getProjectById(note.getProjectId())
                     .ifPresentOrElse(
@@ -261,11 +321,10 @@ public class ExpenseController {
             map.put("status", note.getStatus());
             map.put("accordPath", note.getAccordPath());
 
-            // ✅ NOUVEAUX CHAMPS
             map.put("decisionComment", note.getDecisionComment());
             map.put("decidedBy", note.getDecidedBy());
             map.put("decidedAt", note.getDecidedAt());
-            map.put("managerId", note.getManagerId()); // ✅ AJOUTÉ
+            map.put("managerId", note.getManagerId());
 
             return map;
         }).toList();
@@ -290,11 +349,10 @@ public class ExpenseController {
                 map.put("status", note.getStatus());
                 map.put("accordPath", note.getAccordPath());
 
-                // ✅ NOUVEAUX CHAMPS
                 map.put("decisionComment", note.getDecisionComment());
                 map.put("decidedBy", note.getDecidedBy());
                 map.put("decidedAt", note.getDecidedAt());
-                map.put("managerId", note.getManagerId()); // ✅ AJOUTÉ
+                map.put("managerId", note.getManagerId());
 
                 projectService.getProjectById(note.getProjectId())
                         .ifPresentOrElse(
@@ -544,8 +602,6 @@ public class ExpenseController {
         }
     }
 
-
-
     // ✅ Sauvegarder les doublons détectés (appelé par Angular après soumission)
     @PostMapping("/{noteId}/duplicates")
     public ResponseEntity<?> saveDuplicates(
@@ -553,31 +609,20 @@ public class ExpenseController {
             @RequestBody List<Map<String, Object>> duplicates
     ) {
         try {
-            // Supprimer les anciens doublons pour cette note (en cas de re-soumission)
             duplicateRepository.deleteByExpenseNoteId(noteId);
-
             List<ExpenseDuplicate> saved = new ArrayList<>();
-
             for (Map<String, Object> d : duplicates) {
                 ExpenseDuplicate dup = new ExpenseDuplicate();
                 dup.setExpenseNoteId(noteId);
-
-                // expenseLineId peut être null (pour l'accord)
                 if (d.get("expenseLineId") != null) {
                     dup.setExpenseLineId(Long.parseLong(d.get("expenseLineId").toString()));
                 }
-
-                // ✅ On sauvegarde uniquement les chemins (pas les fichiers)
                 dup.setUploadedFile(d.get("uploadedFile") != null ? d.get("uploadedFile").toString() : null);
                 dup.setDuplicateFile(d.get("duplicateFile") != null ? d.get("duplicateFile").toString() : null);
                 dup.setSimilarity(d.get("similarity") != null ? Double.parseDouble(d.get("similarity").toString()) : null);
-
                 saved.add(duplicateRepository.save(dup));
             }
-
-            System.out.println("✅ " + saved.size() + " doublon(s) sauvegardé(s) pour note #" + noteId);
             return ResponseEntity.ok(Map.of("saved", saved.size()));
-
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

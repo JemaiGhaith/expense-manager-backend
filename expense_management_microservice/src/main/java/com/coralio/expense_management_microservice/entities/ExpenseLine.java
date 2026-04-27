@@ -38,7 +38,11 @@ public class ExpenseLine {
 
     @Column(name = "justificatif_path")
     private String justificatifPath;
+    @Transient
+    private String ocrText;
 
+    @Transient
+    private Map<String, Object> extractedJson;
     // 🚗 TRANSPORT
     private String depart;
     private String destination;
@@ -70,7 +74,27 @@ public class ExpenseLine {
     @Transient
     @Builder.Default
     private Map<String, Object> dynamicFields = new HashMap<>();
+    // Dans ExpenseLine.java, après les autres champs
 
+        // ========== CHAMPS POUR LA VALIDATION IA ==========
+        @Column(name = "validation_valid")
+        private Boolean validationValid;          // true si validé, false si anomalie
+
+        @Column(name = "validation_score")
+        private Double validationScore;           // score de confiance (0-100)
+
+        @Column(name = "validation_issues")
+        private String validationIssues;          // problèmes détectés, séparés par "; "
+
+        // ========== CHAMPS POUR LA DÉTECTION DE DOUBLON (optionnels, car déjà dans expense_duplicates) ==========
+        @Column(name = "duplicate_detected")
+        private Boolean duplicateDetected;
+
+        @Column(name = "duplicate_score")
+        private Double duplicateScore;
+
+        @Column(name = "duplicate_matched_file")
+        private String duplicateMatchedFile;
     /**
      * ✅ Cette méthode capture TOUTES les propriétés JSON qui n'ont pas
      * de correspondance dans l'entité et les stocke dans dynamicFields

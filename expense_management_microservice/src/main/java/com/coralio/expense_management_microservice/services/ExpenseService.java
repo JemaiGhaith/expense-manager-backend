@@ -1,24 +1,22 @@
 package com.coralio.expense_management_microservice.services;
 
 import com.coralio.expense_management_microservice.client.UserServiceClient;
-import com.coralio.expense_management_microservice.entities.ExpenseLine;
-import com.coralio.expense_management_microservice.entities.ExpenseNote;
-import com.coralio.expense_management_microservice.entities.ExpenseStatus;
-import com.coralio.expense_management_microservice.entities.Project;
-import com.coralio.expense_management_microservice.repos.ExpenseLineRepository;
-import com.coralio.expense_management_microservice.repos.ExpenseNoteRepository;
-import com.coralio.expense_management_microservice.repos.ProjectRepository;
+import com.coralio.expense_management_microservice.entities.*;
+import com.coralio.expense_management_microservice.repos.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -59,7 +57,10 @@ public class ExpenseService {
     private OCRService ocrService;
     @Autowired
     private FileStorageService fileStorageService;
-
+    private final ExpenseExtractionRepository extractionRepository;
+    private final ExpenseNoteExtractionRepository noteExtractionRepository; // <-- NEW
+    @Value("${file.upload-dir:./uploads}")
+    private String uploadsDir;
     public ExpenseService(
             ExpenseNoteRepository noteRepository,
             ExpenseLineRepository lineRepository,
@@ -68,7 +69,9 @@ public class ExpenseService {
             JdbcTemplate jdbcTemplate,
             NotificationClient notificationClient,
             UserServiceClient userServiceClient,
-            CategoryService categoryService) {
+            CategoryService categoryService,
+            ExpenseExtractionRepository extractionRepository,
+            ExpenseNoteExtractionRepository noteExtractionRepository) { // <-- NEW parameter
         this.noteRepository = noteRepository;
         this.lineRepository = lineRepository;
         this.migrationService = migrationService;
@@ -77,6 +80,8 @@ public class ExpenseService {
         this.notificationClient = notificationClient;
         this.userServiceClient = userServiceClient;
         this.categoryService = categoryService;
+        this.extractionRepository = extractionRepository;
+        this.noteExtractionRepository = noteExtractionRepository; // <-- NEW
     }
 
     @Transactional
@@ -84,25 +89,26 @@ public class ExpenseService {
         return createExpenseNoteWithFiles(note, lines, null, null);
     }
 
+    // MAIN METHOD – modified to accept MultipartFile accordFile
     @Transactional
     public ExpenseNote createExpenseNoteWithFiles(
             ExpenseNote note,
             List<ExpenseLine> lines,
             String accordFileName,
-            List<String> factureFileNames
+            List<String> factureFileNames,
+            MultipartFile accordFile   // <-- NEW parameter
     ) {
+        // 1. Préparation de la note
         if (note.getStatus() == null) {
             note.setStatus(ExpenseStatus.EN_ATTENTE);
         }
-
         note.setCreatedAt(LocalDateTime.now());
         note.setUpdatedAt(LocalDateTime.now());
-
         if (accordFileName != null) {
             note.setAccordPath(accordFileName);
         }
 
-        // validation dates
+        // 2. Validation des dates des lignes
         for (ExpenseLine line : lines) {
             if (line.getExpenseDate() == null) {
                 line.setExpenseDate(LocalDate.now());
@@ -110,12 +116,11 @@ public class ExpenseService {
             validateExpenseDate(line.getExpenseDate());
         }
 
-        // sauvegarde note
+        // 3. Sauvegarde de la note
         ExpenseNote savedNote = noteRepository.save(note);
 
-        // Traitement des lignes
+        // 4. Traitement de chaque ligne
         for (int i = 0; i < lines.size(); i++) {
-
             ExpenseLine line = lines.get(i);
             line.setExpenseNoteId(savedNote.getId());
 
@@ -123,7 +128,7 @@ public class ExpenseService {
                 line.setJustificatifPath(factureFileNames.get(i));
             }
 
-            // IA ANOMALY DETECTION
+            // Détection d'anomalie IA (existant)
             try {
                 Map<String, Object> result = restTemplate.postForObject(
                         "http://localhost:9000/detect-anomaly-ai",
@@ -134,57 +139,98 @@ public class ExpenseService {
                         ),
                         Map.class
                 );
-
                 Boolean isAnomaly = (Boolean) result.get("anomaly");
                 String message = (String) result.get("message");
-
                 line.setIsAnomalyDepense(isAnomaly != null ? isAnomaly : false);
                 line.setAnomalyExpenseMessage(message);
-
                 if (Boolean.TRUE.equals(isAnomaly)) {
-                    System.out.println("🚨 ANOMALIE DETECTEE !");
-                    System.out.println(message);
+                    System.out.println("🚨 ANOMALIE DETECTEE ! " + message);
                 }
-
             } catch (Exception e) {
                 line.setIsAnomalyDepense(false);
                 line.setAnomalyExpenseMessage("IA indisponible");
                 System.err.println("❌ Erreur appel IA: " + e.getMessage());
             }
 
+            // Insertion de la ligne (avec ses champs dynamiques)
             insertExpenseLineWithDynamicColumns(line);
 
-            // Vérifier plafond catégorie APRÈS insertion
+            // Vérification plafond catégorie
             checkCategoryLimit(line, savedNote.getEmployeeId(), savedNote.getId(), savedNote.getProjectId());
         }
 
-        // TOTAL
+        // ==================== SAUVEGARDE DES EXTRActions POUR LIGNES (OCR + JSON) ====================
+        List<ExpenseLine> savedLines = lineRepository.findByExpenseNoteId(savedNote.getId());
+        for (int i = 0; i < savedLines.size() && i < lines.size(); i++) {
+            ExpenseLine savedLine = savedLines.get(i);
+            ExpenseLine originalLine = lines.get(i);
+            if (originalLine.getOcrText() != null || originalLine.getExtractedJson() != null) {
+                ExpenseExtraction extraction = ExpenseExtraction.builder()
+                        .expenseLineId(savedLine.getId())
+                        .ocrText(originalLine.getOcrText())
+                        .extractedJson(originalLine.getExtractedJson())
+                        .extractionVersion("v1")
+                        .build();
+                extractionRepository.save(extraction);
+                log.debug("✅ Extraction sauvegardée pour lineId: {}", savedLine.getId());
+            }
+        }
+
+        // ==================== NOUVEAU : EXTRACTION SYNCHRONE POUR L'ACCORD ====================
+        if (accordFile != null && !accordFile.isEmpty()) {
+            try {
+                // 1. OCR using Tesseract
+                String accordOcrText = ocrService.extractText(accordFile);
+
+                // 2. Structured extraction via Python /analyze
+                String analyzeUrl = "http://localhost:9000/analyze";
+                MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+                body.add("file", new ByteArrayResource(accordFile.getBytes()) {
+                    @Override public String getFilename() { return accordFile.getOriginalFilename(); }
+                });
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+                HttpEntity<MultiValueMap<String, Object>> request = new HttpEntity<>(body, headers);
+                Map<String, Object> analyzeResponse = restTemplate.postForObject(analyzeUrl, request, Map.class);
+                Map<String, Object> structuredJson = (Map<String, Object>) analyzeResponse.get("structured");
+
+                // 3. Save to note‑level extraction table
+                ExpenseNoteExtraction extraction = ExpenseNoteExtraction.builder()
+                        .expenseNoteId(savedNote.getId())
+                        .ocrText(accordOcrText)
+                        .extractedJson(structuredJson)
+                        .extractionVersion("v1")
+                        .build();
+                noteExtractionRepository.save(extraction);
+                log.info("✅ Accord extraction saved for note {}", savedNote.getId());
+
+                // 4. Add to FAISS with REAL text (not static "accord")
+// 4. Add to FAISS with REAL text (not static "accord")
+                Path accordAbsPath = Paths.get(uploadsDir, savedNote.getEmployeeId(), savedNote.getAccordPath()).toAbsolutePath();                addToFaissIndex(accordOcrText, savedNote.getAccordPath(), accordAbsPath.toString());
+            } catch (Exception e) {
+                log.error("Failed to extract accord data for note {}: {}", savedNote.getId(), e.getMessage(), e);
+                // Extraction failed – async fallback will try again later
+            }
+        }
+
+        // 5. Calcul du total
         double total = lines.stream()
                 .mapToDouble(ExpenseLine::getAmount)
                 .sum();
-
         savedNote.setTotalAmount(total);
         savedNote.setUpdatedAt(LocalDateTime.now());
 
-        // IA FAISS
+        // 6. Indexation FAISS pour chaque justificatif (utilise description si OCR manquant)
         for (ExpenseLine line : lines) {
             if (line.getJustificatifPath() != null) {
                 String text = line.getDescription() != null ? line.getDescription() : "facture";
                 String filename = line.getJustificatifPath();
-                String filepath = "uploads/" + filename;
-                addToFaissIndex(text, filename, filepath);
+                Path absPath = Paths.get(uploadsDir, savedNote.getEmployeeId(), line.getJustificatifPath()).toAbsolutePath();
+                addToFaissIndex(text, filename, absPath.toString());
             }
         }
 
-        // ACCORD FAISS
-        if (savedNote.getAccordPath() != null) {
-            String filename = savedNote.getAccordPath();
-            String filepath = "uploads/" + filename;
-            addToFaissIndex("accord", filename, filepath);
-            System.out.println("✅ Accord ajouté à FAISS : " + filename);
-        }
-
-        // Notification à l'employé
+        // 7. Notifications (inchangé)
         try {
             String employeeEmail = getEmployeeEmail(savedNote.getEmployeeId());
             notificationClient.notifyExpenseCreated(
@@ -199,13 +245,11 @@ public class ExpenseService {
             System.err.println("❌ Failed to send creation notification: " + e.getMessage());
         }
 
-        // Notification au manager (basée sur le département du projet)
         try {
             String managerId = getManagerIdForProjectDepartment(savedNote.getProjectId());
             if (managerId != null) {
                 String managerEmail = getEmployeeEmail(managerId);
                 String employeeName = getEmployeeName(savedNote.getEmployeeId());
-
                 notificationClient.notifyManagerPendingApproval(
                         UUID.fromString(managerId),
                         managerEmail,
@@ -214,7 +258,7 @@ public class ExpenseService {
                         savedNote.getTotalAmount(),
                         savedNote.getId()
                 );
-                System.out.println("✅ Notification envoyée au manager du projet (département): " + managerId);
+                System.out.println("✅ Notification envoyée au manager du projet: " + managerId);
             } else {
                 System.out.println("⚠️ Aucun manager trouvé pour le projet " + savedNote.getProjectId());
             }
@@ -222,24 +266,36 @@ public class ExpenseService {
             System.err.println("❌ Erreur envoi notification manager: " + e.getMessage());
         }
 
-        // Vérifier budget projet
+        // 8. Vérification budget projet
         checkProjectBudget(savedNote, savedNote.getId());
 
+        // 9. Sauvegarde finale
         return noteRepository.save(savedNote);
     }
 
-    private void addToFaissIndex(String text, String filename, String filepath) {
+    // Overloaded method for backward compatibility (without accordFile)
+    @Transactional
+    public ExpenseNote createExpenseNoteWithFiles(
+            ExpenseNote note,
+            List<ExpenseLine> lines,
+            String accordFileName,
+            List<String> factureFileNames
+    ) {
+        return createExpenseNoteWithFiles(note, lines, accordFileName, factureFileNames, null);
+    }
+
+    private void addToFaissIndex(String text, String filename, String absolutePath) {
         try {
             String url = "http://localhost:9000/add-to-index";
             Map<String, Object> body = Map.of(
                     "text", text,
                     "filename", filename,
-                    "filepath", filepath
+                    "filepath", absolutePath   // now an absolute path
             );
             restTemplate.postForObject(url, body, Map.class);
-            System.out.println("✅ Ajouté à FAISS : " + filename);
+            log.info("✅ Ajouté à FAISS : {} -> {}", filename, absolutePath);
         } catch (Exception e) {
-            System.err.println("❌ Erreur FAISS : " + e.getMessage());
+            log.error("❌ Erreur FAISS : {}", e.getMessage());
         }
     }
 
