@@ -35,6 +35,9 @@ public class ExpenseDuplicate {
     @Column(name = "detected_at")
     private LocalDateTime detectedAt;
 
+    @Column(name = "employee_id")
+    private Long employeeId;
+
     @PrePersist
     public void prePersist() {
         if (detectedAt == null) detectedAt = LocalDateTime.now();

@@ -238,4 +238,13 @@ public class FileStorageService {
             throw new RuntimeException("Erreur récupération fichier");
         }
     }
+
+    // Dans FileStorageService.java
+    public String getFullPath(String employeeId, String filePath) {
+        Path fullPath = uploadRoot
+                .resolve(String.valueOf(employeeId))
+                .resolve(filePath)
+                .normalize();
+        return fullPath.toString();
+    }
 }

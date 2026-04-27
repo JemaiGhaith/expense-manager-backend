@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import java.net.URI;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/admin/projects")
@@ -69,5 +70,15 @@ public class ProjectAdminController {
     public ResponseEntity<List<String>> getProjectEmployees(@PathVariable Long projectId) {
         List<String> employeeIds = employeeProjectService.getEmployeesForProject(projectId);
         return ResponseEntity.ok(employeeIds);
+    }
+
+    @GetMapping("/department/{departmentId}")
+    public ResponseEntity<List<ProjectResponseDTO>> getProjectsByDepartment(
+            @PathVariable Long departmentId) {
+
+        // ✅ getProjectsByDepartment retourne déjà List<ProjectResponseDTO>
+        List<ProjectResponseDTO> projects = projectService.getProjectsByDepartment(departmentId);
+
+        return ResponseEntity.ok(projects);
     }
 }
