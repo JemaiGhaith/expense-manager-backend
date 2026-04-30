@@ -56,7 +56,7 @@ public class OCRService {
                 BufferedImage image = ImageIO.read(file.getInputStream());
 
                 Tesseract tesseract = new Tesseract();
-                tesseract.setDatapath("C:\\Program Files\\tessdata"); // dossier contenant .traineddata
+                tesseract.setDatapath("C:\\Program Files\\Tesseract-OCR\\tessdata"); // dossier contenant .traineddata
 
                 return tesseract.doOCR(image);
             }
@@ -70,7 +70,7 @@ public class OCRService {
                 StringBuilder text = new StringBuilder();
 
                 Tesseract tesseract = new Tesseract();
-                tesseract.setDatapath("C:\\Program Files\\tessdata"); // dossier contenant .traineddata
+                tesseract.setDatapath("C:\\Program Files\\Tesseract-OCR\\tessdata"); // dossier contenant .traineddata
                 tesseract.setLanguage("eng+fra");
 
                 for (int i = 0; i < document.getNumberOfPages(); i++) {

@@ -8,4 +8,6 @@ import java.util.List;
 public interface ExpenseDuplicateRepository extends JpaRepository<ExpenseDuplicate, Long> {
     List<ExpenseDuplicate> findByExpenseNoteId(Long expenseNoteId);
     void deleteByExpenseNoteId(Long expenseNoteId);
+    boolean existsByExpenseNoteIdAndExpenseLineIdAndUploadedFile(Long expenseNoteId, Long expenseLineId, String uploadedFile);
+    boolean existsByExpenseNoteIdAndExpenseLineIdIsNullAndUploadedFile(Long expenseNoteId, String uploadedFile);
 }

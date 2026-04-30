@@ -1,6 +1,8 @@
 package com.coralio.ai_microservice.services;
 
 import com.coralio.ai_microservice.model.DuplicateResult;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -12,10 +14,9 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.*;
+
 import java.nio.file.*;
+import java.util.*;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -37,9 +38,55 @@ public class DuplicateDetectionService {
         factory.setReadTimeout(600_000);
         return new RestTemplate(factory);
     }
+
+    // ========== YOUR ADVANCED METHODS (unchanged) ==========
+    public DuplicateResult checkDuplicate(MultipartFile file, String employeeId) throws Exception {
+        log.info("📌 checkDuplicate appelé pour file={}, employeeId={}", file.getOriginalFilename(), employeeId);
+        RestTemplate longTimeoutRest = createLongTimeoutRestTemplate();
+
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        body.add("file", new ByteArrayResource(file.getBytes()) {
+            @Override public String getFilename() { return file.getOriginalFilename(); }
+        });
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+        HttpEntity<MultiValueMap<String, Object>> analyzeRequest = new HttpEntity<>(body, headers);
+
+        log.info("📤 Appel /analyze du service Python pour extraire le texte");
+        Map<String, Object> analyzeResponse = longTimeoutRest.postForObject(
+                pythonBaseUrl + "/analyze", analyzeRequest, Map.class);
+        String ocrText = (String) analyzeResponse.get("ocr_text");
+        log.info("📥 /analyze a retourné {} caractères OCR", ocrText != null ? ocrText.length() : 0);
+
+        Map<String, String> dupBody = new HashMap<>();
+        dupBody.put("text", ocrText);
+        dupBody.put("filename", file.getOriginalFilename());
+        dupBody.put("filepath", buildFullPath(employeeId, file.getOriginalFilename()));
+
+        HttpHeaders jsonHeaders = new HttpHeaders();
+        jsonHeaders.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<Map<String, String>> dupRequest = new HttpEntity<>(dupBody, jsonHeaders);
+
+        log.info("📤 Appel /check-duplicate du service Python");
+        Map<String, Object> dupResponse = restTemplate.postForObject(
+                pythonBaseUrl + "/check-duplicate", dupRequest, Map.class);
+        log.info("📥 Réponse /check-duplicate: {}", dupResponse);
+
+        boolean duplicate = (boolean) dupResponse.getOrDefault("duplicate", false);
+        double score = Double.parseDouble(dupResponse.get("score").toString());
+        String matchedFile = (String) dupResponse.get("file");
+        String matchedPath = (String) dupResponse.get("path");
+        if (matchedFile == null) matchedFile = "unknown";
+        if (matchedPath == null) matchedPath = matchedFile;
+
+        log.info("✅ Résultat final duplicate={}, score={}, matchedPath={}", duplicate, score, matchedPath);
+        return new DuplicateResult(duplicate, matchedFile, matchedPath, score);
+    }
+
     public DuplicateResult checkDuplicateFromText(String ocrText, String employeeId, String realFilepath) throws Exception {
         return checkDuplicateFromText(ocrText, employeeId, realFilepath, null);
     }
+
     public DuplicateResult checkDuplicateFromText(String ocrText, String employeeId,
                                                   String realFilepath, String excludePath) throws Exception {
         log.info("📌 checkDuplicateFromText with excludePath={}", excludePath);
@@ -49,9 +96,8 @@ public class DuplicateDetectionService {
         body.put("filename", Paths.get(realFilepath).getFileName().toString());
         body.put("filepath", realFilepath);
         if (excludePath != null && !excludePath.isBlank()) {
-            body.put("exclude_path", excludePath);   // ← NEW
+            body.put("exclude_path", excludePath);
         }
-
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -72,67 +118,87 @@ public class DuplicateDetectionService {
         return new DuplicateResult(duplicate, matchedFile, matchedPath, score);
     }
 
-    public DuplicateResult checkDuplicate(MultipartFile file, String employeeId) throws Exception {
-        log.info("📌 checkDuplicate appelé pour file={}, employeeId={}", file.getOriginalFilename(), employeeId);
-        RestTemplate longTimeoutRest = createLongTimeoutRestTemplate();
-
-        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-        body.add("file", new ByteArrayResource(file.getBytes()) {
-            @Override
-            public String getFilename() {
-                return file.getOriginalFilename();
-            }
-        });
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
-        HttpEntity<MultiValueMap<String, Object>> analyzeRequest = new HttpEntity<>(body, headers);
-
-        log.info("📤 Appel /analyze du service Python pour extraire le texte");
-        Map<String, Object> analyzeResponse = longTimeoutRest.postForObject(
-                pythonBaseUrl + "/analyze", analyzeRequest, Map.class);
-        String ocrText = (String) analyzeResponse.get("ocr_text");
-        log.info("📥 /analyze a retourné {} caractères OCR", ocrText != null ? ocrText.length() : 0);
-
-        RestTemplate rest = new RestTemplate();
-        Map<String, String> dupBody = new HashMap<>();
-        dupBody.put("text", ocrText);
-        dupBody.put("filename", file.getOriginalFilename());
-        dupBody.put("filepath", buildFullPath(employeeId, file.getOriginalFilename()));
-
-        HttpHeaders jsonHeaders = new HttpHeaders();
-        jsonHeaders.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<Map<String, String>> dupRequest = new HttpEntity<>(dupBody, jsonHeaders);
-
-        log.info("📤 Appel /check-duplicate du service Python");
-        Map<String, Object> dupResponse = rest.postForObject(
-                pythonBaseUrl + "/check-duplicate", dupRequest, Map.class);
-        log.info("📥 Réponse /check-duplicate: {}", dupResponse);
-
-        boolean duplicate = (boolean) dupResponse.getOrDefault("duplicate", false);
-        double score = Double.parseDouble(dupResponse.get("score").toString());
-        String matchedFile = (String) dupResponse.get("file");
-        String matchedPath = (String) dupResponse.get("path");
-
-        if (matchedFile == null) matchedFile = "unknown";
-        if (matchedPath == null) matchedPath = matchedFile;
-
-        log.info("✅ Résultat final duplicate={}, score={}, matchedPath={}", duplicate, score, matchedPath);
-        return new DuplicateResult(duplicate, matchedFile, matchedPath, score);
+    public DuplicateResult checkDuplicateFromText(String ocrText, String employeeId) throws Exception {
+        log.info("📌 checkDuplicateFromText (sans filepath) appelé pour employeeId={}", employeeId);
+        String tempFilename = "from_text_" + System.currentTimeMillis() + ".txt";
+        String tempFilepath = buildFullPath(employeeId, tempFilename);
+        return checkDuplicateFromText(ocrText, employeeId, tempFilepath, null);
     }
 
-    private String buildFullPath(String employeeId, String filename) {
-        if (employeeId == null || employeeId.isBlank()) {
-            return Paths.get(uploadsDir, filename).toAbsolutePath().toString();
-        }
-        String[] subFolders = {"factures", "accords"};
-        for (String sub : subFolders) {
-            Path path = Paths.get(uploadsDir, employeeId, sub, filename);
-            if (Files.exists(path)) {
-                log.info("📁 [AI] Fichier trouvé dans: {}", sub);
-                return path.toAbsolutePath().toString();
+    public Map<String, Object> extractFields(MultipartFile file, String fieldsJson) {
+        log.info("📌 extractFields appelé pour file={}, fieldsJson={}", file.getOriginalFilename(), fieldsJson);
+        Map<String, Object> response = new HashMap<>();
+        Map<String, Object> extracted = new HashMap<>();
+        response.put("fields", extracted);
+
+        try {
+            RestTemplate longTimeoutRest = createLongTimeoutRestTemplate();
+
+            String analyzeUrl = pythonBaseUrl + "/analyze";
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+            body.add("file", new ByteArrayResource(file.getBytes()) {
+                @Override public String getFilename() { return file.getOriginalFilename(); }
+            });
+            HttpEntity<MultiValueMap<String, Object>> analyzeRequest = new HttpEntity<>(body, headers);
+
+            log.info("📤 Appel /analyze pour extraire le JSON");
+            Map<String, Object> analyzeResponse = longTimeoutRest.postForObject(analyzeUrl, analyzeRequest, Map.class);
+            if (analyzeResponse == null || !analyzeResponse.containsKey("structured")) {
+                response.put("error", "Réponse invalide du service IA");
+                log.error("❌ Réponse invalide de /analyze: {}", analyzeResponse);
+                return response;
             }
+
+            String ocrText = (String) analyzeResponse.get("ocr_text");
+            Map<String, Object> structured = (Map<String, Object>) analyzeResponse.get("structured");
+            if (structured.containsKey("invoice") && structured.get("invoice") instanceof Map) {
+                structured = (Map<String, Object>) structured.get("invoice");
+            }
+            response.put("ocrText", ocrText);
+            response.put("structured", structured);
+            log.info("📥 /analyze retourné ocrText ({} chars) et structured", ocrText != null ? ocrText.length() : 0);
+
+            List<String> requestedFields = new ArrayList<>();
+            if (fieldsJson != null && !fieldsJson.isBlank()) {
+                try {
+                    requestedFields = objectMapper.readValue(fieldsJson, new TypeReference<List<String>>() {});
+                } catch (Exception e) {
+                    requestedFields = Arrays.asList(fieldsJson.split(","));
+                }
+            }
+            log.info("📋 Champs demandés: {}", requestedFields);
+
+            for (String field : requestedFields) {
+                Object value = extractFieldValueGeneric(structured, field);
+                if (value != null && !value.toString().isEmpty()) {
+                    extracted.put(field, value);
+                }
+            }
+
+            if (requestedFields.contains("expenseDate") && !extracted.containsKey("expenseDate")) {
+                Object date = findBestDate(structured);
+                if (date != null) extracted.put("expenseDate", date);
+            }
+            if (requestedFields.contains("amount") && !extracted.containsKey("amount")) {
+                Object amount = findBestAmount(structured);
+                if (amount != null) extracted.put("amount", amount);
+            }
+            if (extracted.containsKey("amount")) {
+                String rawAmount = getRawAmountValue(structured);
+                if (rawAmount != null && !rawAmount.isEmpty()) {
+                    String currency = extractCurrencyFromAmount(rawAmount);
+                    if (currency != null) extracted.put("currency", currency);
+                }
+            }
+            log.info("✅ Champs extraits: {}", extracted);
+
+        } catch (Exception e) {
+            response.put("error", "Service IA indisponible: " + e.getMessage());
+            log.error("❌ Erreur lors de extractFields: ", e);
         }
-        return Paths.get(uploadsDir, employeeId, "factures", filename).toAbsolutePath().toString();
+        return response;
     }
 
     public Map<String, Object> validateReceipt(MultipartFile file,
@@ -147,10 +213,7 @@ public class DuplicateDetectionService {
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
         body.add("file", new ByteArrayResource(file.getBytes()) {
-            @Override
-            public String getFilename() {
-                return file.getOriginalFilename();
-            }
+            @Override public String getFilename() { return file.getOriginalFilename(); }
         });
         HttpEntity<MultiValueMap<String, Object>> analyzeRequest = new HttpEntity<>(body, headers);
         Map<String, Object> analyzeResponse = restTemplate.postForObject(analyzeUrl, analyzeRequest, Map.class);
@@ -174,100 +237,9 @@ public class DuplicateDetectionService {
         log.info("📤 Appel /validate du service Python");
         Map<String, Object> validationResult = restTemplate.postForObject(validateUrl, validateEntity, Map.class);
         log.info("📥 Réponse /validate: {}", validationResult);
-
         validationResult.put("extractedReceipt", receiptData);
         return validationResult;
     }
-
-    public Map<String, Object> extractFields(MultipartFile file, String fieldsJson) {
-        log.info("📌 extractFields appelé pour file={}, fieldsJson={}", file.getOriginalFilename(), fieldsJson);
-        Map<String, Object> response = new HashMap<>();
-        Map<String, Object> extracted = new HashMap<>();
-        response.put("fields", extracted);
-
-        try {
-            RestTemplate longTimeoutRest = createLongTimeoutRestTemplate();
-
-            String analyzeUrl = pythonBaseUrl + "/analyze";
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
-            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-            body.add("file", new ByteArrayResource(file.getBytes()) {
-                @Override
-                public String getFilename() {
-                    return file.getOriginalFilename();
-                }
-            });
-            HttpEntity<MultiValueMap<String, Object>> analyzeRequest = new HttpEntity<>(body, headers);
-
-            log.info("📤 Appel /analyze pour extraire le JSON");
-            Map<String, Object> analyzeResponse = longTimeoutRest.postForObject(analyzeUrl, analyzeRequest, Map.class);
-            if (analyzeResponse == null || !analyzeResponse.containsKey("structured")) {
-                response.put("error", "Réponse invalide du service IA");
-                log.error("❌ Réponse invalide de /analyze: {}", analyzeResponse);
-                return response;
-            }
-
-            String ocrText = (String) analyzeResponse.get("ocr_text");
-            Map<String, Object> structured = (Map<String, Object>) analyzeResponse.get("structured");
-
-            // Unwrap 'invoice' if present
-            if (structured.containsKey("invoice") && structured.get("invoice") instanceof Map) {
-                structured = (Map<String, Object>) structured.get("invoice");
-            }
-
-            // Ajouter l'OCR et le JSON complet dans la réponse
-            response.put("ocrText", ocrText);
-            response.put("structured", structured);
-            log.info("📥 /analyze retourné ocrText ({} chars) et structured", ocrText != null ? ocrText.length() : 0);
-
-            List<String> requestedFields = new ArrayList<>();
-            if (fieldsJson != null && !fieldsJson.isBlank()) {
-                try {
-                    requestedFields = objectMapper.readValue(fieldsJson, new TypeReference<List<String>>() {});
-                } catch (Exception e) {
-                    requestedFields = Arrays.asList(fieldsJson.split(","));
-                }
-            }
-            log.info("📋 Champs demandés: {}", requestedFields);
-
-            for (String field : requestedFields) {
-                Object value = extractFieldValueGeneric(structured, field);
-                if (value != null && !value.toString().isEmpty()) {
-                    extracted.put(field, value);
-                }
-            }
-
-            // Force date if missing
-            if (requestedFields.contains("expenseDate") && !extracted.containsKey("expenseDate")) {
-                Object date = findBestDate(structured);
-                if (date != null) extracted.put("expenseDate", date);
-            }
-
-            // Force amount if missing
-            if (requestedFields.contains("amount") && !extracted.containsKey("amount")) {
-                Object amount = findBestAmount(structured);
-                if (amount != null) extracted.put("amount", amount);
-            }
-
-            if (extracted.containsKey("amount")) {
-                String rawAmount = getRawAmountValue(structured);
-                if (rawAmount != null && !rawAmount.isEmpty()) {
-                    String currency = extractCurrencyFromAmount(rawAmount);
-                    if (currency != null) extracted.put("currency", currency);
-                }
-            }
-            log.info("✅ Champs extraits: {}", extracted);
-
-        } catch (Exception e) {
-            response.put("error", "Service IA indisponible: " + e.getMessage());
-            log.error("❌ Erreur lors de extractFields: ", e);
-        }
-
-        return response;
-    }
-
-    // ========== NOUVELLES MÉTHODES ==========
 
     public Map<String, Object> validateFromJson(Map<String, Object> extractedJson) throws Exception {
         log.info("📌 validateFromJson appelé avec JSON: {}", extractedJson);
@@ -291,34 +263,36 @@ public class DuplicateDetectionService {
         return validationResult;
     }
 
-    public DuplicateResult checkDuplicateFromText(String ocrText, String employeeId) throws Exception {
-        log.info("📌 checkDuplicateFromText (sans filepath) appelé pour employeeId={}", employeeId);
-        String checkUrl = pythonBaseUrl + "/check-duplicate";
-        String tempFilename = "from_text_" + System.currentTimeMillis() + ".txt";
-        String tempFilepath = buildFullPath(employeeId, tempFilename);
+    // ========== ADDITION FOR EXPENSE SERVICE COMPATIBILITY ==========
+    public void addToFaissIndex(String text, String filename, String absolutePath, String employeeId) {
+        try {
+            String url = pythonBaseUrl + "/add-to-index";
+            Map<String, Object> body = new HashMap<>();
+            body.put("text", text);
+            body.put("filename", filename);
+            body.put("filepath", absolutePath);
+            body.put("employeeId", employeeId);
+            restTemplate.postForObject(url, body, Map.class);
+            log.info("Added to FAISS with employeeId: {} -> {}", filename, employeeId);
+        } catch (Exception e) {
+            log.error("FAISS error: {}", e.getMessage());
+        }
+    }
 
-        Map<String, String> body = new HashMap<>();
-        body.put("text", ocrText);
-        body.put("filename", tempFilename);
-        body.put("filepath", tempFilepath);
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<Map<String, String>> requestEntity = new HttpEntity<>(body, headers);
-
-        log.info("📤 Appel /check-duplicate avec texte OCR ({} chars), filepath temp={}", ocrText != null ? ocrText.length() : 0, tempFilepath);
-        Map<String, Object> dupResponse = restTemplate.postForObject(checkUrl, requestEntity, Map.class);
-        log.info("📥 Réponse /check-duplicate: {}", dupResponse);
-
-        boolean duplicate = (boolean) dupResponse.getOrDefault("duplicate", false);
-        double score = Double.parseDouble(dupResponse.get("score").toString());
-        String matchedFile = (String) dupResponse.get("file");
-        String matchedPath = (String) dupResponse.get("path");
-        if (matchedFile == null) matchedFile = "unknown";
-        if (matchedPath == null) matchedPath = matchedFile;
-
-        log.info("✅ Résultat duplicate={}, score={}, matchedPath={}", duplicate, score, matchedPath);
-        return new DuplicateResult(duplicate, matchedFile, matchedPath, score);
+    // ========== HELPER METHODS (from your advanced service) ==========
+    private String buildFullPath(String employeeId, String filename) {
+        if (employeeId == null || employeeId.isBlank()) {
+            return Paths.get(uploadsDir, filename).toAbsolutePath().toString();
+        }
+        String[] subFolders = {"factures", "accords"};
+        for (String sub : subFolders) {
+            Path path = Paths.get(uploadsDir, employeeId, sub, filename);
+            if (Files.exists(path)) {
+                log.info("📁 [AI] Fichier trouvé dans: {}", sub);
+                return path.toAbsolutePath().toString();
+            }
+        }
+        return Paths.get(uploadsDir, employeeId, "factures", filename).toAbsolutePath().toString();
     }
 
     private String getRawAmountValue(Map<String, Object> json) {
@@ -357,30 +331,20 @@ public class DuplicateDetectionService {
 
     private Object extractFieldValueGeneric(Map<String, Object> json, String fieldName) {
         String lowerField = fieldName.toLowerCase();
-
         if (lowerField.equals("amount") || lowerField.equals("montant") || lowerField.equals("total")) {
             return findBestAmount(json);
         }
         if (lowerField.equals("expensedate") || lowerField.equals("date") || lowerField.equals("date_facture")) {
             return findBestDate(json);
         }
-        // ✅ Traitement spécial pour description AVANT la recherche par similarité
         if (lowerField.equals("description") || lowerField.equals("objet") || lowerField.equals("motif")) {
-            // Priorité absolue à document_type
             Object docType = json.get("document_type");
-            if (docType != null) {
-                System.out.println("🔍 [DEBUG] Using document_type as description: " + docType);
-                return docType.toString();
-            }
-            // Fallback sur la logique existante
+            if (docType != null) return docType.toString();
             return findBestDescription(json);
         }
-        // Recherche par similarité pour les autres champs
         String normalizedTarget = normalizeKey(lowerField);
         Object rawValue = findValueBySimilarKey(json, normalizedTarget);
-        if (rawValue != null) {
-            return postProcessValue(rawValue, fieldName);
-        }
+        if (rawValue != null) return postProcessValue(rawValue, fieldName);
         if (lowerField.equals("destination")) {
             Object val = findValueBySimilarKey(json, normalizeKey("arrival"));
             if (val != null) return postProcessValue(val, fieldName);
@@ -391,6 +355,7 @@ public class DuplicateDetectionService {
         }
         return null;
     }
+
     private Object findValueBySimilarKey(Map<String, Object> map, String targetNorm) {
         for (Map.Entry<String, Object> entry : map.entrySet()) {
             String keyNorm = normalizeKey(entry.getKey());
@@ -429,7 +394,6 @@ public class DuplicateDetectionService {
     private Object postProcessValue(Object raw, String fieldName) {
         String lowerField = fieldName.toLowerCase();
         String str = raw.toString().trim();
-
         if (lowerField.contains("amount") || lowerField.contains("montant") || lowerField.contains("total") ||
                 lowerField.contains("prix") || lowerField.contains("cout") || lowerField.contains("price")) {
             return normalizeAmount(str);
@@ -537,20 +501,11 @@ public class DuplicateDetectionService {
         return null;
     }
 
-    /**
-     * Finds the best description. Falls back to document_type if nothing else is found.
-     * No hardcoded inference – just reads the AI-provided document_type.
-     */
     private Object findBestDescription(Map<String, Object> json) {
-        // 1. Champ "description" explicite à la racine
         Object desc = json.get("description");
         if (desc != null && !desc.toString().isEmpty()) return desc;
-
-        // 2. Champ "name" à la racine (éviter les noms de passager)
         Object name = json.get("name");
         if (name != null && !name.toString().toLowerCase().contains("jones")) return name;
-
-        // 3. Premier item de la liste "items" (si elle existe et non vide)
         if (json.containsKey("items")) {
             Object itemsObj = json.get("items");
             if (itemsObj instanceof List && !((List<?>) itemsObj).isEmpty()) {
@@ -561,15 +516,10 @@ public class DuplicateDetectionService {
                 }
             }
         }
-
-        // 4. document_type (clé directe à la racine)
         Object docType = json.get("document_type");
         if (docType != null) return docType.toString();
-
-        // 5. Dernier recours : surcharge (taxes/frais)
         Object surchargeDesc = findSurchargeDescription(json);
         if (surchargeDesc != null) return surchargeDesc;
-
         return "receipt";
     }
 

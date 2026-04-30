@@ -17,7 +17,7 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/expense_app
     username: postgres
-    password: postgres
+    password: 112004
     #    password: postgres
     driver-class-name: org.postgresql.Driver
 

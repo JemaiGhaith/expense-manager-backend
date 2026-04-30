@@ -100,6 +100,7 @@ public class ExpenseController {
 
             // 4. Réponse immédiate avec statut ACCEPTED
             return ResponseEntity.accepted().body(Map.of(
+
                     "id", savedNote.getId(),
                     "status", "PENDING",
                     "message", "Note soumise, traitement en cours"
