@@ -133,8 +133,14 @@ public class ExpenseProcessingService {
                     String matchedPath = (String) result.get("matchedPath");
                     if (matchedPath == null) matchedPath = (String) result.get("path");
 
+                    // ✅ Always fetch a managed instance of the line
+                    ExpenseLine managedLine = lineRepository.findById(line.getId()).orElse(null);
+                    if (managedLine == null) {
+                        log.error("Line {} not found, cannot update duplicate_detected", line.getId());
+                        continue;
+                    }
+
                     if (duplicate && matchedPath != null) {
-                        // Vérifier si ce doublon existe déjà pour éviter les insertions en double
                         boolean alreadyExists = duplicateRepository.existsByExpenseNoteIdAndExpenseLineIdAndUploadedFile(
                                 noteId, line.getId(), line.getJustificatifPath());
                         if (!alreadyExists) {
@@ -147,17 +153,21 @@ public class ExpenseProcessingService {
                             dup.setSimilarity(score);
                             duplicateRepository.save(dup);
                             log.info("✅ Duplicate saved for line {}", line.getId());
-
-                            line.setDuplicateDetected(true);
-                            line.setDuplicateScore(score);
-                            line.setDuplicateMatchedFile(finalPath);
-                            lineRepository.save(line);
                         } else {
-                            log.info("Duplicate already exists for line {}, skipping", line.getId());
+                            log.info("Duplicate already exists for line {}, skipping duplicate record insertion", line.getId());
                         }
+
+                        // ✅ ALWAYS update the expense line flag
+                        managedLine.setDuplicateDetected(true);
+                        managedLine.setDuplicateScore(score);
+                        if (matchedPath != null) {
+                            String finalPath = matchedPath.length() > 255 ? matchedPath.substring(0, 255) : matchedPath;
+                            managedLine.setDuplicateMatchedFile(finalPath);
+                        }
+                        lineRepository.save(managedLine);
                     } else {
-                        line.setDuplicateDetected(false);
-                        lineRepository.save(line);
+                        managedLine.setDuplicateDetected(false);
+                        lineRepository.save(managedLine);
                     }
                 }
             } catch (Exception e) {

@@ -1,5 +1,809 @@
-2026-05-01 00:00:01.421 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:f67bc74cf831399e40432ee156a720b2 - Heartbeat status: 200
-2026-05-01 00:00:16.629 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
-2026-05-01 00:00:16.633 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
-2026-05-01 00:00:16.633 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
-2026-05-01 00:00:16.633 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:00:25.163 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:00:26.148 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:00:26.148 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Added instance 192.168.1.110:expense-management-microservice:8082 to the existing apps in region null
+2026-05-04 00:00:26.148 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 1
+2026-05-04 00:00:26.159 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:00:26.159 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:00:26.908 DEBUG [http-nio-8086-exec-9] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:00:26.912 DEBUG [http-nio-8086-exec-9] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:00:55.208 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:00:56.178 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:00:56.178 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Added instance 192.168.1.110:expense-management-microservice:8082 to the existing apps in region null
+2026-05-04 00:00:56.179 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 1
+2026-05-04 00:00:56.179 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:00:56.179 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:01:17.156 INFO  [AsyncResolver-bootstrap-executor-0] c.n.d.s.r.aws.ConfigClusterResolver - Resolving eureka endpoints via configuration
+2026-05-04 00:01:17.156 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.discovery.endpoint.EndpointUtils - The availability zone for the given region us-east-1 are [defaultZone]
+2026-05-04 00:01:17.156 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.d.s.r.aws.ConfigClusterResolver - Config resolved to [AwsEndpoint{ serviceUrl='http://localhost:8761/eureka/', region='us-east-1', zone='defaultZone'}]
+2026-05-04 00:01:17.157 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.d.s.r.a.ZoneAffinityClusterResolver - Local zone=defaultZone; resolved to: [AwsEndpoint{ serviceUrl='http://localhost:8761/eureka/', region='us-east-1', zone='defaultZone'}]
+2026-05-04 00:01:17.157 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.d.shared.resolver.AsyncResolver - Resolved to [AwsEndpoint{ serviceUrl='http://localhost:8761/eureka/', region='us-east-1', zone='defaultZone'}]
+2026-05-04 00:01:25.242 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:01:26.194 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_5_
+2026-05-04 00:01:26.194 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Deleted instance 192.168.1.110:expense-management-microservice:8082 to the existing apps 
+2026-05-04 00:01:26.195 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 1
+2026-05-04 00:01:26.195 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 5
+2026-05-04 00:01:26.195 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_5_, is fetching remote regions? false 
+2026-05-04 00:01:26.870 DEBUG [http-nio-8086-exec-1] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:01:26.872 DEBUG [http-nio-8086-exec-1] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:01:40.293 DEBUG [http-nio-8086-exec-2] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:01:40.315 DEBUG [http-nio-8086-exec-2] c.c.c.service.ChatSessionService - Updated context for session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:01:43.056 DEBUG [http-nio-8086-exec-4] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:01:43.063 DEBUG [http-nio-8086-exec-4] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:01:55.270 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:01:56.214 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:01:56.214 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Added instance 192.168.1.110:expense-management-microservice:8082 to the existing apps in region null
+2026-05-04 00:01:56.214 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 1
+2026-05-04 00:01:56.214 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:01:56.214 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:01:59.999 DEBUG [http-nio-8086-exec-6] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:02:00.176 DEBUG [http-nio-8086-exec-7] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:02:25.180 DEBUG [http-nio-8086-exec-9] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:02:25.190 DEBUG [http-nio-8086-exec-9] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:02:25.301 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:02:26.218 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:02:26.218 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Added instance 192.168.1.110:expense-management-microservice:8082 to the existing apps in region null
+2026-05-04 00:02:26.218 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 1
+2026-05-04 00:02:26.218 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:02:26.218 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:02:50.460 DEBUG [http-nio-8086-exec-1] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:02:50.474 DEBUG [http-nio-8086-exec-1] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:02:55.330 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:02:56.225 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:02:56.225 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Added instance 192.168.1.110:expense-management-microservice:8082 to the existing apps in region null
+2026-05-04 00:02:56.225 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 1
+2026-05-04 00:02:56.225 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:02:56.225 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:03:15.169 DEBUG [http-nio-8086-exec-2] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:03:15.169 DEBUG [http-nio-8086-exec-2] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:03:25.355 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:03:26.243 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:03:26.243 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Added instance 192.168.1.110:expense-management-microservice:8082 to the existing apps in region null
+2026-05-04 00:03:26.243 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 1
+2026-05-04 00:03:26.245 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:03:26.245 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:03:40.175 DEBUG [http-nio-8086-exec-5] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:03:40.179 DEBUG [http-nio-8086-exec-5] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:03:55.380 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:03:56.250 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.n.d.s.t.d.SessionedEurekaHttpClient - Ending a session and starting anew
+2026-05-04 00:03:56.413 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.n.d.s.t.d.RedirectingEurekaHttpClient - Pinning to endpoint null
+2026-05-04 00:03:56.413 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:03:56.413 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Added instance 192.168.1.110:expense-management-microservice:8082 to the existing apps in region null
+2026-05-04 00:03:56.413 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 1
+2026-05-04 00:03:56.413 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:03:56.413 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:04:05.176 DEBUG [http-nio-8086-exec-7] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:04:05.185 DEBUG [http-nio-8086-exec-7] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:04:25.405 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:04:26.427 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:04:26.427 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Added instance 192.168.1.110:expense-management-microservice:8082 to the existing apps in region null
+2026-05-04 00:04:26.427 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 1
+2026-05-04 00:04:26.427 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:04:26.427 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:04:30.166 DEBUG [http-nio-8086-exec-9] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:04:30.168 DEBUG [http-nio-8086-exec-9] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:04:55.167 DEBUG [http-nio-8086-exec-1] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:04:55.173 DEBUG [http-nio-8086-exec-1] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:04:55.434 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:04:56.441 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:04:56.441 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:04:56.441 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:04:56.441 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:05:20.154 DEBUG [http-nio-8086-exec-2] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:05:20.154 DEBUG [http-nio-8086-exec-2] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:05:25.463 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:05:26.452 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:05:26.459 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:05:26.463 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:05:26.463 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:05:45.174 DEBUG [http-nio-8086-exec-5] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:05:45.178 DEBUG [http-nio-8086-exec-5] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:05:55.531 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:05:56.567 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:05:56.567 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:05:56.567 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:05:56.612 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:06:10.229 DEBUG [http-nio-8086-exec-7] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:06:10.235 DEBUG [http-nio-8086-exec-7] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:06:17.160 INFO  [AsyncResolver-bootstrap-executor-0] c.n.d.s.r.aws.ConfigClusterResolver - Resolving eureka endpoints via configuration
+2026-05-04 00:06:17.160 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.discovery.endpoint.EndpointUtils - The availability zone for the given region us-east-1 are [defaultZone]
+2026-05-04 00:06:17.163 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.d.s.r.aws.ConfigClusterResolver - Config resolved to [AwsEndpoint{ serviceUrl='http://localhost:8761/eureka/', region='us-east-1', zone='defaultZone'}]
+2026-05-04 00:06:17.163 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.d.s.r.a.ZoneAffinityClusterResolver - Local zone=defaultZone; resolved to: [AwsEndpoint{ serviceUrl='http://localhost:8761/eureka/', region='us-east-1', zone='defaultZone'}]
+2026-05-04 00:06:17.163 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.d.shared.resolver.AsyncResolver - Resolved to [AwsEndpoint{ serviceUrl='http://localhost:8761/eureka/', region='us-east-1', zone='defaultZone'}]
+2026-05-04 00:06:25.559 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:06:26.644 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:06:26.646 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:06:26.647 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:06:26.658 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:06:35.182 DEBUG [http-nio-8086-exec-9] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:06:35.189 DEBUG [http-nio-8086-exec-9] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:06:55.600 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:06:56.671 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:06:56.671 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:06:56.674 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:06:56.683 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:07:00.194 DEBUG [http-nio-8086-exec-1] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:07:00.194 DEBUG [http-nio-8086-exec-1] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:07:25.172 DEBUG [http-nio-8086-exec-2] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:07:25.174 DEBUG [http-nio-8086-exec-2] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:07:25.626 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:07:26.697 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:07:26.698 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:07:26.698 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:07:26.699 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:07:50.176 DEBUG [http-nio-8086-exec-5] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:07:50.180 DEBUG [http-nio-8086-exec-5] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:07:55.692 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.n.d.s.t.d.SessionedEurekaHttpClient - Ending a session and starting anew
+2026-05-04 00:07:56.192 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.n.d.s.t.d.RedirectingEurekaHttpClient - Pinning to endpoint null
+2026-05-04 00:07:56.192 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:07:56.714 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:07:56.714 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:07:56.714 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:07:56.714 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:08:15.227 DEBUG [http-nio-8086-exec-7] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:08:15.233 DEBUG [http-nio-8086-exec-7] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:08:26.243 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:08:26.724 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:08:26.724 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:08:26.724 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:08:26.724 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:08:40.179 DEBUG [http-nio-8086-exec-9] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:08:40.185 DEBUG [http-nio-8086-exec-9] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:08:56.273 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:08:56.760 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:08:56.768 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:08:56.769 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:08:56.770 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:09:05.188 DEBUG [http-nio-8086-exec-1] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:09:05.191 DEBUG [http-nio-8086-exec-1] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:09:26.304 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:09:26.784 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:09:26.784 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:09:26.784 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:09:26.784 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:09:30.177 DEBUG [http-nio-8086-exec-2] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:09:30.180 DEBUG [http-nio-8086-exec-2] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:09:55.182 DEBUG [http-nio-8086-exec-5] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:09:55.186 DEBUG [http-nio-8086-exec-5] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:09:56.335 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:09:56.804 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:09:56.804 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:09:56.804 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:09:56.806 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:10:20.177 DEBUG [http-nio-8086-exec-7] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:10:20.180 DEBUG [http-nio-8086-exec-7] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:10:26.382 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:10:26.849 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:10:26.849 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:10:26.849 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:10:26.850 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:10:45.167 DEBUG [http-nio-8086-exec-9] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:10:45.167 DEBUG [http-nio-8086-exec-9] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:10:56.416 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:10:56.869 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:10:56.869 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:10:56.870 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:10:56.871 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:11:10.213 DEBUG [http-nio-8086-exec-1] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:11:10.219 DEBUG [http-nio-8086-exec-1] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:11:17.166 INFO  [AsyncResolver-bootstrap-executor-0] c.n.d.s.r.aws.ConfigClusterResolver - Resolving eureka endpoints via configuration
+2026-05-04 00:11:17.166 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.discovery.endpoint.EndpointUtils - The availability zone for the given region us-east-1 are [defaultZone]
+2026-05-04 00:11:17.166 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.d.s.r.aws.ConfigClusterResolver - Config resolved to [AwsEndpoint{ serviceUrl='http://localhost:8761/eureka/', region='us-east-1', zone='defaultZone'}]
+2026-05-04 00:11:17.166 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.d.s.r.a.ZoneAffinityClusterResolver - Local zone=defaultZone; resolved to: [AwsEndpoint{ serviceUrl='http://localhost:8761/eureka/', region='us-east-1', zone='defaultZone'}]
+2026-05-04 00:11:17.198 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.d.shared.resolver.AsyncResolver - Resolved to [AwsEndpoint{ serviceUrl='http://localhost:8761/eureka/', region='us-east-1', zone='defaultZone'}]
+2026-05-04 00:11:26.449 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:11:26.883 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:11:26.883 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:11:26.885 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:11:26.885 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:11:35.208 DEBUG [http-nio-8086-exec-2] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:11:35.213 DEBUG [http-nio-8086-exec-2] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:11:56.464 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:11:56.898 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:11:56.898 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:11:56.931 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:11:56.932 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:12:00.160 DEBUG [http-nio-8086-exec-5] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:12:00.160 DEBUG [http-nio-8086-exec-5] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:12:25.200 DEBUG [http-nio-8086-exec-7] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:12:25.203 DEBUG [http-nio-8086-exec-7] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:12:26.493 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:12:26.945 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:12:26.945 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:12:26.945 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:12:26.945 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:12:50.165 DEBUG [http-nio-8086-exec-9] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:12:50.173 DEBUG [http-nio-8086-exec-9] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:12:56.562 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:12:58.455 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:12:58.455 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:12:58.456 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:12:58.457 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:13:15.175 DEBUG [http-nio-8086-exec-1] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:13:15.178 DEBUG [http-nio-8086-exec-1] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:13:26.609 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:13:28.459 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:13:28.459 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:13:28.459 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:13:28.459 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:13:40.390 DEBUG [http-nio-8086-exec-2] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:13:40.393 DEBUG [http-nio-8086-exec-2] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:13:56.642 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:13:58.479 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:13:58.480 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:13:58.480 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:13:58.481 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:14:05.169 DEBUG [http-nio-8086-exec-5] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:14:05.172 DEBUG [http-nio-8086-exec-5] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:14:26.674 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:14:28.496 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:14:28.497 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:14:28.498 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:14:28.498 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:14:30.167 DEBUG [http-nio-8086-exec-7] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:14:30.169 DEBUG [http-nio-8086-exec-7] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:14:52.936 DEBUG [http-nio-8086-exec-9] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:14:52.986 DEBUG [http-nio-8086-exec-9] c.c.c.service.ChatSessionService - Updated context for session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:14:56.806 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:14:58.507 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:14:58.507 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:14:58.508 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:14:58.508 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:14:59.595 DEBUG [http-nio-8086-exec-1] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:14:59.598 DEBUG [http-nio-8086-exec-1] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:15:20.871 DEBUG [http-nio-8086-exec-2] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:15:20.873 DEBUG [http-nio-8086-exec-2] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:15:26.827 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:15:28.527 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:15:28.527 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:15:28.527 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:15:28.528 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:15:45.906 DEBUG [http-nio-8086-exec-5] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:15:45.909 DEBUG [http-nio-8086-exec-5] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:15:56.886 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:15:58.541 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:15:58.541 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:15:58.541 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:15:58.541 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:16:10.877 DEBUG [http-nio-8086-exec-7] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:16:10.882 DEBUG [http-nio-8086-exec-7] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:16:17.201 INFO  [AsyncResolver-bootstrap-executor-0] c.n.d.s.r.aws.ConfigClusterResolver - Resolving eureka endpoints via configuration
+2026-05-04 00:16:17.202 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.discovery.endpoint.EndpointUtils - The availability zone for the given region us-east-1 are [defaultZone]
+2026-05-04 00:16:17.205 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.d.s.r.aws.ConfigClusterResolver - Config resolved to [AwsEndpoint{ serviceUrl='http://localhost:8761/eureka/', region='us-east-1', zone='defaultZone'}]
+2026-05-04 00:16:17.205 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.d.s.r.a.ZoneAffinityClusterResolver - Local zone=defaultZone; resolved to: [AwsEndpoint{ serviceUrl='http://localhost:8761/eureka/', region='us-east-1', zone='defaultZone'}]
+2026-05-04 00:16:17.206 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.d.shared.resolver.AsyncResolver - Resolved to [AwsEndpoint{ serviceUrl='http://localhost:8761/eureka/', region='us-east-1', zone='defaultZone'}]
+2026-05-04 00:16:26.919 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:16:28.555 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:16:28.556 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:16:28.556 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:16:28.556 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:16:35.857 DEBUG [http-nio-8086-exec-9] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:16:35.860 DEBUG [http-nio-8086-exec-9] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:16:56.950 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:16:58.569 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:16:58.569 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:16:58.569 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:16:58.569 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:17:00.898 DEBUG [http-nio-8086-exec-1] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:17:00.909 DEBUG [http-nio-8086-exec-1] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:17:25.902 DEBUG [http-nio-8086-exec-2] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:17:25.903 DEBUG [http-nio-8086-exec-2] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:17:26.974 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:17:28.574 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.n.d.s.t.d.SessionedEurekaHttpClient - Ending a session and starting anew
+2026-05-04 00:17:28.660 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.n.d.s.t.d.RedirectingEurekaHttpClient - Pinning to endpoint null
+2026-05-04 00:17:28.660 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:17:28.660 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:17:28.660 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:17:28.660 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:17:50.888 DEBUG [http-nio-8086-exec-5] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:17:50.889 DEBUG [http-nio-8086-exec-5] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:17:57.003 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:17:58.669 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:17:58.669 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:17:58.669 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:17:58.669 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:18:15.946 DEBUG [http-nio-8086-exec-7] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:18:15.948 DEBUG [http-nio-8086-exec-7] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:18:27.027 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:18:28.686 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:18:28.686 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:18:28.686 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:18:28.686 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:18:57.052 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:18:58.710 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_5_
+2026-05-04 00:18:58.711 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Deleted instance 192.168.1.110:expense-management-microservice:8082 to the existing apps 
+2026-05-04 00:18:58.712 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 1
+2026-05-04 00:18:58.714 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 5
+2026-05-04 00:18:58.714 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_5_, is fetching remote regions? false 
+2026-05-04 00:19:26.894 DEBUG [http-nio-8086-exec-9] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:19:26.915 DEBUG [http-nio-8086-exec-9] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:19:27.081 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:19:28.721 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:19:28.721 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Added instance 192.168.1.110:expense-management-microservice:8082 to the existing apps in region null
+2026-05-04 00:19:28.721 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 1
+2026-05-04 00:19:28.721 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:19:28.749 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:19:57.101 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:19:59.172 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:19:59.172 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Added instance 192.168.1.110:expense-management-microservice:8082 to the existing apps in region null
+2026-05-04 00:19:59.172 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 1
+2026-05-04 00:19:59.289 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:19:59.289 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:20:26.876 DEBUG [http-nio-8086-exec-1] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:20:26.886 DEBUG [http-nio-8086-exec-1] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:20:27.129 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:20:29.319 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:20:29.319 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Added instance 192.168.1.110:expense-management-microservice:8082 to the existing apps in region null
+2026-05-04 00:20:29.319 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 1
+2026-05-04 00:20:29.319 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:20:29.319 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:20:57.151 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:20:59.355 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:20:59.356 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Added instance 192.168.1.110:expense-management-microservice:8082 to the existing apps in region null
+2026-05-04 00:20:59.356 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 1
+2026-05-04 00:20:59.357 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:20:59.358 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:21:17.218 INFO  [AsyncResolver-bootstrap-executor-0] c.n.d.s.r.aws.ConfigClusterResolver - Resolving eureka endpoints via configuration
+2026-05-04 00:21:17.218 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.discovery.endpoint.EndpointUtils - The availability zone for the given region us-east-1 are [defaultZone]
+2026-05-04 00:21:17.219 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.d.s.r.aws.ConfigClusterResolver - Config resolved to [AwsEndpoint{ serviceUrl='http://localhost:8761/eureka/', region='us-east-1', zone='defaultZone'}]
+2026-05-04 00:21:17.219 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.d.s.r.a.ZoneAffinityClusterResolver - Local zone=defaultZone; resolved to: [AwsEndpoint{ serviceUrl='http://localhost:8761/eureka/', region='us-east-1', zone='defaultZone'}]
+2026-05-04 00:21:17.219 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.d.shared.resolver.AsyncResolver - Resolved to [AwsEndpoint{ serviceUrl='http://localhost:8761/eureka/', region='us-east-1', zone='defaultZone'}]
+2026-05-04 00:21:26.866 DEBUG [http-nio-8086-exec-2] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:21:26.870 DEBUG [http-nio-8086-exec-2] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:21:27.180 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:21:29.374 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:21:29.375 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Added instance 192.168.1.110:expense-management-microservice:8082 to the existing apps in region null
+2026-05-04 00:21:29.375 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 1
+2026-05-04 00:21:29.375 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:21:29.375 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:21:39.316 DEBUG [http-nio-8086-exec-5] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:21:39.319 DEBUG [http-nio-8086-exec-5] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:21:41.287 DEBUG [http-nio-8086-exec-6] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:21:41.298 DEBUG [http-nio-8086-exec-6] c.c.c.service.ChatSessionService - Updated context for session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:21:48.800 INFO  [MessageBroker-5] o.s.w.s.c.WebSocketMessageBrokerStats - WebSocketSession[0 current WS(0)-HttpStream(0)-HttpPoll(0), 0 total, 0 closed abnormally (0 connect failure, 0 send limit, 0 transport error)], stompSubProtocol[processed CONNECT(0)-CONNECTED(0)-DISCONNECT(0)], stompBrokerRelay[null], inboundChannel[pool size = 0, active threads = 0, queued tasks = 0, completed tasks = 0], outboundChannel[pool size = 0, active threads = 0, queued tasks = 0, completed tasks = 0], sockJsScheduler[pool size = 12, active threads = 1, queued tasks = 1, completed tasks = 17]
+2026-05-04 00:21:57.201 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:21:59.389 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:21:59.389 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Added instance 192.168.1.110:expense-management-microservice:8082 to the existing apps in region null
+2026-05-04 00:21:59.389 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 1
+2026-05-04 00:21:59.389 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:21:59.389 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:22:00.156 DEBUG [http-nio-8086-exec-8] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:22:00.156 DEBUG [http-nio-8086-exec-8] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:22:25.164 DEBUG [http-nio-8086-exec-10] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:22:25.172 DEBUG [http-nio-8086-exec-10] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:22:27.226 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:22:29.465 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:22:29.465 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Added instance 192.168.1.110:expense-management-microservice:8082 to the existing apps in region null
+2026-05-04 00:22:29.465 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 1
+2026-05-04 00:22:29.466 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:22:29.466 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:22:50.163 DEBUG [http-nio-8086-exec-3] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:22:50.164 DEBUG [http-nio-8086-exec-3] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:22:57.266 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:22:59.497 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:22:59.497 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Added instance 192.168.1.110:expense-management-microservice:8082 to the existing apps in region null
+2026-05-04 00:22:59.497 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 1
+2026-05-04 00:22:59.497 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:22:59.497 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:23:15.171 DEBUG [http-nio-8086-exec-4] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:23:15.175 DEBUG [http-nio-8086-exec-4] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:23:27.283 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:23:29.529 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:23:29.530 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Added instance 192.168.1.110:expense-management-microservice:8082 to the existing apps in region null
+2026-05-04 00:23:29.530 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 1
+2026-05-04 00:23:29.531 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:23:29.532 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:23:40.175 DEBUG [http-nio-8086-exec-6] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:23:40.181 DEBUG [http-nio-8086-exec-6] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:23:57.318 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:23:59.547 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:23:59.547 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Added instance 192.168.1.110:expense-management-microservice:8082 to the existing apps in region null
+2026-05-04 00:23:59.547 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 1
+2026-05-04 00:23:59.547 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:23:59.547 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:24:05.161 DEBUG [http-nio-8086-exec-8] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:24:05.161 DEBUG [http-nio-8086-exec-8] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:24:27.350 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:24:29.580 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:24:29.582 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Added instance 192.168.1.110:expense-management-microservice:8082 to the existing apps in region null
+2026-05-04 00:24:29.582 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 1
+2026-05-04 00:24:29.582 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:24:29.582 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:24:30.167 DEBUG [http-nio-8086-exec-10] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:24:30.172 DEBUG [http-nio-8086-exec-10] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:24:55.310 DEBUG [http-nio-8086-exec-3] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:24:55.313 DEBUG [http-nio-8086-exec-3] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:24:57.446 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:24:59.615 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:24:59.615 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Added instance 192.168.1.110:expense-management-microservice:8082 to the existing apps in region null
+2026-05-04 00:24:59.615 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 1
+2026-05-04 00:24:59.615 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:24:59.618 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:25:20.187 DEBUG [http-nio-8086-exec-4] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:25:20.198 DEBUG [http-nio-8086-exec-4] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:25:27.476 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:25:29.627 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:25:29.627 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Added instance 192.168.1.110:expense-management-microservice:8082 to the existing apps in region null
+2026-05-04 00:25:29.627 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 1
+2026-05-04 00:25:29.627 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:25:29.627 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:25:45.175 DEBUG [http-nio-8086-exec-6] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:25:45.179 DEBUG [http-nio-8086-exec-6] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:25:57.508 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:25:59.674 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:25:59.674 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Added instance 192.168.1.110:expense-management-microservice:8082 to the existing apps in region null
+2026-05-04 00:25:59.674 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 1
+2026-05-04 00:25:59.674 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:25:59.674 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:26:10.240 DEBUG [http-nio-8086-exec-8] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:26:10.259 DEBUG [http-nio-8086-exec-8] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:26:17.242 INFO  [AsyncResolver-bootstrap-executor-0] c.n.d.s.r.aws.ConfigClusterResolver - Resolving eureka endpoints via configuration
+2026-05-04 00:26:17.243 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.discovery.endpoint.EndpointUtils - The availability zone for the given region us-east-1 are [defaultZone]
+2026-05-04 00:26:17.271 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.d.s.r.aws.ConfigClusterResolver - Config resolved to [AwsEndpoint{ serviceUrl='http://localhost:8761/eureka/', region='us-east-1', zone='defaultZone'}]
+2026-05-04 00:26:17.370 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.d.s.r.a.ZoneAffinityClusterResolver - Local zone=defaultZone; resolved to: [AwsEndpoint{ serviceUrl='http://localhost:8761/eureka/', region='us-east-1', zone='defaultZone'}]
+2026-05-04 00:26:17.370 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.d.shared.resolver.AsyncResolver - Resolved to [AwsEndpoint{ serviceUrl='http://localhost:8761/eureka/', region='us-east-1', zone='defaultZone'}]
+2026-05-04 00:26:27.541 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:26:29.692 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:26:29.692 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Added instance 192.168.1.110:expense-management-microservice:8082 to the existing apps in region null
+2026-05-04 00:26:29.693 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 1
+2026-05-04 00:26:29.693 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:26:29.693 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:26:35.174 DEBUG [http-nio-8086-exec-10] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:26:35.179 DEBUG [http-nio-8086-exec-10] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:26:57.574 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:26:59.728 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:26:59.730 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Added instance 192.168.1.110:expense-management-microservice:8082 to the existing apps in region null
+2026-05-04 00:26:59.730 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 1
+2026-05-04 00:26:59.732 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:26:59.732 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:27:00.202 DEBUG [http-nio-8086-exec-3] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:27:00.210 DEBUG [http-nio-8086-exec-3] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:27:25.171 DEBUG [http-nio-8086-exec-4] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:27:25.171 DEBUG [http-nio-8086-exec-4] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:27:27.601 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:27:29.768 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:27:29.768 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Added instance 192.168.1.110:expense-management-microservice:8082 to the existing apps in region null
+2026-05-04 00:27:29.768 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 1
+2026-05-04 00:27:29.768 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:27:29.768 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:27:50.169 DEBUG [http-nio-8086-exec-6] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:27:50.176 DEBUG [http-nio-8086-exec-6] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:27:57.652 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:27:59.807 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:27:59.807 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:27:59.808 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:27:59.808 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:28:15.177 DEBUG [http-nio-8086-exec-8] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:28:15.181 DEBUG [http-nio-8086-exec-8] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:28:27.877 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:28:29.818 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:28:29.818 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:28:29.818 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:28:29.818 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:28:40.207 DEBUG [http-nio-8086-exec-10] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:28:40.222 DEBUG [http-nio-8086-exec-10] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:28:57.904 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:28:59.832 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:28:59.832 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:28:59.832 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:28:59.832 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:29:05.168 DEBUG [http-nio-8086-exec-3] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:29:05.176 DEBUG [http-nio-8086-exec-3] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:29:27.947 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:29:29.854 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:29:29.855 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:29:29.855 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:29:29.855 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:29:30.169 DEBUG [http-nio-8086-exec-4] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:29:30.169 DEBUG [http-nio-8086-exec-4] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:29:55.264 DEBUG [http-nio-8086-exec-6] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:29:55.301 DEBUG [http-nio-8086-exec-6] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:29:57.981 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:29:59.863 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:29:59.863 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:29:59.864 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:29:59.866 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:30:20.162 DEBUG [http-nio-8086-exec-8] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:30:20.162 DEBUG [http-nio-8086-exec-8] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:30:27.993 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.n.d.s.t.d.SessionedEurekaHttpClient - Ending a session and starting anew
+2026-05-04 00:30:28.112 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.n.d.s.t.d.RedirectingEurekaHttpClient - Pinning to endpoint null
+2026-05-04 00:30:28.112 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:30:29.878 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.n.d.s.t.d.SessionedEurekaHttpClient - Ending a session and starting anew
+2026-05-04 00:30:29.934 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.n.d.s.t.d.RedirectingEurekaHttpClient - Pinning to endpoint null
+2026-05-04 00:30:29.934 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:30:29.934 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:30:29.934 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:30:29.938 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:30:45.173 DEBUG [http-nio-8086-exec-10] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:30:45.180 DEBUG [http-nio-8086-exec-10] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:30:58.170 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:31:01.022 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:31:01.023 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:31:01.023 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:31:01.023 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:31:10.291 DEBUG [http-nio-8086-exec-3] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:31:10.309 DEBUG [http-nio-8086-exec-3] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:31:17.405 INFO  [AsyncResolver-bootstrap-executor-0] c.n.d.s.r.aws.ConfigClusterResolver - Resolving eureka endpoints via configuration
+2026-05-04 00:31:17.406 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.discovery.endpoint.EndpointUtils - The availability zone for the given region us-east-1 are [defaultZone]
+2026-05-04 00:31:17.406 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.d.s.r.aws.ConfigClusterResolver - Config resolved to [AwsEndpoint{ serviceUrl='http://localhost:8761/eureka/', region='us-east-1', zone='defaultZone'}]
+2026-05-04 00:31:17.408 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.d.s.r.a.ZoneAffinityClusterResolver - Local zone=defaultZone; resolved to: [AwsEndpoint{ serviceUrl='http://localhost:8761/eureka/', region='us-east-1', zone='defaultZone'}]
+2026-05-04 00:31:17.409 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.d.shared.resolver.AsyncResolver - Resolved to [AwsEndpoint{ serviceUrl='http://localhost:8761/eureka/', region='us-east-1', zone='defaultZone'}]
+2026-05-04 00:31:28.197 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:31:31.055 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:31:31.059 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:31:31.059 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:31:31.059 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:31:35.175 DEBUG [http-nio-8086-exec-4] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:31:35.178 DEBUG [http-nio-8086-exec-4] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:31:58.225 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:32:00.172 DEBUG [http-nio-8086-exec-6] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:32:00.177 DEBUG [http-nio-8086-exec-6] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:32:01.073 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:32:01.073 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:32:01.073 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:32:01.073 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:32:25.175 DEBUG [http-nio-8086-exec-8] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:32:25.188 DEBUG [http-nio-8086-exec-8] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:32:28.256 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:32:31.104 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:32:31.104 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:32:31.104 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:32:31.104 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:32:48.634 DEBUG [http-nio-8086-exec-10] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:32:48.670 DEBUG [http-nio-8086-exec-10] c.c.c.service.ChatSessionService - Updated context for session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:32:53.462 DEBUG [http-nio-8086-exec-1] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:32:53.466 DEBUG [http-nio-8086-exec-1] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:32:58.286 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:33:01.136 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:33:01.136 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:33:01.136 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:33:01.136 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:33:15.879 DEBUG [http-nio-8086-exec-2] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:33:15.882 DEBUG [http-nio-8086-exec-2] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:33:28.323 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:33:31.157 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:33:31.158 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:33:31.158 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:33:31.158 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:33:41.064 DEBUG [http-nio-8086-exec-5] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:33:41.067 DEBUG [http-nio-8086-exec-5] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:33:58.354 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:34:01.185 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:34:01.185 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:34:01.185 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:34:01.185 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:34:05.876 DEBUG [http-nio-8086-exec-7] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:34:05.882 DEBUG [http-nio-8086-exec-7] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:34:28.361 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:34:30.872 DEBUG [http-nio-8086-exec-9] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:34:30.876 DEBUG [http-nio-8086-exec-9] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:34:31.213 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:34:31.213 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:34:31.213 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:34:31.213 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:34:55.166 DEBUG [http-nio-8086-exec-1] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:34:55.166 DEBUG [http-nio-8086-exec-1] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:34:55.853 DEBUG [http-nio-8086-exec-3] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:34:55.856 DEBUG [http-nio-8086-exec-3] c.c.c.service.ChatSessionService - Updated context for session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:34:58.390 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:35:01.253 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:35:01.253 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:35:01.253 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:35:01.253 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:35:20.164 DEBUG [http-nio-8086-exec-4] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:35:20.164 DEBUG [http-nio-8086-exec-4] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:35:28.429 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:35:31.280 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:35:31.280 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:35:31.280 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:35:31.280 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:35:45.161 DEBUG [http-nio-8086-exec-6] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:35:45.163 DEBUG [http-nio-8086-exec-6] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:35:58.462 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:36:01.312 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:36:01.312 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:36:01.312 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:36:01.312 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:36:10.164 DEBUG [http-nio-8086-exec-8] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:36:10.169 DEBUG [http-nio-8086-exec-8] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:36:17.427 INFO  [AsyncResolver-bootstrap-executor-0] c.n.d.s.r.aws.ConfigClusterResolver - Resolving eureka endpoints via configuration
+2026-05-04 00:36:17.427 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.discovery.endpoint.EndpointUtils - The availability zone for the given region us-east-1 are [defaultZone]
+2026-05-04 00:36:17.429 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.d.s.r.aws.ConfigClusterResolver - Config resolved to [AwsEndpoint{ serviceUrl='http://localhost:8761/eureka/', region='us-east-1', zone='defaultZone'}]
+2026-05-04 00:36:17.429 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.d.s.r.a.ZoneAffinityClusterResolver - Local zone=defaultZone; resolved to: [AwsEndpoint{ serviceUrl='http://localhost:8761/eureka/', region='us-east-1', zone='defaultZone'}]
+2026-05-04 00:36:17.429 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.d.shared.resolver.AsyncResolver - Resolved to [AwsEndpoint{ serviceUrl='http://localhost:8761/eureka/', region='us-east-1', zone='defaultZone'}]
+2026-05-04 00:36:28.494 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:36:31.348 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:36:31.350 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:36:31.350 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:36:31.350 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:36:35.863 DEBUG [http-nio-8086-exec-10] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:36:35.868 DEBUG [http-nio-8086-exec-10] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:36:58.606 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:37:00.882 DEBUG [http-nio-8086-exec-3] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:37:00.885 DEBUG [http-nio-8086-exec-3] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:37:01.371 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:37:01.371 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:37:01.371 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:37:01.371 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:37:25.185 DEBUG [http-nio-8086-exec-4] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:37:25.188 DEBUG [http-nio-8086-exec-4] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:37:28.641 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:37:31.390 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:37:31.390 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:37:31.390 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:37:31.390 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:37:50.877 DEBUG [http-nio-8086-exec-6] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:37:50.880 DEBUG [http-nio-8086-exec-6] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:37:58.664 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:38:01.416 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:38:01.417 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:38:01.418 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:38:01.418 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:38:15.172 DEBUG [http-nio-8086-exec-8] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:38:15.172 DEBUG [http-nio-8086-exec-8] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:38:28.690 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:38:31.443 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:38:31.443 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:38:31.445 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:38:31.445 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:38:40.176 DEBUG [http-nio-8086-exec-10] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:38:40.180 DEBUG [http-nio-8086-exec-10] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:38:58.719 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:39:01.472 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:39:01.472 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:39:01.472 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:39:01.474 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:39:05.166 DEBUG [http-nio-8086-exec-3] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:39:05.171 DEBUG [http-nio-8086-exec-3] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:39:28.755 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:39:30.177 DEBUG [http-nio-8086-exec-4] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:39:30.179 DEBUG [http-nio-8086-exec-4] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:39:31.504 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:39:31.504 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:39:31.504 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:39:31.504 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:39:55.175 DEBUG [http-nio-8086-exec-6] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:39:55.178 DEBUG [http-nio-8086-exec-6] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:39:58.787 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:40:01.535 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:40:01.537 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:40:01.538 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:40:01.539 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:40:20.200 DEBUG [http-nio-8086-exec-8] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:40:20.203 DEBUG [http-nio-8086-exec-8] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:40:28.816 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:40:31.569 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:40:31.570 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:40:31.570 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:40:31.571 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:40:45.175 DEBUG [http-nio-8086-exec-10] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:40:45.177 DEBUG [http-nio-8086-exec-10] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:40:58.848 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:41:01.595 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:41:01.595 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:41:01.596 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:41:01.596 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:41:10.174 DEBUG [http-nio-8086-exec-3] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:41:10.180 DEBUG [http-nio-8086-exec-3] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:41:17.431 INFO  [AsyncResolver-bootstrap-executor-0] c.n.d.s.r.aws.ConfigClusterResolver - Resolving eureka endpoints via configuration
+2026-05-04 00:41:17.438 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.discovery.endpoint.EndpointUtils - The availability zone for the given region us-east-1 are [defaultZone]
+2026-05-04 00:41:17.438 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.d.s.r.aws.ConfigClusterResolver - Config resolved to [AwsEndpoint{ serviceUrl='http://localhost:8761/eureka/', region='us-east-1', zone='defaultZone'}]
+2026-05-04 00:41:17.440 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.d.s.r.a.ZoneAffinityClusterResolver - Local zone=defaultZone; resolved to: [AwsEndpoint{ serviceUrl='http://localhost:8761/eureka/', region='us-east-1', zone='defaultZone'}]
+2026-05-04 00:41:17.440 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.d.shared.resolver.AsyncResolver - Resolved to [AwsEndpoint{ serviceUrl='http://localhost:8761/eureka/', region='us-east-1', zone='defaultZone'}]
+2026-05-04 00:41:28.862 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.n.d.s.t.d.SessionedEurekaHttpClient - Ending a session and starting anew
+2026-05-04 00:41:29.065 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.n.d.s.t.d.RedirectingEurekaHttpClient - Pinning to endpoint null
+2026-05-04 00:41:29.065 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:41:31.614 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:41:31.614 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:41:31.614 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:41:31.614 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:41:35.175 DEBUG [http-nio-8086-exec-4] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:41:35.180 DEBUG [http-nio-8086-exec-4] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:41:59.095 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:42:00.180 DEBUG [http-nio-8086-exec-6] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:42:00.183 DEBUG [http-nio-8086-exec-6] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:42:01.650 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:42:01.650 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:42:01.650 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:42:01.650 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:42:25.240 DEBUG [http-nio-8086-exec-8] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:42:25.242 DEBUG [http-nio-8086-exec-8] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:42:29.110 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:42:31.664 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:42:31.664 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:42:31.665 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:42:31.665 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:42:50.168 DEBUG [http-nio-8086-exec-10] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:42:50.170 DEBUG [http-nio-8086-exec-10] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:42:59.141 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:43:01.695 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:43:01.696 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:43:01.696 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:43:01.696 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:43:15.168 DEBUG [http-nio-8086-exec-3] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:43:15.173 DEBUG [http-nio-8086-exec-3] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:43:29.173 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:43:31.723 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:43:31.723 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:43:31.723 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:43:31.723 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:43:40.171 DEBUG [http-nio-8086-exec-4] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:43:40.176 DEBUG [http-nio-8086-exec-4] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:43:59.206 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:44:01.755 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:44:01.755 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:44:01.755 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:44:01.755 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:44:05.170 DEBUG [http-nio-8086-exec-6] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:44:05.174 DEBUG [http-nio-8086-exec-6] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:44:29.223 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:44:30.178 DEBUG [http-nio-8086-exec-8] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:44:30.181 DEBUG [http-nio-8086-exec-8] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:44:31.772 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:44:31.772 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:44:31.779 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:44:31.779 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:44:55.185 DEBUG [http-nio-8086-exec-10] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:44:55.190 DEBUG [http-nio-8086-exec-10] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:44:59.253 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:45:01.804 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:45:01.804 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:45:01.804 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:45:01.804 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:45:20.171 DEBUG [http-nio-8086-exec-3] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:45:20.184 DEBUG [http-nio-8086-exec-3] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:45:29.271 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:45:31.834 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:45:31.836 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:45:31.839 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:45:31.839 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:45:45.194 DEBUG [http-nio-8086-exec-4] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:45:45.199 DEBUG [http-nio-8086-exec-4] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:45:59.302 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:46:01.869 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:46:01.869 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:46:01.881 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:46:01.881 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:46:10.179 DEBUG [http-nio-8086-exec-6] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:46:10.185 DEBUG [http-nio-8086-exec-6] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:46:17.449 INFO  [AsyncResolver-bootstrap-executor-0] c.n.d.s.r.aws.ConfigClusterResolver - Resolving eureka endpoints via configuration
+2026-05-04 00:46:17.449 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.discovery.endpoint.EndpointUtils - The availability zone for the given region us-east-1 are [defaultZone]
+2026-05-04 00:46:17.451 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.d.s.r.aws.ConfigClusterResolver - Config resolved to [AwsEndpoint{ serviceUrl='http://localhost:8761/eureka/', region='us-east-1', zone='defaultZone'}]
+2026-05-04 00:46:17.451 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.d.s.r.a.ZoneAffinityClusterResolver - Local zone=defaultZone; resolved to: [AwsEndpoint{ serviceUrl='http://localhost:8761/eureka/', region='us-east-1', zone='defaultZone'}]
+2026-05-04 00:46:17.451 DEBUG [AsyncResolver-bootstrap-executor-0] c.n.d.shared.resolver.AsyncResolver - Resolved to [AwsEndpoint{ serviceUrl='http://localhost:8761/eureka/', region='us-east-1', zone='defaultZone'}]
+2026-05-04 00:46:29.348 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:46:31.941 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:46:31.942 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:46:31.943 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:46:31.945 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:46:35.177 DEBUG [http-nio-8086-exec-8] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:46:35.182 DEBUG [http-nio-8086-exec-8] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:46:59.367 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:46:59.655 DEBUG [http-nio-8086-exec-10] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:46:59.668 DEBUG [http-nio-8086-exec-10] c.c.c.service.ChatSessionService - Updated context for session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:47:00.820 DEBUG [http-nio-8086-exec-1] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:47:00.832 DEBUG [http-nio-8086-exec-1] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:47:01.963 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:47:01.963 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:47:01.963 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:47:01.963 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:47:25.166 DEBUG [http-nio-8086-exec-2] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:47:25.170 DEBUG [http-nio-8086-exec-2] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:47:29.396 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:47:31.993 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:47:31.995 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:47:31.995 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:47:31.995 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:47:50.853 DEBUG [http-nio-8086-exec-5] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:47:50.854 DEBUG [http-nio-8086-exec-5] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:47:59.414 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:48:02.029 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:48:02.029 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:48:02.029 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:48:02.029 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
+2026-05-04 00:48:15.899 DEBUG [http-nio-8086-exec-7] c.c.c.service.ChatSessionService - Session 27913ab6e32041ee86a1573a5bc191aa found in cache
+2026-05-04 00:48:15.904 DEBUG [http-nio-8086-exec-7] c.c.c.service.ChatSessionService - Extended session 27913ab6e32041ee86a1573a5bc191aa
+2026-05-04 00:48:29.438 DEBUG [DiscoveryClient-HeartbeatExecutor-0] c.netflix.discovery.DiscoveryClient - DiscoveryClient_CHATBOT-MICROSERVICE/chatbot-microservice:207ffa87ddd3bb91ffab25af15dea643 - Heartbeat status: 200
+2026-05-04 00:48:32.049 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Got delta update with apps hashcode UP_6_
+2026-05-04 00:48:32.049 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of instances fetched by the delta processor : 0
+2026-05-04 00:48:32.049 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - The total number of all instances in the client now is 6
+2026-05-04 00:48:32.049 DEBUG [DiscoveryClient-CacheRefreshExecutor-0] c.netflix.discovery.DiscoveryClient - Completed cache refresh task for discovery. All Apps hash code is Local region apps hashcode: UP_6_, is fetching remote regions? false 
