@@ -1,6 +1,9 @@
 spring:
   security:
-    enabled: false  # Add this to disable ALL security
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8090/realms/coral-io_realm
   application:
     name: expense-management-microservice
   servlet:
@@ -74,3 +77,4 @@ logging:
     org.springframework.security.oauth2: DEBUG
     org.springframework.security.oauth2.jwt: DEBUG
     org.springframework.web: DEBUG
+    org.springframework.cloud.gateway: DEBUG

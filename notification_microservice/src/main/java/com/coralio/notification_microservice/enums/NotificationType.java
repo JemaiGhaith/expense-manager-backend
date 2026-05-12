@@ -18,4 +18,5 @@ public enum NotificationType {
     BUDGET_LIMIT_EXCEEDED,      // Dépassement budget projet
     NOTES_READY_FOR_REIMBURSEMENT, // Notes validées prêtes pour remboursement (Admin)
     EXPENSE_VALIDATED_BY_MANAGER,  // ✅ NOUVEAU : Pour admin
+    EXPENSE_VALIDATED_BY_ADMIN,  // <-- new
 }

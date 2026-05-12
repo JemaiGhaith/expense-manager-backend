@@ -138,4 +138,13 @@ public class UserServiceClient {
             return null;
         }
     }
+    public String getUserPreferredCurrency(String userId) {
+        try {
+            String url = "http://localhost:8083/api/users/" + userId + "/preferred-currency";
+            return restTemplate.getForObject(url, String.class);
+        } catch (Exception e) {
+            log.warn("Cannot fetch preferred currency for user {}, falling back to TND", userId);
+            return "TND";
+        }
+    }
 }

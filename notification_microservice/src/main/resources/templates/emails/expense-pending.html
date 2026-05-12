@@ -92,8 +92,11 @@
                 </tr>
                 <tr>
                     <td>Montant :</td>
-                    <td><strong th:text="${notification.data.amount} + ' €'">250.00 €</strong></td>
-                </tr>
+                    <td><strong th:text="${notification.data.convertedAmount != null ?
+    #numbers.formatDecimal(notification.data.convertedAmount, 0, 2) + ' ' + notification.data.targetCurrency :
+    #numbers.formatDecimal(notification.data.amount, 0, 2) + ' TND'}">
+                        250.00 TND
+                    </strong></td>                </tr>
                 <tr>
                     <td>Employé :</td>
                     <td th:text="${notification.data.employeeName}">John Doe</td>

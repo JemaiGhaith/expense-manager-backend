@@ -104,8 +104,11 @@
 
         <div class="amount-box">
             <div style="font-size: 14px; opacity: 0.9;">Montant remboursé</div>
-            <div class="amount" th:text="${notification.data.amount} + ' €'">250 €</div>
-        </div>
+            <div class="amount" th:text="${notification.data.convertedAmount != null ?
+    #numbers.formatDecimal(notification.data.convertedAmount, 0, 2) + ' ' + notification.data.targetCurrency :
+    #numbers.formatDecimal(notification.data.originalAmountTND, 0, 2) + ' TND'}">
+                250 TND
+            </div>        </div>
 
         <div class="details-box">
             <strong>📋 Détails du remboursement</strong>

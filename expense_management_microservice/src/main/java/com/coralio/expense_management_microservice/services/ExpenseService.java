@@ -58,9 +58,11 @@ public class ExpenseService {
 
     private final ExpenseExtractionRepository extractionRepository;
     private final ExpenseNoteExtractionRepository noteExtractionRepository;
+    private final CurrencyService currencyService;
 
     @Value("${file.upload-dir:./uploads}")
     private String uploadsDir;
+    private final ExpenseNoteInternalHistoryRepository internalHistoryRepository;
 
     // Constructor
     public ExpenseService(
@@ -73,7 +75,9 @@ public class ExpenseService {
             UserServiceClient userServiceClient,
             CategoryService categoryService,
             ExpenseExtractionRepository extractionRepository,
-            ExpenseNoteExtractionRepository noteExtractionRepository) {
+            ExpenseNoteExtractionRepository noteExtractionRepository,
+            CurrencyService currencyService,
+            ExpenseNoteInternalHistoryRepository internalHistoryRepository) {
         this.noteRepository = noteRepository;
         this.lineRepository = lineRepository;
         this.migrationService = migrationService;
@@ -84,6 +88,9 @@ public class ExpenseService {
         this.categoryService = categoryService;
         this.extractionRepository = extractionRepository;
         this.noteExtractionRepository = noteExtractionRepository;
+        this.currencyService = currencyService;
+        this.internalHistoryRepository = internalHistoryRepository;
+
     }
 
     // ========== CREATE METHODS ==========
@@ -98,7 +105,9 @@ public class ExpenseService {
             List<ExpenseLine> lines,
             String accordFileName,
             List<String> factureFileNames,
-            MultipartFile accordFile) {
+            MultipartFile accordFile,
+            String displayCurrency,
+            Double exchangeRate) {
         // 1. Préparation de la note
         if (note.getStatus() == null) {
             note.setStatus(ExpenseStatus.EN_ATTENTE);
@@ -129,7 +138,7 @@ public class ExpenseService {
                 line.setJustificatifPath(factureFileNames.get(i));
             }
 
-            // Détection d'anomalie IA (existant)
+            // Détection d'anomalie IA
             try {
                 Map<String, Object> result = restTemplate.postForObject(
                         "http://localhost:9000/detect-anomaly-ai",
@@ -153,14 +162,11 @@ public class ExpenseService {
                 System.err.println("❌ Erreur appel IA: " + e.getMessage());
             }
 
-            // Insertion de la ligne (avec ses champs dynamiques)
             insertExpenseLineWithDynamicColumns(line);
-
-            // Vérification plafond catégorie
             checkCategoryLimit(line, savedNote.getEmployeeId(), savedNote.getId(), savedNote.getProjectId());
         }
 
-        // ==================== SAUVEGARDE DES EXTRACTIONS POUR LIGNES (OCR + JSON) ====================
+        // Sauvegarde des extractions OCR
         List<ExpenseLine> savedLines = lineRepository.findByExpenseNoteId(savedNote.getId());
         for (int i = 0; i < savedLines.size() && i < lines.size(); i++) {
             ExpenseLine savedLine = savedLines.get(i);
@@ -177,13 +183,10 @@ public class ExpenseService {
             }
         }
 
-        // ==================== EXTRACTION SYNCHRONE POUR L'ACCORD (sans indexation) ====================
+        // Extraction de l'accord
         if (accordFile != null && !accordFile.isEmpty()) {
             try {
-                // 1. OCR using Tesseract
                 String accordOcrText = ocrService.extractText(accordFile);
-
-                // 2. Structured extraction via Python /analyze
                 String analyzeUrl = "http://localhost:9000/analyze";
                 MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
                 body.add("file", new ByteArrayResource(accordFile.getBytes()) {
@@ -195,7 +198,6 @@ public class ExpenseService {
                 Map<String, Object> analyzeResponse = restTemplate.postForObject(analyzeUrl, request, Map.class);
                 Map<String, Object> structuredJson = (Map<String, Object>) analyzeResponse.get("structured");
 
-                // 3. Save to note‑level extraction table
                 ExpenseNoteExtraction extraction = ExpenseNoteExtraction.builder()
                         .expenseNoteId(savedNote.getId())
                         .ocrText(accordOcrText)
@@ -204,33 +206,33 @@ public class ExpenseService {
                         .build();
                 noteExtractionRepository.save(extraction);
                 log.info("✅ Accord extraction saved for note {}", savedNote.getId());
-
-                // ❌ SUPPRIMÉ : indexation de l'accord ici (sera faite après soumission dans ExpenseProcessingService)
-                // addToFaissIndex(accordOcrText, savedNote.getAccordPath(), accordAbsPath.toString());
-
             } catch (Exception e) {
                 log.error("Failed to extract accord data for note {}: {}", savedNote.getId(), e.getMessage(), e);
             }
         }
 
-        // 5. Calcul du total
-        double total = lines.stream()
-                .mapToDouble(ExpenseLine::getAmount)
-                .sum();
+        // Total
+        double total = lines.stream().mapToDouble(ExpenseLine::getAmount).sum();
         savedNote.setTotalAmount(total);
         savedNote.setUpdatedAt(LocalDateTime.now());
 
-        // ❌ SUPPRIMÉ : boucle d'indexation des justificatifs (sera faite après soumission)
-        // for (ExpenseLine line : lines) {
-        //     if (line.getJustificatifPath() != null) {
-        //         String text = line.getDescription() != null ? line.getDescription() : "facture";
-        //         String filename = line.getJustificatifPath();
-        //         Path absPath = Paths.get(uploadsDir, savedNote.getEmployeeId(), line.getJustificatifPath()).toAbsolutePath();
-        //         addToFaissIndex(text, filename, absPath.toString());
-        //     }
-        // }
+        // ========== NOTIFICATION TO EMPLOYEE (CREATION) – uses UI-selected currency ==========
+        String employeeTargetCurrency = displayCurrency;
+        Double employeeRate = exchangeRate;
+        if (employeeTargetCurrency == null || employeeTargetCurrency.isEmpty()) {
+            employeeTargetCurrency = "TND";
+            employeeRate = 1.0;
+        }
+        if (employeeRate == null) {
+            try {
+                employeeRate = currencyService.getExchangeRate(employeeTargetCurrency);
+            } catch (Exception e) {
+                log.warn("Could not fetch exchange rate for {}, using 1.0", employeeTargetCurrency);
+                employeeRate = 1.0;
+            }
+        }
+        double convertedEmployeeAmount = savedNote.getTotalAmount() * employeeRate;
 
-        // 7. Notifications (création)
         try {
             String employeeEmail = getEmployeeEmail(savedNote.getEmployeeId());
             notificationClient.notifyExpenseCreated(
@@ -238,6 +240,8 @@ public class ExpenseService {
                     employeeEmail,
                     "EXP-" + savedNote.getId(),
                     savedNote.getTotalAmount(),
+                    convertedEmployeeAmount,
+                    employeeTargetCurrency,
                     savedNote.getId()
             );
             System.out.println("✅ Creation notification sent to employee: " + savedNote.getEmployeeId());
@@ -245,17 +249,43 @@ public class ExpenseService {
             System.err.println("❌ Failed to send creation notification: " + e.getMessage());
         }
 
+        // ========== NOTIFICATION TO MANAGER (PENDING APPROVAL) – uses UI-selected currency ==========
+        String managerTargetCurrency = "TND";
+        Double managerRate = null;
         try {
             String managerId = getManagerIdForProjectDepartment(savedNote.getProjectId());
             if (managerId != null) {
                 String managerEmail = getEmployeeEmail(managerId);
                 String employeeName = getEmployeeName(savedNote.getEmployeeId());
+
+                managerTargetCurrency = displayCurrency;
+                managerRate = exchangeRate;
+                if (managerTargetCurrency == null || managerTargetCurrency.isEmpty()) {
+                    managerTargetCurrency = userServiceClient.getUserPreferredCurrency(managerId);
+                    if (managerTargetCurrency == null || managerTargetCurrency.isEmpty()) {
+                        managerTargetCurrency = "TND";
+                    }
+                    try {
+                        managerRate = currencyService.getExchangeRate(managerTargetCurrency);
+                    } catch (Exception e) {
+                        log.warn("Could not fetch exchange rate for {}, using 1.0", managerTargetCurrency);
+                        managerRate = 1.0;
+                    }
+                } else if (managerRate == null) {
+                    try {
+                        managerRate = currencyService.getExchangeRate(managerTargetCurrency);
+                    } catch (Exception e) {
+                        log.warn("Could not fetch exchange rate for {}, using 1.0", managerTargetCurrency);
+                        managerRate = 1.0;
+                    }
+                }
+
+                double convertedAmount = savedNote.getTotalAmount() * managerRate;
+
                 notificationClient.notifyManagerPendingApproval(
-                        UUID.fromString(managerId),
-                        managerEmail,
-                        employeeName,
+                        UUID.fromString(managerId), managerEmail, employeeName,
                         "EXP-" + savedNote.getId(),
-                        savedNote.getTotalAmount(),
+                        savedNote.getTotalAmount(), convertedAmount, managerTargetCurrency,
                         savedNote.getId()
                 );
                 System.out.println("✅ Notification envoyée au manager du projet: " + managerId);
@@ -266,11 +296,26 @@ public class ExpenseService {
             System.err.println("❌ Erreur envoi notification manager: " + e.getMessage());
         }
 
-        // 8. Vérification budget projet
-        checkProjectBudget(savedNote, savedNote.getId());
+        if (managerRate == null) {
+            managerRate = 1.0;
+        }
 
-        // 9. Sauvegarde finale
+        // Budget check uses the same manager currency (UI-selected)
+        checkProjectBudget(savedNote, savedNote.getId(), managerTargetCurrency, managerRate);
+
         return noteRepository.save(savedNote);
+    }
+    /**
+     * Legacy method without currency parameters (used by old endpoints).
+     */
+    @Transactional
+    public ExpenseNote createExpenseNoteWithFiles(
+            ExpenseNote note,
+            List<ExpenseLine> lines,
+            String accordFileName,
+            List<String> factureFileNames,
+            MultipartFile accordFile) {
+        return createExpenseNoteWithFiles(note, lines, accordFileName, factureFileNames, accordFile, null, null);
     }
 
     @Transactional
@@ -290,110 +335,11 @@ public class ExpenseService {
         return createExpenseNoteWithFiles(note, lines, null, fileNames);
     }
 
-    // ... toutes les autres méthodes restent strictement identiques à votre version d'origine ...
-    // (callFullAnalysis, addToFaissIndex, managerValidateNote, etc.)
+    // ========== MANAGER VALIDATION / REJECTION (MODIFIED: accept currency & rate) ==========
 
-    // ⚠️ Pour éviter de répéter 1000 lignes, je ne recopie que la méthode addToFaissIndex inchangée,
-    // mais vous devez conserver tout le reste du fichier tel quel.
-    // Voici un extrait des méthodes qui doivent rester présentes :
-
-
-    // ========== AI METHODS (from first version) ==========
-    /**
-     * FROM FIRST VERSION: calls /analyze-full and stores result in note.aiAnalysisResult.
-     * This is a full document + lines analysis, different from the structured extraction (/analyze)
-     * used in the second version. Kept for completeness.
-     */
-    private String callFullAnalysis(ExpenseNote note, List<ExpenseLine> lines, String accordFileName) {
-        try {
-            String accordFullPath = fileStorageService.getFullPath(note.getEmployeeId(), accordFileName);
-            File accordFile = new File(accordFullPath);
-            if (!accordFile.exists()) {
-                log.error("Accord file not found: {}", accordFullPath);
-                return null;
-            }
-            Map<String, Object> formData = new HashMap<>();
-            formData.put("employeeId", note.getEmployeeId());
-            formData.put("employeeName", note.getEmployeeId());
-            formData.put("employeeMatricule", "Non renseigné");
-            formData.put("projectId", note.getProjectId());
-            formData.put("projectName", "Projet");
-            formData.put("projectDepartment", "");
-            formData.put("noteDescription", note.getNoteDescription());
-
-            List<Map<String, Object>> expenseLines = new ArrayList<>();
-            for (ExpenseLine line : lines) {
-                Map<String, Object> lineData = new HashMap<>();
-                lineData.put("categoryId", line.getCategoryId());
-                lineData.put("categoryName", "");
-                lineData.put("amount", line.getAmount());
-                lineData.put("expenseDate", line.getExpenseDate().toString());
-                lineData.put("description", line.getDescription());
-                expenseLines.add(lineData);
-            }
-            formData.put("expenseLines", expenseLines);
-            formData.put("expenseDates", lines.stream().map(l -> l.getExpenseDate().toString()).collect(Collectors.toList()));
-
-            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-            body.add("file", new FileSystemResource(accordFile));
-            body.add("form_data", new ObjectMapper().writeValueAsString(formData));
-
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
-            HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
-
-            String response = restTemplate.postForObject("http://localhost:8000/analyze-full", requestEntity, String.class);
-            log.info("Full analysis obtained for note #{}", note.getId());
-            return response;
-        } catch (Exception e) {
-            log.error("Full analysis failed: {}", e.getMessage());
-            return null;
-        }
-    }
-
-    // ========== FAISS INDEXING (both overloads) ==========
-    /**
-     * FROM SECOND VERSION: uses absolute path, no employeeId.
-     */
-    private void addToFaissIndex(String text, String filename, String absolutePath) {
-        try {
-            String url = "http://localhost:9000/add-to-index";
-            Map<String, Object> body = Map.of(
-                    "text", text,
-                    "filename", filename,
-                    "filepath", absolutePath
-            );
-            restTemplate.postForObject(url, body, Map.class);
-            log.info("Added to FAISS: {} -> {}", filename, absolutePath);
-        } catch (Exception e) {
-            log.error("FAISS error: {}", e.getMessage());
-        }
-    }
-
-    /**
-     * FROM FIRST VERSION: includes employeeId parameter.
-     * Kept as overload for compatibility.
-     */
-    private void addToFaissIndex(String text, String filename, String filepath, String employeeId) {
-        try {
-            String url = "http://localhost:9000/add-to-index";
-            Map<String, Object> body = Map.of(
-                    "text", text,
-                    "filename", filename,
-                    "filepath", filepath,
-                    "employeeId", employeeId
-            );
-            restTemplate.postForObject(url, body, Map.class);
-            log.info("Added to FAISS with employeeId: {} -> {}", filename, employeeId);
-        } catch (Exception e) {
-            log.error("FAISS error: {}", e.getMessage());
-        }
-    }
-
-    // ========== MANAGER VALIDATION / REJECTION (both versions) ==========
-    // Second version's managerValidateNote (with notifications + overrun checks)
     @Transactional
-    public ExpenseNote managerValidateNote(Long noteId, String comment, String managerId, String managerName) {
+    public ExpenseNote managerValidateNote(Long noteId, String comment, String managerId, String managerName,
+                                           String displayCurrency, Double exchangeRate) {
         ExpenseNote note = noteRepository.findById(noteId)
                 .orElseThrow(() -> new RuntimeException("Note not found"));
         note.setStatus(ExpenseStatus.VALIDEE);
@@ -404,34 +350,89 @@ public class ExpenseService {
         note.setUpdatedAt(LocalDateTime.now());
         ExpenseNote saved = noteRepository.save(note);
 
-        String employeeEmail = getEmployeeEmail(note.getEmployeeId());
-        notificationClient.notifyExpenseApproved(
-                UUID.fromString(note.getEmployeeId()), employeeEmail,
-                "EXP-" + note.getId(), note.getTotalAmount(), note.getId(), managerName, comment);
-        notifyAdminsAboutValidatedNote(saved, managerName);
+        // Determine target currency and exchange rate (use passed values, else fallback)
+        String targetCurrency = displayCurrency;
+        Double rate = exchangeRate;
+        if (targetCurrency == null || targetCurrency.isEmpty()) {
+            targetCurrency = userServiceClient.getUserPreferredCurrency(note.getEmployeeId());
+        }
+        if (rate == null) {
+            try {
+                rate = currencyService.getExchangeRate(targetCurrency);
+            } catch (Exception e) {
+                log.warn("Could not fetch exchange rate for {}, using 1.0", targetCurrency);
+                rate = 1.0;
+            }
+        }
+        double convertedAmount = note.getTotalAmount() * rate;
+
+        // Send notification to employee with converted amount & currency
+        try {
+            String employeeEmail = getEmployeeEmail(note.getEmployeeId());
+            notificationClient.notifyExpenseApproved(
+                    UUID.fromString(note.getEmployeeId()), employeeEmail,
+                    "EXP-" + note.getId(),
+                    note.getTotalAmount(),       // original TND
+                    convertedAmount,             // converted amount
+                    targetCurrency,
+                    note.getId(),
+                    managerName,
+                    comment
+            );
+        } catch (Exception e) {
+            log.error("Failed to send approval notification with conversion: {}", e.getMessage());
+        }
+
+        // Notify admins using the SAME targetCurrency and rate (the manager's selected currency)
+        notifyAdminsAboutValidatedNote(saved, managerName, targetCurrency, rate);
+
         checkForOverrunsAfterValidation(saved);
         return saved;
     }
 
     /**
-     * FROM FIRST VERSION: simpler validation without notifications and overrun checks.
+     * Notify all admins about a validated expense, using the provided currency and exchange rate
+     * (the ones the manager used when validating).
      */
-    @Transactional
-    public ExpenseNote managerValidateNoteSimple(Long noteId, String comment, String managerId, String managerName) {
-        ExpenseNote note = noteRepository.findById(noteId)
-                .orElseThrow(() -> new RuntimeException("Note not found"));
-        note.setStatus(ExpenseStatus.VALIDEE);
-        note.setDecisionComment(comment);
-        note.setDecidedBy("M:" + managerName);
-        note.setManagerId(managerId);
-        note.setDecidedAt(LocalDateTime.now());
-        note.setUpdatedAt(LocalDateTime.now());
-        return noteRepository.save(note);
-    }
+    private void notifyAdminsAboutValidatedNote(ExpenseNote note, String managerName,
+                                                String targetCurrency, Double exchangeRate) {
+        try {
+            String adminsUrl = "http://localhost:8083/api/users/admins";
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> admins = restTemplate.getForObject(adminsUrl, List.class);
+            if (admins == null || admins.isEmpty()) return;
 
-    // Second version's managerRejectNote (with notifications)
+            String employeeName = getEmployeeName(note.getEmployeeId());
+            String expenseReference = "EXP-" + note.getId();
+
+            // Use the same targetCurrency and exchangeRate for all admins
+            String currency = targetCurrency != null ? targetCurrency : "TND";
+            double rate = exchangeRate != null ? exchangeRate : 1.0;
+            double convertedAmount = note.getTotalAmount() * rate;
+
+            for (Map<String, Object> admin : admins) {
+                String adminId = (String) admin.get("id");
+                String adminEmail = (String) admin.get("email");
+                if (adminId == null || adminEmail == null) continue;
+
+                notificationClient.notifyAdminExpenseValidated(
+                        UUID.fromString(adminId), adminEmail,
+                        employeeName, expenseReference,
+                        note.getTotalAmount(),   // original TND
+                        convertedAmount,
+                        currency,
+                        note.getId(),
+                        managerName
+                );
+                log.info("Admin {} notified for validated expense with amount {} {}", adminId, convertedAmount, currency);
+            }
+        } catch (Exception e) {
+            log.error("Failed to notify admins about validated note: {}", e.getMessage());
+        }
+    }
     @Transactional
-    public ExpenseNote managerRejectNote(Long noteId, String comment, String managerId, String managerName) {
+    public ExpenseNote managerRejectNote(Long noteId, String comment, String managerId, String managerName,
+                                         String displayCurrency, Double exchangeRate) {
         ExpenseNote note = noteRepository.findById(noteId)
                 .orElseThrow(() -> new RuntimeException("Note not found"));
         note.setStatus(ExpenseStatus.REFUSEE);
@@ -442,33 +443,45 @@ public class ExpenseService {
         note.setUpdatedAt(LocalDateTime.now());
         ExpenseNote saved = noteRepository.save(note);
 
-        String employeeEmail = getEmployeeEmail(note.getEmployeeId());
-        notificationClient.notifyExpenseRejected(
-                UUID.fromString(note.getEmployeeId()), employeeEmail,
-                "EXP-" + note.getId(), note.getTotalAmount(), note.getId(), managerName, comment);
+        // Determine target currency and exchange rate
+        String targetCurrency = displayCurrency;
+        Double rate = exchangeRate;
+        if (targetCurrency == null || targetCurrency.isEmpty()) {
+            targetCurrency = userServiceClient.getUserPreferredCurrency(note.getEmployeeId());
+        }
+        if (rate == null) {
+            try {
+                rate = currencyService.getExchangeRate(targetCurrency);
+            } catch (Exception e) {
+                log.warn("Could not fetch exchange rate for {}, using 1.0", targetCurrency);
+                rate = 1.0;
+            }
+        }
+        double convertedAmount = note.getTotalAmount() * rate;
+
+        try {
+            String employeeEmail = getEmployeeEmail(note.getEmployeeId());
+            notificationClient.notifyExpenseRejected(
+                    UUID.fromString(note.getEmployeeId()), employeeEmail,
+                    "EXP-" + note.getId(),
+                    note.getTotalAmount(),
+                    convertedAmount,
+                    targetCurrency,
+                    note.getId(),
+                    managerName,
+                    comment
+            );
+        } catch (Exception e) {
+            log.error("Failed to send rejection notification with conversion: {}", e.getMessage());
+        }
+
         notifyAdminsAboutRejectedNote(saved, managerName, comment);
         return saved;
     }
 
-    /**
-     * FROM FIRST VERSION: simpler rejection without notifications.
-     */
-    @Transactional
-    public ExpenseNote managerRejectNoteSimple(Long noteId, String comment, String managerId, String managerName) {
-        ExpenseNote note = noteRepository.findById(noteId)
-                .orElseThrow(() -> new RuntimeException("Note not found"));
-        note.setStatus(ExpenseStatus.REFUSEE);
-        note.setDecisionComment(comment);
-        note.setDecidedBy("M:" + managerName);
-        note.setManagerId(managerId);
-        note.setDecidedAt(LocalDateTime.now());
-        note.setUpdatedAt(LocalDateTime.now());
-        return noteRepository.save(note);
-    }
-
     // ========== ADMIN METHODS ==========
     @Transactional
-    public ExpenseNote adminRejectNote(Long noteId, String comment) {
+    public ExpenseNote adminRejectNote(Long noteId, String comment, String displayCurrency, Double exchangeRate) {
         ExpenseNote note = noteRepository.findById(noteId)
                 .orElseThrow(() -> new RuntimeException("Note not found"));
         if (note.getStatus() != ExpenseStatus.VALIDEE) {
@@ -481,10 +494,38 @@ public class ExpenseService {
         note.setUpdatedAt(LocalDateTime.now());
 
         ExpenseNote savedNote = noteRepository.save(note);
-        String employeeEmail = getEmployeeEmail(note.getEmployeeId());
-        notificationClient.notifyExpenseRejected(
-                UUID.fromString(note.getEmployeeId()), employeeEmail,
-                "EXP-" + note.getId(), note.getTotalAmount(), note.getId(), "Admin", comment);
+
+        String targetCurrency = displayCurrency;
+        Double rate = exchangeRate;
+        if (targetCurrency == null || targetCurrency.isEmpty()) {
+            targetCurrency = userServiceClient.getUserPreferredCurrency(note.getEmployeeId());
+        }
+        if (rate == null) {
+            try {
+                rate = currencyService.getExchangeRate(targetCurrency);
+            } catch (Exception e) {
+                log.warn("Could not fetch exchange rate for {}, using 1.0", targetCurrency);
+                rate = 1.0;
+            }
+        }
+        double convertedAmount = note.getTotalAmount() * rate;
+
+        try {
+            String employeeEmail = getEmployeeEmail(note.getEmployeeId());
+            notificationClient.notifyExpenseRejected(
+                    UUID.fromString(note.getEmployeeId()), employeeEmail,
+                    "EXP-" + note.getId(),
+                    note.getTotalAmount(),
+                    convertedAmount,
+                    targetCurrency,
+                    note.getId(),
+                    "Admin",
+                    comment
+            );
+        } catch (Exception e) {
+            log.error("Failed to send admin rejection notification with conversion: {}", e.getMessage());
+        }
+
         return savedNote;
     }
 
@@ -505,13 +546,14 @@ public class ExpenseService {
 
         ExpenseNote savedNote = noteRepository.save(note);
         String employeeEmail = getEmployeeEmail(note.getEmployeeId());
+        // For reimbursements, we still use the old method (no currency conversion)
         notificationClient.notifyExpenseReimbursed(
                 UUID.fromString(note.getEmployeeId()), employeeEmail,
                 "EXP-" + note.getId(), note.getTotalAmount(), note.getId(), "Admin");
         return savedNote;
     }
 
-    // ========== LEGACY VALIDATE/REFUSE METHODS ==========
+    // ========== LEGACY VALIDATE/REFUSE METHODS (keep as they are) ==========
     @Transactional
     public ExpenseNote validateNote(Long noteId) {
         ExpenseNote note = noteRepository.findById(noteId)
@@ -949,7 +991,11 @@ public class ExpenseService {
         }
     }
 
-    private void checkProjectBudget(ExpenseNote note, Long expenseId) {
+    /**
+     * Check project budget using the provided target currency and exchange rate
+     * (used from creation flow where the manager's UI currency is known).
+     */
+    private void checkProjectBudget(ExpenseNote note, Long expenseId, String targetCurrency, Double exchangeRate) {
         try {
             if (note.getProjectId() != null) {
                 List<ExpenseNote> projectNotes = noteRepository.findByProjectId(note.getProjectId());
@@ -974,10 +1020,24 @@ public class ExpenseService {
                                 String managerEmail = getEmployeeEmail(managerId);
                                 String employeeName = getEmployeeName(note.getEmployeeId());
                                 String projectName = (String) project.get("name");
+
+                                // Use the provided currency (from the manager's UI selection)
+                                String currency = (targetCurrency != null) ? targetCurrency : "TND";
+                                double rate = (exchangeRate != null) ? exchangeRate : 1.0;
+                                double convertedAmount = noteAmount * rate;
+                                double convertedRemaining = remainingBudget * rate;
+
                                 notificationClient.notifyBudgetLimitExceeded(
                                         UUID.fromString(managerId), managerEmail, projectName,
-                                        employeeName, noteAmount, remainingBudget, expenseId, alertType);
-                                log.info("Budget limit notification sent for project {}", note.getProjectId());
+                                        employeeName,
+                                        noteAmount,
+                                        convertedAmount,
+                                        currency,
+                                        convertedRemaining,
+                                        expenseId,
+                                        alertType
+                                );
+                                log.info("Budget limit notification sent for project {} with currency {}", note.getProjectId(), currency);
                             }
                         }
                     }
@@ -986,6 +1046,28 @@ public class ExpenseService {
         } catch (Exception e) {
             log.warn("Error checking project budget: {}", e.getMessage());
         }
+    }
+
+    /**
+     * Old overload – fetches the manager's preferred currency (used for update flows and legacy calls).
+     */
+    private void checkProjectBudget(ExpenseNote note, Long expenseId) {
+        // Try to get manager's preferred currency as a fallback
+        String managerId = getManagerIdForProjectDepartment(note.getProjectId());
+        String currency = "TND";
+        double rate = 1.0;
+        if (managerId != null) {
+            String pref = userServiceClient.getUserPreferredCurrency(managerId);
+            if (pref != null && !pref.isEmpty()) {
+                currency = pref;
+                try {
+                    rate = currencyService.getExchangeRate(currency);
+                } catch (Exception e) {
+                    log.warn("Could not fetch exchange rate for {}, using 1.0", currency);
+                }
+            }
+        }
+        checkProjectBudget(note, expenseId, currency, rate);
     }
 
     private void checkForOverrunsAfterValidation(ExpenseNote note) {
@@ -1088,17 +1170,40 @@ public class ExpenseService {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> admins = restTemplate.getForObject(adminsUrl, List.class);
             if (admins == null || admins.isEmpty()) return;
+
             String employeeName = getEmployeeName(note.getEmployeeId());
             String expenseReference = "EXP-" + note.getId();
+
             for (Map<String, Object> admin : admins) {
                 String adminId = (String) admin.get("id");
                 String adminEmail = (String) admin.get("email");
-                if (adminId != null && adminEmail != null) {
-                    notificationClient.notifyAdminExpenseValidated(
-                            UUID.fromString(adminId), adminEmail, employeeName,
-                            expenseReference, note.getTotalAmount(), note.getId(), managerName);
-                    log.info("Admin notified for validated expense");
+                if (adminId == null || adminEmail == null) continue;
+
+                // Get admin's preferred currency
+                String targetCurrency = userServiceClient.getUserPreferredCurrency(adminId);
+                if (targetCurrency == null || targetCurrency.isEmpty()) {
+                    targetCurrency = "TND";
                 }
+                double exchangeRate = 1.0;
+                if (!"TND".equalsIgnoreCase(targetCurrency)) {
+                    try {
+                        exchangeRate = currencyService.getExchangeRate(targetCurrency);
+                    } catch (Exception e) {
+                        log.warn("Could not fetch exchange rate for {}, using 1.0", targetCurrency);
+                    }
+                }
+                double convertedAmount = note.getTotalAmount() * exchangeRate;
+
+                notificationClient.notifyAdminExpenseValidated(
+                        UUID.fromString(adminId), adminEmail,
+                        employeeName, expenseReference,
+                        note.getTotalAmount(),   // original TND
+                        convertedAmount,
+                        targetCurrency,
+                        note.getId(),
+                        managerName
+                );
+                log.info("Admin {} notified for validated expense with converted amount: {} {}", adminId, convertedAmount, targetCurrency);
             }
         } catch (Exception e) {
             log.error("Failed to notify admins about validated note: {}", e.getMessage());
@@ -1138,5 +1243,47 @@ public class ExpenseService {
         return noteRepository.findByProjectId(projectId).stream()
                 .filter(n -> n.getStatus() != ExpenseStatus.REFUSEE)
                 .mapToDouble(ExpenseNote::getTotalAmount).sum();
+    }
+
+    @Transactional
+    public ExpenseNoteInternalHistory addInternalNote(Long expenseNoteId, String authorId,
+                                                      String authorName, String authorRole,
+                                                      String content) {
+        log.info("addInternalNote appelé : expenseNoteId={}, authorId={}, authorName={}, role={}, content={}",
+                expenseNoteId, authorId, authorName, authorRole, content);
+
+        // Vérification critique
+        if (expenseNoteId == null) {
+            throw new IllegalArgumentException("expenseNoteId ne peut pas être null");
+        }
+        if (!noteRepository.existsById(expenseNoteId)) {
+            throw new RuntimeException("La note de frais #" + expenseNoteId + " n'existe pas");
+        }
+
+        // Sécurisation des valeurs null
+        if (authorId == null) authorId = "unknown";
+        if (authorName == null || authorName.isBlank()) authorName = authorId;
+        if (authorRole == null) authorRole = "MANAGER";
+        if (content == null) content = "";
+
+        ExpenseNoteInternalHistory history = ExpenseNoteInternalHistory.builder()
+                .expenseNoteId(expenseNoteId)
+                .authorId(authorId)
+                .authorName(authorName)
+                .authorRole(authorRole)
+                .content(content)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        try {
+            return internalHistoryRepository.save(history);
+        } catch (Exception e) {
+            log.error("Erreur lors de l'insertion de la note interne", e);
+            throw new RuntimeException("Impossible d'enregistrer la note interne : " + e.getMessage(), e);
+        }
+    }
+
+    public List<ExpenseNoteInternalHistory> getInternalHistory(Long expenseNoteId) {
+        return internalHistoryRepository.findByExpenseNoteIdOrderByCreatedAtAsc(expenseNoteId);
     }
 }

@@ -153,12 +153,17 @@ public class DuplicateDetectionService {
 
             String ocrText = (String) analyzeResponse.get("ocr_text");
             Map<String, Object> structured = (Map<String, Object>) analyzeResponse.get("structured");
+            String humanDescription = (String) analyzeResponse.get("human_description"); // Récupération de la description humaine
+
             if (structured.containsKey("invoice") && structured.get("invoice") instanceof Map) {
                 structured = (Map<String, Object>) structured.get("invoice");
             }
             response.put("ocrText", ocrText);
             response.put("structured", structured);
-            log.info("📥 /analyze retourné ocrText ({} chars) et structured", ocrText != null ? ocrText.length() : 0);
+            if (humanDescription != null) {
+                response.put("humanDescription", humanDescription);
+            }
+            log.info("📥 /analyze retourné ocrText ({} chars) et structured, humanDescription={}", ocrText != null ? ocrText.length() : 0, humanDescription);
 
             List<String> requestedFields = new ArrayList<>();
             if (fieldsJson != null && !fieldsJson.isBlank()) {
@@ -171,9 +176,17 @@ public class DuplicateDetectionService {
             log.info("📋 Champs demandés: {}", requestedFields);
 
             for (String field : requestedFields) {
-                Object value = extractFieldValueGeneric(structured, field);
-                if (value != null && !value.toString().isEmpty()) {
-                    extracted.put(field, value);
+                String lowerField = field.toLowerCase();
+                // Pour les champs de description, on utilise d'abord humanDescription si disponible
+                if ((lowerField.equals("description") || lowerField.equals("objet") || lowerField.equals("motif"))
+                        && humanDescription != null && !humanDescription.isBlank()) {
+                    extracted.put(field, humanDescription);
+                    log.info("📝 Champ '{}' alimenté par human_description: {}", field, humanDescription);
+                } else {
+                    Object value = extractFieldValueGeneric(structured, field);
+                    if (value != null && !value.toString().isEmpty()) {
+                        extracted.put(field, value);
+                    }
                 }
             }
 
@@ -279,7 +292,7 @@ public class DuplicateDetectionService {
         }
     }
 
-    // ========== HELPER METHODS (from your advanced service) ==========
+    // ========== HELPER METHODS ==========
     private String buildFullPath(String employeeId, String filename) {
         if (employeeId == null || employeeId.isBlank()) {
             return Paths.get(uploadsDir, filename).toAbsolutePath().toString();
@@ -329,33 +342,170 @@ public class DuplicateDetectionService {
         return null;
     }
 
+    // ------------------------------------------------------------
+    // CORRECTED extractFieldValueGeneric – handles depart, description, transportType properly
+    // ------------------------------------------------------------
     private Object extractFieldValueGeneric(Map<String, Object> json, String fieldName) {
         String lowerField = fieldName.toLowerCase();
+        // amount, total, montant
         if (lowerField.equals("amount") || lowerField.equals("montant") || lowerField.equals("total")) {
             return findBestAmount(json);
         }
+        // date fields
         if (lowerField.equals("expensedate") || lowerField.equals("date") || lowerField.equals("date_facture")) {
             return findBestDate(json);
         }
+        // description – use improved findBestDescription (fallback si human_description non utilisé)
         if (lowerField.equals("description") || lowerField.equals("objet") || lowerField.equals("motif")) {
-            Object docType = json.get("document_type");
-            if (docType != null) return docType.toString();
             return findBestDescription(json);
         }
+        // DEPART – priority: origin → departure (without "_time") → similar
+        if (lowerField.equals("depart") || lowerField.equals("departure") || lowerField.equals("departure_location")) {
+            Object origin = findExactKey(json, "origin");
+            if (origin != null && !origin.toString().isBlank()) return origin;
+            Object departurePlace = findValueByKeyContainingExceptTime(json, "departure");
+            if (departurePlace != null && !departurePlace.toString().isBlank()) return departurePlace;
+            Object val = findValueBySimilarKey(json, normalizeKey("origin"));
+            if (val != null) return val;
+            return null;
+        }
+        // DESTINATION – arrival city
+        if (lowerField.equals("destination") || lowerField.equals("arrival") || lowerField.equals("arrival_city")) {
+            Object dest = findExactKey(json, "destination");
+            if (dest != null) return dest;
+            Object arrival = findValueBySimilarKey(json, normalizeKey("arrival"));
+            if (arrival != null) return arrival;
+            return null;
+        }
+        // TRANSPORT TYPE – deduce from train_number, flight_number, or document_type
+        if (lowerField.equals("transporttype") || lowerField.equals("transport")) {
+            Object explicit = findExactKey(json, "transport_type");
+            if (explicit != null) return explicit;
+            if (findExactKey(json, "train_number") != null) return "train";
+            if (findValueByKeyContaining(json, "train") != null) return "train";
+            if (findExactKey(json, "flight_number") != null) return "flight";
+            if (findValueByKeyContaining(json, "flight") != null) return "flight";
+            Object docType = json.get("document_type");
+            if (docType != null) {
+                String dt = docType.toString().toLowerCase();
+                if (dt.contains("train")) return "train";
+                if (dt.contains("flight")) return "flight";
+            }
+            return null;
+        }
+        // generic similar key for any other field
         String normalizedTarget = normalizeKey(lowerField);
         Object rawValue = findValueBySimilarKey(json, normalizedTarget);
         if (rawValue != null) return postProcessValue(rawValue, fieldName);
-        if (lowerField.equals("destination")) {
-            Object val = findValueBySimilarKey(json, normalizeKey("arrival"));
-            if (val != null) return postProcessValue(val, fieldName);
-        }
-        if (lowerField.equals("transporttype") || lowerField.equals("transport")) {
-            Object val = findValueBySimilarKey(json, normalizeKey("airline"));
-            if (val != null) return postProcessValue(val, fieldName);
+        return null;
+    }
+
+    // Helper: find key containing target but exclude '_time' (for depart)
+    private Object findValueByKeyContainingExceptTime(Map<String, Object> map, String target) {
+        String targetNorm = normalizeKey(target);
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            String keyNorm = normalizeKey(entry.getKey());
+            if (keyNorm.contains(targetNorm) && !entry.getKey().toLowerCase().contains("_time")) {
+                return entry.getValue();
+            }
+            Object value = entry.getValue();
+            if (value instanceof Map) {
+                Object found = findValueByKeyContainingExceptTime((Map<String, Object>) value, target);
+                if (found != null) return found;
+            }
+            if (value instanceof List) {
+                for (Object item : (List<?>) value) {
+                    if (item instanceof Map) {
+                        Object found = findValueByKeyContainingExceptTime((Map<String, Object>) item, target);
+                        if (found != null) return found;
+                    }
+                }
+            }
         }
         return null;
     }
 
+    // ------------------------------------------------------------
+    // IMPROVED findBestDescription – uses short description first,
+    // then document_type (if not generic), then construction, then fallback
+    // ------------------------------------------------------------
+    private Object findBestDescription(Map<String, Object> json) {
+        // 1) Recherche d'une description courte et explicite (objet, payment_description, title)
+        Object shortDesc = findShortDescription(json);
+        if (shortDesc != null && !isTooLongOrLegal(shortDesc.toString())) {
+            return shortDesc;
+        }
+
+        // 2) Si aucune bonne description courte, essayons le document_type (sauf s'il est générique)
+        Object docType = json.get("document_type");
+        if (docType != null && !isGenericDocumentType(docType.toString())) {
+            return docType.toString();
+        }
+
+        // 3) Construction à partir de ticket_type + origine + destination
+        Object ticketType = json.get("ticket_type");
+        Object origin = json.get("origin");
+        Object dest = json.get("destination");
+        if (ticketType != null && origin != null && dest != null) {
+            return ticketType.toString() + " : " + origin + " → " + dest;
+        }
+        if (origin != null && dest != null) {
+            return "Voyage de " + origin + " à " + dest;
+        }
+
+        // 4) Fallback : description, name, items, surcharge
+        Object desc = findValueByKeyContaining(json, "description");
+        if (desc != null && !desc.toString().isEmpty()) return desc;
+        Object name = json.get("name");
+        if (name != null && !name.toString().toLowerCase().contains("jones")) return name;
+        if (json.containsKey("items")) {
+            Object itemsObj = json.get("items");
+            if (itemsObj instanceof List && !((List<?>) itemsObj).isEmpty()) {
+                Object first = ((List<?>) itemsObj).get(0);
+                if (first instanceof Map) {
+                    Object itemName = ((Map<?, ?>) first).get("name");
+                    if (itemName != null) return itemName.toString();
+                }
+            }
+        }
+        Object surchargeDesc = findSurchargeDescription(json);
+        if (surchargeDesc != null) return surchargeDesc;
+        return "receipt";
+    }
+
+    // Helper to extract a short description first (payment_description, objet, title)
+    private Object findShortDescription(Map<String, Object> json) {
+        Object paymentDesc = findValueByKeyContaining(json, "payment_description");
+        if (paymentDesc != null && !paymentDesc.toString().isEmpty()) return paymentDesc;
+        Object objet = findValueByKeyContaining(json, "objet");
+        if (objet != null && !objet.toString().isEmpty()) return objet;
+        Object title = findValueByKeyContaining(json, "title");
+        if (title != null && !title.toString().isEmpty()) return title;
+        return null;
+    }
+
+    // Check if text is too long (>200 chars) or contains legal keywords
+    private boolean isTooLongOrLegal(String text) {
+        if (text.length() > 200) return true;
+        String lower = text.toLowerCase();
+        String[] legalKeywords = {"conditions générales", "terms and conditions", "legal notice",
+                "avertissement", "disclaimer", "sous réserve de", "conformément à",
+                "modalités", "annexe", "contrat", "clause"};
+        for (String kw : legalKeywords) {
+            if (lower.contains(kw)) return true;
+        }
+        return false;
+    }
+
+    // Check if document_type is generic (should be ignored for description)
+    private boolean isGenericDocumentType(String docType) {
+        String lower = docType.toLowerCase();
+        return lower.equals("other") || lower.equals("receipt") || lower.equals("unknown") || lower.equals("document");
+    }
+
+    // ------------------------------------------------------------
+    // Existing helper methods (unchanged)
+    // ------------------------------------------------------------
     private Object findValueBySimilarKey(Map<String, Object> map, String targetNorm) {
         for (Map.Entry<String, Object> entry : map.entrySet()) {
             String keyNorm = normalizeKey(entry.getKey());
@@ -414,7 +564,12 @@ public class DuplicateDetectionService {
     }
 
     private Object findBestAmount(Map<String, Object> json) {
-        Object totalValue = findValueByKeyContaining(json, "total");
+        Object totalValue = findExactKey(json, "total");
+        if (totalValue != null) {
+            String norm = normalizeAmount(totalValue.toString());
+            if (norm != null) return norm;
+        }
+        totalValue = findValueByKeyContaining(json, "total");
         if (totalValue != null) {
             String norm = normalizeAmount(totalValue.toString());
             if (norm != null) return norm;
@@ -438,6 +593,27 @@ public class DuplicateDetectionService {
                         }
                     }
                     if (sum > 0) return String.format("%.2f", sum);
+                }
+            }
+        }
+        return null;
+    }
+
+    private Object findExactKey(Map<String, Object> map, String targetKey) {
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            if (entry.getKey().equalsIgnoreCase(targetKey)) {
+                return entry.getValue();
+            }
+            Object value = entry.getValue();
+            if (value instanceof Map) {
+                Object found = findExactKey((Map<String, Object>) value, targetKey);
+                if (found != null) return found;
+            } else if (value instanceof List) {
+                for (Object item : (List<?>) value) {
+                    if (item instanceof Map) {
+                        Object found = findExactKey((Map<String, Object>) item, targetKey);
+                        if (found != null) return found;
+                    }
                 }
             }
         }
@@ -499,28 +675,6 @@ public class DuplicateDetectionService {
             }
         }
         return null;
-    }
-
-    private Object findBestDescription(Map<String, Object> json) {
-        Object desc = json.get("description");
-        if (desc != null && !desc.toString().isEmpty()) return desc;
-        Object name = json.get("name");
-        if (name != null && !name.toString().toLowerCase().contains("jones")) return name;
-        if (json.containsKey("items")) {
-            Object itemsObj = json.get("items");
-            if (itemsObj instanceof List && !((List<?>) itemsObj).isEmpty()) {
-                Object first = ((List<?>) itemsObj).get(0);
-                if (first instanceof Map) {
-                    Object itemName = ((Map<?, ?>) first).get("name");
-                    if (itemName != null) return itemName.toString();
-                }
-            }
-        }
-        Object docType = json.get("document_type");
-        if (docType != null) return docType.toString();
-        Object surchargeDesc = findSurchargeDescription(json);
-        if (surchargeDesc != null) return surchargeDesc;
-        return "receipt";
     }
 
     private String normalizeAmount(String raw) {

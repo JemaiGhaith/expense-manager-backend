@@ -79,8 +79,8 @@
 <body>
 <div class="container">
     <!-- Dynamic header based on notification type -->
-    <div class="header" th:classappend="${notification.type == 'BUDGET_OVERRUN' or notification.type == 'CATEGORY_LIMIT_OVERRUN'} ? 'warning' : (${notification.type == 'EXPENSE_VALIDATED'} ? 'success' : (${notification.type == 'EXPENSE_REJECTED'} ? 'danger' : ''))">
-        <div class="icon" th:text="${notification.type == 'BUDGET_OVERRUN' or notification.type == 'CATEGORY_LIMIT_OVERRUN'} ? '⚠️' : (${notification.type == 'EXPENSE_VALIDATED'} ? '✅' : (${notification.type == 'EXPENSE_REJECTED'} ? '❌' : '📬'))">📬</div>
+    <div class="header" th:classappend="${notification.type == 'BUDGET_LIMIT_EXCEEDED' or notification.type == 'CATEGORY_LIMIT_OVERRUN'} ? 'warning' : (${notification.type == 'EXPENSE_VALIDATED' or notification.type == 'EXPENSE_VALIDATED_BY_MANAGER'} ? 'success' : (${notification.type == 'EXPENSE_CREATED'} ? '' : (${notification.type == 'EXPENSE_REJECTED'} ? 'danger' : '')))">
+        <div class="icon" th:text="${notification.type == 'BUDGET_LIMIT_EXCEEDED' or notification.type == 'CATEGORY_LIMIT_OVERRUN'} ? '⚠️' : (${notification.type == 'EXPENSE_VALIDATED' or notification.type == 'EXPENSE_VALIDATED_BY_MANAGER'} ? '✅' : (${notification.type == 'EXPENSE_CREATED'} ? '📝' : (${notification.type == 'EXPENSE_REJECTED'} ? '❌' : '📬')))">📬</div>
         <h1 th:text="${notification.title}">Notification</h1>
         <p th:if="${formattedDate}" th:text="'Date: ' + ${formattedDate}" style="margin-top: 10px; opacity: 0.9;"></p>
     </div>
@@ -90,14 +90,20 @@
 
         <p th:text="${notification.message}">Message de notification</p>
 
-        <!-- Budget Overrun Alert -->
-        <div th:if="${notification.type == 'BUDGET_OVERRUN'}" class="alert-box">
+        <!-- Budget Limit Exceeded Alert -->
+        <div th:if="${notification.type == 'BUDGET_LIMIT_EXCEEDED'}" class="alert-box">
             <strong>⚠️ ALERTE DÉPASSEMENT DE BUDGET PROJET</strong>
             <ul>
-                <li><strong>Projet :</strong> <span th:text="${notification.data.projectName}">Projet</span></li>
-                <li><strong>Employé :</strong> <span th:text="${notification.data.employeeName}">Employé</span></li>
-                <li><strong>Montant de la note :</strong> <span class="amount" th:text="${notification.data.amount} + ' €'">0 €</span></li>
-                <li><strong>Budget du projet :</strong> <span th:text="${notification.data.budget} + ' €'">0 €</span></li>
+                <li><strong>Projet :</strong> <span th:text="${notification.data['projectName']}">Projet</span></li>
+                <li><strong>Employé :</strong> <span th:text="${notification.data['employeeName']}">Employé</span></li>
+                <li><strong>Montant de la note :</strong>
+                    <span class="amount" th:text="${notification.data['convertedAmount'] != null ?
+                        #numbers.formatDecimal(notification.data['convertedAmount'], 0, 2) + ' ' + notification.data['targetCurrency'] :
+                        #numbers.formatDecimal(notification.data['originalAmountTND'], 0, 2) + ' TND'}">
+                        0 TND
+                    </span>
+                </li>
+                <li><strong>Budget du projet :</strong> <span th:text="${notification.data['budget']} + ' €'">0 €</span></li>
             </ul>
             <p style="margin-top: 10px;"><strong>Action requise :</strong> Veuillez examiner ce dépassement et prendre les mesures nécessaires.</p>
         </div>
@@ -106,22 +112,49 @@
         <div th:if="${notification.type == 'CATEGORY_LIMIT_OVERRUN'}" class="alert-box">
             <strong>⚠️ ALERTE DÉPASSEMENT DE PLAFOND CATÉGORIE</strong>
             <ul>
-                <li><strong>Catégorie :</strong> <span th:text="${notification.data.categoryName}">Catégorie</span></li>
-                <li><strong>Employé :</strong> <span th:text="${notification.data.employeeName}">Employé</span></li>
-                <li><strong>Montant :</strong> <span class="amount" th:text="${notification.data.amount} + ' €'">0 €</span></li>
-                <li><strong>Plafond autorisé :</strong> <span th:text="${notification.data.limit} + ' €'">0 €</span></li>
+                <li><strong>Catégorie :</strong> <span th:text="${notification.data['categoryName']}">Catégorie</span></li>
+                <li><strong>Employé :</strong> <span th:text="${notification.data['employeeName']}">Employé</span></li>
+                <li><strong>Montant :</strong>
+                    <span class="amount" th:text="${notification.data['convertedAmount'] != null ?
+                        #numbers.formatDecimal(notification.data['convertedAmount'], 0, 2) + ' ' + notification.data['targetCurrency'] :
+                        #numbers.formatDecimal(notification.data['originalAmountTND'], 0, 2) + ' TND'}">
+                        0 TND
+                    </span>
+                </li>
+                <li><strong>Plafond autorisé :</strong> <span th:text="${notification.data['limit']} + ' €'">0 €</span></li>
             </ul>
             <p style="margin-top: 10px;"><strong>Action requise :</strong> Veuillez examiner ce dépassement et prendre les mesures nécessaires.</p>
         </div>
 
-        <!-- Expense Validated (Admin) -->
-        <div th:if="${notification.type == 'EXPENSE_VALIDATED'}" class="details-box">
+        <!-- Expense Validated (Admin) – handles both EXPENSE_VALIDATED and EXPENSE_VALIDATED_BY_MANAGER -->
+        <div th:if="${notification.type == 'EXPENSE_VALIDATED' or notification.type == 'EXPENSE_VALIDATED_BY_MANAGER'}" class="details-box">
             <strong>✅ Note validée par le manager</strong>
             <ul>
-                <li><strong>Employé :</strong> <span th:text="${notification.data.employeeName}">Employé</span></li>
-                <li><strong>Référence :</strong> <span th:text="${notification.data.expenseReference}">EXP-XXX</span></li>
-                <li><strong>Montant :</strong> <span th:text="${notification.data.amount} + ' €'">0 €</span></li>
-                <li><strong>Validé par :</strong> <span th:text="${notification.data.managerName}">Manager</span></li>
+                <li><strong>Employé :</strong> <span th:text="${notification.data['employeeName']}">Employé</span></li>
+                <li><strong>Référence :</strong> <span th:text="${notification.data['expenseReference']}">EXP-XXX</span></li>
+                <li><strong>Montant :</strong>
+                    <span th:text="${notification.data['convertedAmount'] != null ?
+                        #numbers.formatDecimal(notification.data['convertedAmount'], 0, 2) + ' ' + notification.data['targetCurrency'] :
+                        #numbers.formatDecimal(notification.data['originalAmountTND'], 0, 2) + ' TND'}">
+                    </span>
+                </li>
+                <li><strong>Validé par :</strong> <span th:text="${notification.data['managerName']}">Manager</span></li>
+            </ul>
+        </div>
+
+        <!-- Expense Created (Employee) -->
+        <div th:if="${notification.type == 'EXPENSE_CREATED'}" class="details-box">
+            <strong>📝 Note créée</strong>
+            <ul>
+                <li><strong>Référence :</strong> <span th:text="${notification.data['expenseReference']}">EXP-XXX</span></li>
+                <li><strong>Montant :</strong>
+                    <span th:text="${notification.data['convertedAmount'] != null ?
+                        #numbers.formatDecimal(notification.data['convertedAmount'], 0, 2) + ' ' + notification.data['targetCurrency'] :
+                        #numbers.formatDecimal(notification.data['originalAmountTND'], 0, 2) + ' TND'}">
+                    </span>
+                </li>
+                <li><strong>Message :</strong> <span th:text="${notification.message}"></span>
+                </li>
             </ul>
         </div>
 
@@ -129,16 +162,21 @@
         <div th:if="${notification.type == 'EXPENSE_REJECTED'}" class="details-box">
             <strong>❌ Note refusée par le manager</strong>
             <ul>
-                <li><strong>Employé :</strong> <span th:text="${notification.data.employeeName}">Employé</span></li>
-                <li><strong>Référence :</strong> <span th:text="${notification.data.expenseReference}">EXP-XXX</span></li>
-                <li><strong>Montant :</strong> <span th:text="${notification.data.amount} + ' €'">0 €</span></li>
-                <li><strong>Refusé par :</strong> <span th:text="${notification.data.managerName}">Manager</span></li>
-                <li th:if="${notification.data.reason}"><strong>Raison :</strong> <span th:text="${notification.data.reason}"></span></li>
+                <li><strong>Employé :</strong> <span th:text="${notification.data['employeeName']}">Employé</span></li>
+                <li><strong>Référence :</strong> <span th:text="${notification.data['expenseReference']}">EXP-XXX</span></li>
+                <li><strong>Montant :</strong>
+                    <span th:text="${notification.data['convertedAmount'] != null ?
+                        #numbers.formatDecimal(notification.data['convertedAmount'], 0, 2) + ' ' + notification.data['targetCurrency'] :
+                        #numbers.formatDecimal(notification.data['originalAmountTND'], 0, 2) + ' TND'}">
+                    </span>
+                </li>
+                <li><strong>Refusé par :</strong> <span th:text="${notification.data['managerName']}">Manager</span></li>
+                <li th:if="${notification.data['reason']}"><strong>Raison :</strong> <span th:text="${notification.data['reason']}"></span></li>
             </ul>
         </div>
 
         <!-- General details box for other notification types -->
-        <div th:if="${notification.data != null and notification.type != 'BUDGET_OVERRUN' and notification.type != 'CATEGORY_LIMIT_OVERRUN' and notification.type != 'EXPENSE_VALIDATED' and notification.type != 'EXPENSE_REJECTED'}" class="details-box">
+        <div th:if="${notification.data != null and notification.type != 'BUDGET_LIMIT_EXCEEDED' and notification.type != 'CATEGORY_LIMIT_OVERRUN' and notification.type != 'EXPENSE_VALIDATED' and notification.type != 'EXPENSE_VALIDATED_BY_MANAGER' and notification.type != 'EXPENSE_CREATED' and notification.type != 'EXPENSE_REJECTED'}" class="details-box">
             <strong>📌 Détails :</strong>
             <ul>
                 <li th:each="entry : ${notification.data}">
@@ -148,7 +186,7 @@
         </div>
 
         <div style="text-align: center;">
-            <a th:href="${frontendUrl} + '/expense-notes?highlight=' + ${notification.data.expenseId}" class="button" th:text="${buttonText}">Voir la note</a>
+            <a th:href="${frontendUrl} + '/expense-notes?highlight=' + ${notification.data['expenseId']}" class="button" th:text="${buttonText}">Voir la note</a>
         </div>
     </div>
 

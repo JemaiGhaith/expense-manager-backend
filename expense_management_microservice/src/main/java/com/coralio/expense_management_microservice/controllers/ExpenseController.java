@@ -41,7 +41,7 @@ public class ExpenseController {
     @Autowired
     private ObjectMapper objectMapper;
     @Autowired
-    private ExpenseProcessingService expenseProcessingService; // ✅ NOUVEAU
+    private ExpenseProcessingService expenseProcessingService;
 
     public ExpenseController(
             ExpenseService expenseService,
@@ -62,8 +62,9 @@ public class ExpenseController {
             @RequestPart("note") String noteJson,
             @RequestPart("lines") String linesJson,
             @RequestPart(value = "accordFile", required = false) MultipartFile accordFile,
-            @RequestPart(value = "factureFiles", required = false) List<MultipartFile> factureFiles
-    ) {
+            @RequestPart(value = "factureFiles", required = false) List<MultipartFile> factureFiles,
+            @RequestParam(value = "displayCurrency", required = false) String displayCurrency,
+            @RequestParam(value = "exchangeRate", required = false) Double exchangeRate) {
         try {
             ExpenseNote note = objectMapper.readValue(noteJson, ExpenseNote.class);
             List<ExpenseLine> lines = objectMapper.readValue(
@@ -87,20 +88,16 @@ public class ExpenseController {
                 }
             }
 
-            // 1. Sauvegarde immédiate (statut EN_ATTENTE)
+            // ✅ Use the overloaded method that accepts currency parameters
             ExpenseNote savedNote = expenseService.createExpenseNoteWithFiles(
-                    note, lines, accordFileName, factureFileNames, accordFile   // ✅ pass the file
+                    note, lines, accordFileName, factureFileNames, accordFile,
+                    displayCurrency, exchangeRate   // <-- pass the parameters
             );
 
-            // 2. Récupérer les lignes sauvegardées pour le traitement asynchrone
             List<ExpenseLine> savedLines = expenseService.getLines(savedNote.getId());
-
-            // 3. Lancer le traitement asynchrone (validation, doublon, etc.)
             expenseProcessingService.processAfterSubmission(savedNote.getId(), savedLines);
 
-            // 4. Réponse immédiate avec statut ACCEPTED
             return ResponseEntity.accepted().body(Map.of(
-
                     "id", savedNote.getId(),
                     "status", "PENDING",
                     "message", "Note soumise, traitement en cours"
@@ -112,7 +109,6 @@ public class ExpenseController {
                     .body(Map.of("message", e.getMessage()));
         }
     }
-
     // =========================
     // UPLOAD NOTE + FICHIERS (ACCORD + FACTURES) - ANCIEN ENDPOINT (gardé pour compatibilité)
     // =========================
@@ -372,15 +368,18 @@ public class ExpenseController {
         }
     }
 
-    // ========== NOUVEAUX ENDPOINTS POUR MANAGER ==========
+    // ========== NOUVEAUX ENDPOINTS POUR MANAGER (MODIFIED) ==========
 
     @PutMapping("/manager/validate/{noteId}")
     public ResponseEntity<ExpenseNote> managerValidate(
             @PathVariable Long noteId,
             @RequestParam String comment,
             @RequestParam String managerId,
-            @RequestParam String managerName) {
-        return ResponseEntity.ok(expenseService.managerValidateNote(noteId, comment, managerId, managerName));
+            @RequestParam String managerName,
+            @RequestParam(required = false) String displayCurrency,
+            @RequestParam(required = false) Double exchangeRate) {
+        return ResponseEntity.ok(expenseService.managerValidateNote(
+                noteId, comment, managerId, managerName, displayCurrency, exchangeRate));
     }
 
     @PutMapping("/manager/reject/{noteId}")
@@ -388,28 +387,34 @@ public class ExpenseController {
             @PathVariable Long noteId,
             @RequestParam String comment,
             @RequestParam String managerId,
-            @RequestParam String managerName) {
-        return ResponseEntity.ok(expenseService.managerRejectNote(noteId, comment, managerId, managerName));
+            @RequestParam String managerName,
+            @RequestParam(required = false) String displayCurrency,
+            @RequestParam(required = false) Double exchangeRate) {
+        return ResponseEntity.ok(expenseService.managerRejectNote(
+                noteId, comment, managerId, managerName, displayCurrency, exchangeRate));
     }
 
     // ========== NOUVEAUX ENDPOINTS POUR ADMIN ==========
 
+    // ========== NOUVEAUX ENDPOINTS POUR ADMIN (MODIFIED) ==========
+
     @PutMapping("/admin/reject/{noteId}")
     public ResponseEntity<?> adminReject(
             @PathVariable Long noteId,
-            @RequestParam String comment) {
+            @RequestParam String comment,
+            @RequestParam(required = false) String displayCurrency,
+            @RequestParam(required = false) Double exchangeRate) {
         try {
             if (comment == null || comment.trim().isEmpty()) {
                 return ResponseEntity.badRequest()
                         .body(Map.of("error", "Le commentaire est obligatoire pour le refus"));
             }
-            ExpenseNote updatedNote = expenseService.adminRejectNote(noteId, comment);
+            ExpenseNote updatedNote = expenseService.adminRejectNote(noteId, comment, displayCurrency, exchangeRate);
             return ResponseEntity.ok(updatedNote);
         } catch (IllegalStateException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
-
     @PutMapping("/admin/reimburse/{noteId}")
     public ResponseEntity<?> adminReimburse(
             @PathVariable Long noteId,

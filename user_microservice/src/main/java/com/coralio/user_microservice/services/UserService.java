@@ -192,4 +192,45 @@ public class UserService {
         }
         return null;
     }
+    /**
+     * Get the user's preferred currency (stored as a Keycloak attribute).
+     * Defaults to "TND" if not set.
+     */
+    public String getUserPreferredCurrency(String userId) {
+        try {
+            UserRepresentation user = keycloakClient.getUserById(userId);
+            if (user == null) {
+                log.warn("User not found: {}", userId);
+                return "TND";
+            }
+            String currency = extractAttribute(user, "preferredCurrency");
+            if (currency == null || currency.trim().isEmpty()) {
+                log.debug("No preferred currency set for user {}, defaulting to TND", userId);
+                return "TND";
+            }
+            log.info("Preferred currency for user {}: {}", userId, currency);
+            return currency;
+        } catch (Exception e) {
+            log.error("Error getting preferred currency for user {}: {}", userId, e.getMessage());
+            return "TND";
+        }
+    }
+    /**
+     * Update the user's preferred currency in Keycloak attributes.
+     */
+    public void updateUserPreferredCurrency(String userId, String currencyCode) {
+        try {
+            if (currencyCode == null || currencyCode.trim().isEmpty()) {
+                throw new IllegalArgumentException("Currency code cannot be empty");
+            }
+            String upperCurrency = currencyCode.toUpperCase();
+
+            // Update the attribute in Keycloak
+            keycloakClient.updateUserAttribute(userId, "preferredCurrency", upperCurrency);
+            log.info("Preferred currency updated for user {} to {}", userId, upperCurrency);
+        } catch (Exception e) {
+            log.error("Error updating preferred currency for user {}: {}", userId, e.getMessage());
+            throw new RuntimeException("Failed to update preferred currency: " + e.getMessage());
+        }
+    }
 }

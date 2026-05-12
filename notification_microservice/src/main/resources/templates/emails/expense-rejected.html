@@ -106,8 +106,12 @@
             <strong>📋 Détails de la note</strong>
             <ul>
                 <li><strong>Référence :</strong> <span th:text="${notification.data.expenseReference}">EXP-001</span></li>
-                <li><strong>Montant :</strong> <span th:text="${notification.data.amount} + ' €'">250 €</span></li>
-                <li><strong>Rejeté par :</strong> <span th:text="${notification.data.rejectedBy}">Manager</span></li>
+                <li><strong>Montant :</strong>
+                    <span th:text="${notification.data.convertedAmount != null ?
+        #numbers.formatDecimal(notification.data.convertedAmount, 0, 2) + ' ' + notification.data.targetCurrency :
+        #numbers.formatDecimal(notification.data.amount, 0, 2) + ' TND'}">
+    </span>
+                </li>                <li><strong>Rejeté par :</strong> <span th:text="${notification.data.rejectedBy}">Manager</span></li>
             </ul>
         </div>
 

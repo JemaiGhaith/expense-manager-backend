@@ -57,59 +57,60 @@ public class NotificationClient {
     /**
      * Send notification when expense is approved
      */
+    /**
+     * Overloaded version of notifyExpenseApproved that accepts converted amount and target currency.
+     */
     public void notifyExpenseApproved(UUID employeeId, String employeeEmail,
-                                      String expenseReference, Double amount,
+                                      String expenseReference, Double originalAmountTND,
+                                      Double convertedAmount, String targetCurrency,
                                       Long expenseId, String approverName, String comment) {
         if (!notificationEnabled) return;
 
         Map<String, Object> data = new HashMap<>();
         data.put("expenseId", expenseId);
         data.put("expenseReference", expenseReference);
-        data.put("amount", amount);
+        data.put("originalAmountTND", originalAmountTND);
+        data.put("convertedAmount", convertedAmount);
+        data.put("targetCurrency", targetCurrency);
         data.put("approverName", approverName);
         data.put("comment", comment);
         data.put("detailsUrl", "/expenses/" + expenseId);
 
-        sendNotification(
-                employeeId,
-                employeeEmail,
-                "EXPENSE_APPROVED",
-                "✅ Expense Approved",
-                "Your expense " + expenseReference + " has been approved by " + approverName + " for " + amount + " €",
-                data,
-                "HIGH",  // Send email for approvals
-                expenseId,
-                true
-        );
+        String formattedAmount = String.format("%.2f %s", convertedAmount, targetCurrency);
+        String message = "Your expense " + expenseReference + " has been approved by " +
+                approverName + " for " + formattedAmount;
+
+        sendNotification(employeeId, employeeEmail, "EXPENSE_APPROVED",
+                "✅ Expense Approved", message, data,
+                "HIGH", expenseId, true);
     }
 
     /**
-     * Send notification when expense is rejected
+     * Overloaded version of notifyExpenseRejected that accepts converted amount and target currency.
      */
     public void notifyExpenseRejected(UUID employeeId, String employeeEmail,
-                                      String expenseReference, Double amount,
-                                      Long expenseId, String approverName, String reason) {
+                                      String expenseReference, Double originalAmountTND,
+                                      Double convertedAmount, String targetCurrency,
+                                      Long expenseId, String rejectorName, String reason) {
         if (!notificationEnabled) return;
 
         Map<String, Object> data = new HashMap<>();
         data.put("expenseId", expenseId);
         data.put("expenseReference", expenseReference);
-        data.put("amount", amount);
-        data.put("rejectedBy", approverName);
+        data.put("originalAmountTND", originalAmountTND);
+        data.put("convertedAmount", convertedAmount);
+        data.put("targetCurrency", targetCurrency);
+        data.put("rejectedBy", rejectorName);
         data.put("reason", reason);
         data.put("detailsUrl", "/expenses/" + expenseId);
 
-        sendNotification(
-                employeeId,
-                employeeEmail,
-                "EXPENSE_REJECTED",
-                "❌ Expense Rejected",
-                "Your expense " + expenseReference + " has been rejected" + (reason != null ? ": " + reason : ""),
-                data,
-                "HIGH",  // Send email for rejections
-                expenseId,
-                true
-        );
+        String formattedAmount = String.format("%.2f %s", convertedAmount, targetCurrency);
+        String message = "Your expense " + expenseReference + " has been rejected by " +
+                rejectorName + (reason != null ? ": " + reason : "");
+
+        sendNotification(employeeId, employeeEmail, "EXPENSE_REJECTED",
+                "❌ Expense Rejected", message, data,
+                "HIGH", expenseId, true);
     }
 
     /**
@@ -239,22 +240,29 @@ public class NotificationClient {
     // NotificationClient.java - CORRIGER LES TYPES
     public void notifyManagerPendingApproval(UUID managerId, String managerEmail,
                                              String employeeName, String expenseReference,
-                                             Double amount, Long expenseId) {
+                                             Double originalAmountTND,
+                                             Double convertedAmount, String targetCurrency,
+                                             Long expenseId) {
         if (!notificationEnabled) return;
 
         Map<String, Object> data = new HashMap<>();
         data.put("expenseId", expenseId);
         data.put("expenseReference", expenseReference);
-        data.put("amount", amount);
+        data.put("originalAmountTND", originalAmountTND);
+        data.put("convertedAmount", convertedAmount);
+        data.put("targetCurrency", targetCurrency);
         data.put("employeeName", employeeName);
-        data.put("detailsUrl", "/manager/expenses/" + expenseId);
+        data.put("detailsUrl", "/expenses/" + expenseId);
+
+        String formattedAmount = String.format("%.2f %s", convertedAmount, targetCurrency);
+        String message = employeeName + " a soumis une nouvelle note de frais de " + formattedAmount + " à approuver";
 
         sendNotification(
                 managerId,
                 managerEmail,
-                "EXPENSE_PENDING",  // ✅ Changé de "PENDING_APPROVAL" à "EXPENSE_PENDING"
+                "EXPENSE_PENDING",
                 "⏳ Nouvelle note en attente",
-                employeeName + " a soumis une nouvelle note de frais de " + amount + " € à approuver",
+                message,
                 data,
                 "NORMAL",
                 expenseId,
@@ -367,23 +375,31 @@ public class NotificationClient {
      */
     public void notifyAdminExpenseValidated(UUID adminId, String adminEmail,
                                             String employeeName, String expenseReference,
-                                            Double amount, Long expenseId, String managerName) {
+                                            Double originalAmountTND,
+                                            Double convertedAmount, String targetCurrency,
+                                            Long expenseId, String managerName) {
         if (!notificationEnabled) return;
 
         Map<String, Object> data = new HashMap<>();
         data.put("expenseId", expenseId);
         data.put("expenseReference", expenseReference);
-        data.put("amount", amount);
+        data.put("originalAmountTND", originalAmountTND);
+        data.put("convertedAmount", convertedAmount);
+        data.put("targetCurrency", targetCurrency);
         data.put("employeeName", employeeName);
         data.put("managerName", managerName);
         data.put("detailsUrl", "/admin/expenses/" + expenseId);
 
+        String formattedAmount = String.format("%.2f %s", convertedAmount, targetCurrency);
+        String title = "✅ Note validée par manager";
+        String message = employeeName + " - Note " + expenseReference + " a été validée par " + managerName + " (" + formattedAmount + ")";
+
         sendNotification(
                 adminId,
                 adminEmail,
-                "EXPENSE_VALIDATED_BY_MANAGER",  // ✅ Type spécifique
-                "✅ Note validée par manager",
-                employeeName + " - Note " + expenseReference + " a été validée par " + managerName + " (" + amount + " €)",
+                "EXPENSE_VALIDATED_BY_MANAGER",
+                title,
+                message,
                 data,
                 "NORMAL",
                 expenseId,
@@ -482,5 +498,133 @@ public class NotificationClient {
                 expenseId,
                 true
         );
+    }
+    // Replace the existing notifyExpenseValidatedByAdmin with this:
+    public void notifyExpenseValidatedByAdmin(UUID employeeId, String employeeEmail,
+                                              String expenseReference, Double originalAmountTND,
+                                              Double convertedAmount, String targetCurrency,
+                                              Long expenseId) {
+        if (!notificationEnabled) return;
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("expenseId", expenseId);
+        data.put("expenseReference", expenseReference);
+        data.put("originalAmountTND", originalAmountTND);
+        data.put("convertedAmount", convertedAmount);
+        data.put("targetCurrency", targetCurrency);
+        data.put("detailsUrl", "/expenses/" + expenseId);
+
+        String formattedAmount = String.format("%.2f %s", convertedAmount, targetCurrency);
+        String message = "Your expense " + expenseReference + " has been validated by the administrator. " +
+                "Amount: " + formattedAmount + ". Payment will be processed later.";
+        String title = "✅ Expense validated by admin";
+
+        sendNotification(
+                employeeId,
+                employeeEmail,
+                "EXPENSE_VALIDATED_BY_ADMIN",
+                title,
+                message,
+                data,
+                "NORMAL",
+                expenseId,
+                true
+        );
+    }
+
+    // Replace the existing notifyExpenseReimbursed with this:
+    public void notifyExpenseReimbursed(UUID employeeId, String employeeEmail,
+                                        String expenseReference, Double originalAmountTND,
+                                        Double convertedAmount, String targetCurrency,
+                                        Long expenseId, String reimbursedBy) {
+        if (!notificationEnabled) return;
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("expenseId", expenseId);
+        data.put("expenseReference", expenseReference);
+        data.put("originalAmountTND", originalAmountTND);
+        data.put("convertedAmount", convertedAmount);
+        data.put("targetCurrency", targetCurrency);
+        data.put("reimbursedBy", reimbursedBy);
+        data.put("detailsUrl", "/expenses/" + expenseId);
+
+        String formattedAmount = String.format("%.2f %s", convertedAmount, targetCurrency);
+        String message = "Your expense " + expenseReference + " has been reimbursed. Amount: " + formattedAmount;
+        String title = "💰 Expense Reimbursed";
+
+        sendNotification(
+                employeeId,
+                employeeEmail,
+                "EXPENSE_REIMBURSED",
+                title,
+                message,
+                data,
+                "NORMAL",
+                expenseId,
+                true
+        );
+    }
+    /**
+     * Overloaded version of notifyExpenseCreated that accepts converted amount and target currency.
+     */
+    public void notifyExpenseCreated(UUID employeeId, String employeeEmail,
+                                     String expenseReference, Double originalAmountTND,
+                                     Double convertedAmount, String targetCurrency,
+                                     Long expenseId) {
+        if (!notificationEnabled) return;
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("expenseId", expenseId);
+        data.put("expenseReference", expenseReference);
+        data.put("originalAmountTND", originalAmountTND);
+        data.put("convertedAmount", convertedAmount);
+        data.put("targetCurrency", targetCurrency);
+        data.put("detailsUrl", "/expenses/" + expenseId);
+
+        String formattedAmount = String.format("%.2f %s", convertedAmount, targetCurrency);
+        String message = "Your expense " + expenseReference + " has been created successfully. Amount: " + formattedAmount;
+        String title = "📝 Expense Created";
+
+        sendNotification(employeeId, employeeEmail, "EXPENSE_CREATED", title, message,
+                data, "NORMAL", expenseId, true);
+    }
+
+    /**
+     * Overloaded version of notifyBudgetLimitExceeded that accepts converted amount and target currency.
+     */
+    public void notifyBudgetLimitExceeded(UUID managerId, String managerEmail,
+                                          String projectName, String employeeName,
+                                          Double originalAmountTND,
+                                          Double convertedAmount, String targetCurrency,
+                                          Double remainingBudgetConverted, Long expenseId,
+                                          String alertType) {
+        if (!notificationEnabled) return;
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("expenseId", expenseId);
+        data.put("projectName", projectName);
+        data.put("employeeName", employeeName);
+        data.put("originalAmountTND", originalAmountTND);
+        data.put("convertedAmount", convertedAmount);
+        data.put("targetCurrency", targetCurrency);
+        data.put("alertType", alertType);
+        data.put("remainingBudget", remainingBudgetConverted);
+        data.put("detailsUrl", "/manager/expenses/" + expenseId);
+
+        String formattedAmount = String.format("%.2f %s", convertedAmount, targetCurrency);
+        String title, message;
+        if ("NOTE_EXCESSIVE".equals(alertType)) {
+            title = "⚠️ Note excessive";
+            message = "La dépense de " + formattedAmount + " de " + employeeName +
+                    " dépasse à elle seule le budget total du projet '" + projectName + "'";
+        } else {
+            title = "⚠️ Dépassement de budget projet";
+            message = "La dépense de " + formattedAmount + " de " + employeeName +
+                    " dépasse le budget restant du projet '" + projectName +
+                    "' (" + String.format("%.2f %s", remainingBudgetConverted, targetCurrency) + " restants)";
+        }
+
+        sendNotification(managerId, managerEmail, "BUDGET_LIMIT_EXCEEDED", title, message,
+                data, "CRITICAL", expenseId, true);
     }
 }

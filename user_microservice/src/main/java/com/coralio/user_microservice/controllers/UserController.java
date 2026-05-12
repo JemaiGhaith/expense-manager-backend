@@ -523,4 +523,26 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
+    @GetMapping("/{userId}/preferred-currency")
+    public ResponseEntity<String> getUserPreferredCurrency(@PathVariable String userId) {
+        String currency = userService.getUserPreferredCurrency(userId);
+        return ResponseEntity.ok(currency);
+    }
+    @PutMapping("/{userId}/preferred-currency")
+    public ResponseEntity<?> updatePreferredCurrency(@PathVariable String userId,
+                                                     @RequestParam String currency) {
+        try {
+            userService.updateUserPreferredCurrency(userId, currency);
+            Map<String, Object> response = new HashMap<>();
+            response.put("message", "Preferred currency updated successfully");
+            response.put("currency", currency.toUpperCase());
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error updating preferred currency for user {}: {}", userId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
 }

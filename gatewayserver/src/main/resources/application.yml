@@ -30,6 +30,7 @@ spring:
               args:
                 name: expenseService
                 fallbackUri: forward:/fallback/expense
+            - TokenRelay   # 🔁 Ajoute cette ligne
 
         - id: user-ms
           uri: lb://USER-MICROSERVICE
@@ -117,3 +118,7 @@ resilience4j:
         timeoutDuration: 600000
       chatbotService:
         timeoutDuration: 3600000
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    org.springframework.security: DEBUG

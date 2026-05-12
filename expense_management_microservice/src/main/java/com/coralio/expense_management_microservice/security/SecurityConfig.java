@@ -6,30 +6,20 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(csrf -> csrf.disable())
-                .authorizeHttpRequests(auth ->
-                        auth.anyRequest().permitAll()
-                );
-//                .oauth2ResourceServer(oauth ->
-//                        oauth.jwt(Customizer.withDefaults())
-//                );
-
+                .csrf(csrf -> csrf.disable())                  // Désactive CSRF (API REST)
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/actuator/health").permitAll()   // Health check public
+                        .anyRequest().authenticated()                     // Tout le reste nécessite un token
+                )
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
         return http.build();
-    }
-
-    public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        // Servir les fichiers uploadés statiquement
-        registry.addResourceHandler("/uploads/**")
-                .addResourceLocations("file:./uploads/");
     }
 }
