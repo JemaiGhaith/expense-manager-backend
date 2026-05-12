@@ -564,18 +564,41 @@ public class DuplicateDetectionService {
     }
 
     private Object findBestAmount(Map<String, Object> json) {
-        Object totalValue = findExactKey(json, "total");
-        if (totalValue != null) {
-            String norm = normalizeAmount(totalValue.toString());
+        // 1. Recherche exacte des clés prioritaires (total TTC d'abord)
+        String[] priorityKeys = {"total_ttc", "total_tva_comprise", "grand_total", "total"};
+        for (String key : priorityKeys) {
+            Object exact = findExactKey(json, key);
+            if (exact != null) {
+                String norm = normalizeAmount(exact.toString());
+                if (norm != null) return norm;
+            }
+        }
+
+        // 2. Recherche par similarité (contient "total") mais en évitant "subtotal" si possible
+        Object best = null;
+        for (Map.Entry<String, Object> entry : json.entrySet()) {
+            String keyLower = entry.getKey().toLowerCase();
+            if (keyLower.contains("total")) {
+                // Ignorer les clés qui contiennent "sous", "sub", "ht" si on a déjà une meilleure alternative
+                if (keyLower.contains("sub") || keyLower.contains("sous") || keyLower.contains("ht")) {
+                    if (best == null) best = entry.getValue();
+                    continue;
+                }
+                // Sinon, c'est probablement un vrai total TTC
+                String norm = normalizeAmount(entry.getValue().toString());
+                if (norm != null) return norm;
+            }
+        }
+        if (best != null) {
+            String norm = normalizeAmount(best.toString());
             if (norm != null) return norm;
         }
-        totalValue = findValueByKeyContaining(json, "total");
-        if (totalValue != null) {
-            String norm = normalizeAmount(totalValue.toString());
-            if (norm != null) return norm;
-        }
+
+        // 3. Surcharge éventuelle
         Object surcharge = findSurchargeAmount(json);
         if (surcharge != null) return surcharge;
+
+        // 4. Somme des items (en dernier recours)
         for (String itemsKey : Arrays.asList("items", "line_items")) {
             if (json.containsKey(itemsKey)) {
                 Object items = json.get(itemsKey);

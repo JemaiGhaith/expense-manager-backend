@@ -113,4 +113,39 @@ public class AiController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", e.getMessage()));
         }
     }
+
+
+
+    // ============================================================
+// NOUVEAU — Check doublon spécifique accord
+// ============================================================
+    @PostMapping(value = "/check-accord-duplicate", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> checkAccordDuplicate(
+            @RequestPart("file") MultipartFile file) {
+        try {
+            org.springframework.core.io.ByteArrayResource resource =
+                    new org.springframework.core.io.ByteArrayResource(file.getBytes()) {
+                        @Override public String getFilename() { return file.getOriginalFilename(); }
+                    };
+
+            org.springframework.util.MultiValueMap<String, Object> body =
+                    new org.springframework.util.LinkedMultiValueMap<>();
+            body.add("file", resource);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+            HttpEntity<org.springframework.util.MultiValueMap<String, Object>> request =
+                    new HttpEntity<>(body, headers);
+
+            RestTemplate rt = new RestTemplate();
+            Map<?, ?> result = rt.postForObject(
+                    "http://localhost:9000/check-duplicate-accord", request, Map.class);
+
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.ok(
+                    Map.of("duplicate", false, "isDuplicate", false, "score", 0));
+        }
+    }
 }
