@@ -182,13 +182,11 @@ public class ExpenseService {
             }
         }
 
-        // ========== ACCORD EXTRACTION + FAISS INDEXING (from first version) ==========
+        // ========== ACCORD EXTRACTION + FAISS INDEXING (using /analyze-for-accord) ==========
         if (accordFile != null && !accordFile.isEmpty()) {
             try {
-                // 1. OCR via Tesseract
                 String accordOcrText = ocrService.extractText(accordFile);
-                // 2. Structured extraction via Python `/analyze` endpoint
-                String analyzeUrl = "http://localhost:9000/analyze";
+                String analyzeUrl = "http://localhost:9000/analyze-for-accord";
                 MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
                 body.add("file", new ByteArrayResource(accordFile.getBytes()) {
                     @Override public String getFilename() { return accordFile.getOriginalFilename(); }
@@ -199,7 +197,7 @@ public class ExpenseService {
                 Map<String, Object> analyzeResponse = restTemplate.postForObject(analyzeUrl, request, Map.class);
                 Map<String, Object> structuredJson = (Map<String, Object>) analyzeResponse.get("structured");
 
-                // 3. Save to note-level extraction table
+                // Sauvegarde en base
                 ExpenseNoteExtraction extraction = ExpenseNoteExtraction.builder()
                         .expenseNoteId(savedNote.getId())
                         .ocrText(accordOcrText)
@@ -209,14 +207,15 @@ public class ExpenseService {
                 noteExtractionRepository.save(extraction);
                 log.info("✅ Accord extraction saved for note {}", savedNote.getId());
 
-                // 4. FAISS indexing with accord reference (from first version)
-                String pythonOcrText = (String) analyzeResponse.get("ocr_text");
-                if (pythonOcrText == null) pythonOcrText = accordOcrText;
+                String pythonOcrText = analyzeResponse.get("ocr_text") instanceof String
+                        ? (String) analyzeResponse.get("ocr_text")
+                        : accordOcrText;
+
                 String accordRef = extractAccordReference(pythonOcrText);
                 log.info("🔍 Référence extraite pour l'accord : {}", accordRef);
+
                 Path accordAbsPath = Paths.get(uploadsDir, savedNote.getEmployeeId(), savedNote.getAccordPath()).toAbsolutePath();
                 addAccordToFaissIndex(pythonOcrText, savedNote.getAccordPath(), accordAbsPath.toString(), accordRef);
-
             } catch (Exception e) {
                 log.error("Failed to extract/index accord data for note {}: {}", savedNote.getId(), e.getMessage(), e);
             }
@@ -339,7 +338,7 @@ public class ExpenseService {
         return createExpenseNoteWithFiles(note, lines, null, fileNames);
     }
 
-    // ========== MANAGER VALIDATION / REJECTION (with currency, from second version) ==========
+    // ========== MANAGER VALIDATION / REJECTION (with currency) ==========
     @Transactional
     public ExpenseNote managerValidateNote(Long noteId, String comment, String managerId, String managerName,
                                            String displayCurrency, Double exchangeRate) {
@@ -456,7 +455,7 @@ public class ExpenseService {
         return noteRepository.save(note);
     }
 
-    // ========== ADMIN METHODS (with currency, from second version) ==========
+    // ========== ADMIN METHODS (with currency) ==========
     @Transactional
     public ExpenseNote adminRejectNote(Long noteId, String comment, String displayCurrency, Double exchangeRate) {
         ExpenseNote note = noteRepository.findById(noteId)
@@ -527,7 +526,7 @@ public class ExpenseService {
 
     // Legacy validate/refuse (simple)
     @Transactional
-    public ExpenseNote validateNote(Long noteId) { /* ... same as original ... */
+    public ExpenseNote validateNote(Long noteId) {
         ExpenseNote note = noteRepository.findById(noteId).orElseThrow();
         note.setUpdatedAt(LocalDateTime.now());
         note.setStatus(ExpenseStatus.VALIDEE);
@@ -535,7 +534,7 @@ public class ExpenseService {
     }
 
     @Transactional
-    public ExpenseNote validateNote(Long noteId, String comment) { /* ... */
+    public ExpenseNote validateNote(Long noteId, String comment) {
         ExpenseNote note = noteRepository.findById(noteId).orElseThrow();
         note.setUpdatedAt(LocalDateTime.now());
         note.setStatus(ExpenseStatus.VALIDEE);
@@ -548,7 +547,7 @@ public class ExpenseService {
     }
 
     @Transactional
-    public ExpenseNote refuseNote(Long noteId, String comment) { /* ... */
+    public ExpenseNote refuseNote(Long noteId, String comment) {
         ExpenseNote note = noteRepository.findById(noteId).orElseThrow();
         note.setStatus(ExpenseStatus.REFUSEE);
         note.setDecisionComment(comment);
@@ -715,8 +714,8 @@ public class ExpenseService {
         return getNotesByDepartment(departmentId);
     }
 
-    // ========== DYNAMIC COLUMN METHODS (unchanged) ==========
-    private void insertExpenseLineWithDynamicColumns(ExpenseLine line) { /* ... same as original ... */
+    // ========== DYNAMIC COLUMN METHODS ==========
+    private void insertExpenseLineWithDynamicColumns(ExpenseLine line) {
         List<String> allColumns = migrationService.getAllColumns();
         List<String> columnsToInsert = new ArrayList<>();
         List<Object> params = new ArrayList<>();
@@ -747,7 +746,7 @@ public class ExpenseService {
         }
     }
 
-    private void updateExpenseLineWithDynamicColumns(ExpenseLine line) { /* ... same ... */
+    private void updateExpenseLineWithDynamicColumns(ExpenseLine line) {
         List<String> allColumns = migrationService.getAllColumns();
         List<String> setClauses = new ArrayList<>();
         List<Object> params = new ArrayList<>();
@@ -1017,7 +1016,7 @@ public class ExpenseService {
         checkCategoryLimitOverruns(note);
     }
 
-    private void checkProjectBudgetOverrun(ExpenseNote note) { /* same as original */
+    private void checkProjectBudgetOverrun(ExpenseNote note) {
         try {
             if (note.getProjectId() != null) {
                 HttpHeaders headers = new HttpHeaders();
@@ -1062,7 +1061,7 @@ public class ExpenseService {
         }
     }
 
-    private void checkCategoryLimitOverruns(ExpenseNote note) { /* same as original */
+    private void checkCategoryLimitOverruns(ExpenseNote note) {
         try {
             List<ExpenseLine> lines = lineRepository.findByExpenseNoteId(note.getId());
             for (ExpenseLine line : lines) {
@@ -1169,7 +1168,7 @@ public class ExpenseService {
                 .mapToDouble(ExpenseNote::getTotalAmount).sum();
     }
 
-    // ========== INTERNAL NOTES (from second version) ==========
+    // ========== INTERNAL NOTES ==========
     @Transactional
     public ExpenseNoteInternalHistory addInternalNote(Long expenseNoteId, String authorId,
                                                       String authorName, String authorRole,
@@ -1207,10 +1206,7 @@ public class ExpenseService {
         return internalHistoryRepository.findByExpenseNoteIdOrderByCreatedAtAsc(expenseNoteId);
     }
 
-    // ========== FAISS METHODS (from first version) ==========
-    /**
-     * Add an accord to FAISS index with its reference.
-     */
+    // ========== FAISS METHODS (with reference extraction) ==========
     private void addAccordToFaissIndex(String text, String filename, String absolutePath, String accordReference) {
         try {
             String url = "http://localhost:9000/add-accord-to-index";
@@ -1226,13 +1222,9 @@ public class ExpenseService {
         }
     }
 
-    /**
-     * Extract accord reference from OCR text using regex.
-     */
     private String extractAccordReference(String accordOcrText) {
         if (accordOcrText == null || accordOcrText.isBlank()) return null;
 
-        // Pattern 1 : Réf : OM-2026-0023  or  Ref : OM-2026-0023
         java.util.regex.Pattern p1 = java.util.regex.Pattern.compile(
                 "[Rr][e\u00e9]f(?:\u00e9rence)?[.\\s]*[:\\-]\\s*([A-Z]{1,6}-\\d{2,6}-[A-Z0-9]{2,20})",
                 java.util.regex.Pattern.CASE_INSENSITIVE
@@ -1243,7 +1235,6 @@ public class ExpenseService {
             return m1.group(1).trim();
         }
 
-        // Pattern 2 : standard format OM-2026-0023 without prefix
         java.util.regex.Pattern p2 = java.util.regex.Pattern.compile(
                 "\\b([A-Z]{2,4}-\\d{4}-\\d{2,6})\\b"
         );
@@ -1257,9 +1248,6 @@ public class ExpenseService {
         return null;
     }
 
-    /**
-     * Call full analysis on Python service (/analyze-full) and store result.
-     */
     private String callFullAnalysis(ExpenseNote note, List<ExpenseLine> lines, String accordFileName) {
         try {
             String accordFullPath = fileStorageService.getFullPath(note.getEmployeeId(), accordFileName);
@@ -1306,17 +1294,11 @@ public class ExpenseService {
             return null;
         }
     }
-    // ========== MISSING METHODS FROM SECOND VERSION (ADDED) ==========
 
-    /**
-     * Extract accord reference from structured JSON returned by Python service.
-     */
     private String extractAccordReferenceFromStructuredJson(Map<String, Object> structuredJson) {
         if (structuredJson == null) return null;
-        // Le champ retourné par /analyze (ou /extract-mission-order) s'appelle "accord_reference"
         Object ref = structuredJson.get("accord_reference");
         if (ref instanceof String && !((String) ref).isEmpty()) return (String) ref;
-        // Fallback sur d'autres noms possibles
         for (String key : Arrays.asList("ref", "reference", "Réf", "Ref")) {
             Object val = structuredJson.get(key);
             if (val instanceof String && !((String) val).isEmpty()) return (String) val;
@@ -1324,9 +1306,6 @@ public class ExpenseService {
         return null;
     }
 
-    /**
-     * Add an accord to FAISS index with reference (alternative name).
-     */
     private void addToFaissIndexWithRef(String text, String filename, String absolutePath, String accordReference) {
         try {
             String url = "http://localhost:9000/add-to-index";
@@ -1344,13 +1323,9 @@ public class ExpenseService {
         }
     }
 
-    /**
-     * Extract accord reference from plain text using multiple regex patterns.
-     */
     private String extractAccordReferenceFromText(String text) {
         if (text == null) return null;
 
-        // Patterns pour trouver une référence comme "GH-2024-009" ou "Réf : GH-2024-009"
         List<String> patterns = Arrays.asList(
                 "R[ée]f(?:érence)?\\s*:\\s*([A-Z0-9\\-_/]{4,30})",
                 "\\b([A-Z]{1,3}-\\d{4,6}-[A-Z0-9]{2,10})\\b",
