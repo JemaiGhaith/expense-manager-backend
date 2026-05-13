@@ -17,6 +17,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())                  // Désactive CSRF (API REST)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health").permitAll()   // Health check public
+                        .requestMatchers("/api/projects/**").permitAll()
                         .anyRequest().authenticated()                     // Tout le reste nécessite un token
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
