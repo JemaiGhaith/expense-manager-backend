@@ -1306,4 +1306,64 @@ public class ExpenseService {
             return null;
         }
     }
+    // ========== MISSING METHODS FROM SECOND VERSION (ADDED) ==========
+
+    /**
+     * Extract accord reference from structured JSON returned by Python service.
+     */
+    private String extractAccordReferenceFromStructuredJson(Map<String, Object> structuredJson) {
+        if (structuredJson == null) return null;
+        // Le champ retourné par /analyze (ou /extract-mission-order) s'appelle "accord_reference"
+        Object ref = structuredJson.get("accord_reference");
+        if (ref instanceof String && !((String) ref).isEmpty()) return (String) ref;
+        // Fallback sur d'autres noms possibles
+        for (String key : Arrays.asList("ref", "reference", "Réf", "Ref")) {
+            Object val = structuredJson.get(key);
+            if (val instanceof String && !((String) val).isEmpty()) return (String) val;
+        }
+        return null;
+    }
+
+    /**
+     * Add an accord to FAISS index with reference (alternative name).
+     */
+    private void addToFaissIndexWithRef(String text, String filename, String absolutePath, String accordReference) {
+        try {
+            String url = "http://localhost:9000/add-to-index";
+            Map<String, Object> body = new HashMap<>();
+            body.put("text", text);
+            body.put("filename", filename);
+            body.put("filepath", absolutePath);
+            if (accordReference != null && !accordReference.isEmpty()) {
+                body.put("accord_reference", accordReference);
+            }
+            restTemplate.postForObject(url, body, Map.class);
+            log.info("✅ Accord indexé dans FAISS : {} (ref: {})", filename, accordReference);
+        } catch (Exception e) {
+            log.error("❌ Erreur indexation FAISS pour l'accord : {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Extract accord reference from plain text using multiple regex patterns.
+     */
+    private String extractAccordReferenceFromText(String text) {
+        if (text == null) return null;
+
+        // Patterns pour trouver une référence comme "GH-2024-009" ou "Réf : GH-2024-009"
+        List<String> patterns = Arrays.asList(
+                "R[ée]f(?:érence)?\\s*:\\s*([A-Z0-9\\-_/]{4,30})",
+                "\\b([A-Z]{1,3}-\\d{4,6}-[A-Z0-9]{2,10})\\b",
+                "\\b([A-Z0-9]{2,5}-\\d{4,6})\\b"
+        );
+
+        for (String pattern : patterns) {
+            java.util.regex.Pattern p = java.util.regex.Pattern.compile(pattern, java.util.regex.Pattern.CASE_INSENSITIVE);
+            java.util.regex.Matcher m = p.matcher(text);
+            if (m.find()) {
+                return m.group(1).trim();
+            }
+        }
+        return null;
+    }
 }
