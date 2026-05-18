@@ -58,7 +58,8 @@ public class ExpenseNote {
 
     @Column(name = "ai_analysis_result", columnDefinition = "TEXT")
     private String aiAnalysisResult;
-
+    @Column(name = "reimbursed_amount")
+    private Double reimbursedAmount = 0.0;
     // Getter et Setter
     public String getAiAnalysisResult() {
         return aiAnalysisResult;

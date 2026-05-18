@@ -88,10 +88,9 @@ public class ExpenseController {
                 }
             }
 
-            // ✅ Use the overloaded method that accepts currency parameters
             ExpenseNote savedNote = expenseService.createExpenseNoteWithFiles(
                     note, lines, accordFileName, factureFileNames, accordFile,
-                    displayCurrency, exchangeRate   // <-- pass the parameters
+                    displayCurrency, exchangeRate
             );
 
             List<ExpenseLine> savedLines = expenseService.getLines(savedNote.getId());
@@ -109,6 +108,7 @@ public class ExpenseController {
                     .body(Map.of("message", e.getMessage()));
         }
     }
+
     // =========================
     // UPLOAD NOTE + FICHIERS (ACCORD + FACTURES) - ANCIEN ENDPOINT (gardé pour compatibilité)
     // =========================
@@ -263,14 +263,10 @@ public class ExpenseController {
     // ========== ENDPOINTS GET AVEC NOUVEAUX CHAMPS ==========
 
     @GetMapping("/employee/{employeeId}")
-    public ResponseEntity<List<Map<String, Object>>> getNotesByEmployee(
-            @PathVariable String employeeId) {
-
+    public ResponseEntity<List<Map<String, Object>>> getNotesByEmployee(@PathVariable String employeeId) {
         List<ExpenseNote> notes = expenseService.getNotesByEmployee(employeeId);
-
         List<Map<String, Object>> response = notes.stream().map(note -> {
             Map<String, Object> map = new HashMap<>();
-
             map.put("id", note.getId());
             map.put("employeeId", note.getEmployeeId());
             map.put("projectId", note.getProjectId());
@@ -279,21 +275,20 @@ public class ExpenseController {
             map.put("status", note.getStatus());
             map.put("accordPath", note.getAccordPath());
             map.put("noteDescription", note.getNoteDescription());
-            // ✅ NOUVEAUX CHAMPS
             map.put("decisionComment", note.getDecisionComment());
             map.put("decidedBy", note.getDecidedBy());
             map.put("decidedAt", note.getDecidedAt());
             map.put("managerId", note.getManagerId());
+            // ⭐ AJOUTER LE MONTANT REMBOURSÉ
+            map.put("reimbursedAmount", note.getReimbursedAmount() != null ? note.getReimbursedAmount() : 0.0);
 
             projectService.getProjectById(note.getProjectId())
                     .ifPresentOrElse(
                             project -> map.put("projectName", project.getName()),
                             () -> map.put("projectName", "Projet inconnu")
                     );
-
             return map;
-        }).toList();
-
+        }).collect(Collectors.toList());
         return ResponseEntity.ok(response);
     }
 
@@ -317,22 +312,20 @@ public class ExpenseController {
             map.put("totalAmount", note.getTotalAmount());
             map.put("status", note.getStatus());
             map.put("accordPath", note.getAccordPath());
-
             map.put("decisionComment", note.getDecisionComment());
             map.put("decidedBy", note.getDecidedBy());
             map.put("decidedAt", note.getDecidedAt());
             map.put("managerId", note.getManagerId());
-
+            // ⭐ AJOUTER LE MONTANT REMBOURSÉ
+            map.put("reimbursedAmount", note.getReimbursedAmount() != null ? note.getReimbursedAmount() : 0.0);
             return map;
-        }).toList();
+        }).collect(Collectors.toList());
 
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/department/{departmentId}")
-    public ResponseEntity<List<Map<String, Object>>> getNotesByDepartment(
-            @PathVariable Long departmentId) {
-
+    public ResponseEntity<List<Map<String, Object>>> getNotesByDepartment(@PathVariable Long departmentId) {
         try {
             List<ExpenseNote> notes = expenseService.getNotesByDepartment(departmentId);
 
@@ -345,23 +338,22 @@ public class ExpenseController {
                 map.put("totalAmount", note.getTotalAmount());
                 map.put("status", note.getStatus());
                 map.put("accordPath", note.getAccordPath());
-
                 map.put("decisionComment", note.getDecisionComment());
                 map.put("decidedBy", note.getDecidedBy());
                 map.put("decidedAt", note.getDecidedAt());
                 map.put("managerId", note.getManagerId());
+                // ⭐ AJOUTER LE MONTANT REMBOURSÉ
+                map.put("reimbursedAmount", note.getReimbursedAmount() != null ? note.getReimbursedAmount() : 0.0);
 
                 projectService.getProjectById(note.getProjectId())
                         .ifPresentOrElse(
                                 project -> map.put("projectName", project.getName()),
                                 () -> map.put("projectName", "Projet inconnu")
                         );
-
                 return map;
             }).collect(Collectors.toList());
 
             return ResponseEntity.ok(response);
-
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.internalServerError().build();
@@ -394,8 +386,6 @@ public class ExpenseController {
                 noteId, comment, managerId, managerName, displayCurrency, exchangeRate));
     }
 
-    // ========== NOUVEAUX ENDPOINTS POUR ADMIN ==========
-
     // ========== NOUVEAUX ENDPOINTS POUR ADMIN (MODIFIED) ==========
 
     @PutMapping("/admin/reject/{noteId}")
@@ -415,6 +405,7 @@ public class ExpenseController {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
+
     @PutMapping("/admin/reimburse/{noteId}")
     public ResponseEntity<?> adminReimburse(
             @PathVariable Long noteId,

@@ -239,6 +239,7 @@ public class ReimbursementService {
         // Mettre à jour le statut de la note
         ExpenseNote note = order.getExpenseNote();
         note.setStatus(ExpenseStatus.REMBOURSEE);
+        note.setReimbursedAmount(order.getTotalAmountOriginalTND());   // ou order.getTotalAmount() si stocké en TND
         expenseNoteRepository.save(note);
 
         PaymentOrder savedOrder = paymentOrderRepository.save(order);
@@ -350,4 +351,14 @@ public class ReimbursementService {
     public List<PaymentOrder> getPaymentOrdersByStatus(PaymentOrderStatus status) {
         return paymentOrderRepository.findByStatus(status);
     }
+    // Dans ReimbursementService.java
+    public Double getTotalReimbursedForNote(Long expenseNoteId) {
+        Optional<PaymentOrder> optionalOrder = paymentOrderRepository.findByExpenseNoteId(expenseNoteId);
+        if (optionalOrder.isPresent() && optionalOrder.get().getStatus() == PaymentOrderStatus.PAYE) {
+            return optionalOrder.get().getTotalAmountOriginalTND() != null
+                    ? optionalOrder.get().getTotalAmountOriginalTND() : 0.0;
+        }
+        return 0.0;
+    }
+
 }

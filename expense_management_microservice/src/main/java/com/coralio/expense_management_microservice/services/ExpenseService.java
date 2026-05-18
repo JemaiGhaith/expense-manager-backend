@@ -60,6 +60,7 @@ public class ExpenseService {
     private final ExpenseNoteExtractionRepository noteExtractionRepository;
     private final CurrencyService currencyService;
     private final ExpenseNoteInternalHistoryRepository internalHistoryRepository;
+    private final ReimbursementService reimbursementService;
 
     @Value("${file.upload-dir:./uploads}")
     private String uploadsDir;
@@ -77,7 +78,8 @@ public class ExpenseService {
             ExpenseExtractionRepository extractionRepository,
             ExpenseNoteExtractionRepository noteExtractionRepository,
             CurrencyService currencyService,
-            ExpenseNoteInternalHistoryRepository internalHistoryRepository) {
+            ExpenseNoteInternalHistoryRepository internalHistoryRepository,
+            ReimbursementService reimbursementService) {
         this.noteRepository = noteRepository;
         this.lineRepository = lineRepository;
         this.migrationService = migrationService;
@@ -90,6 +92,7 @@ public class ExpenseService {
         this.noteExtractionRepository = noteExtractionRepository;
         this.currencyService = currencyService;
         this.internalHistoryRepository = internalHistoryRepository;
+        this.reimbursementService = reimbursementService;
     }
 
     // ========== CREATE METHODS (merged: currency + FAISS indexing) ==========
@@ -500,7 +503,7 @@ public class ExpenseService {
 
         return savedNote;
     }
-
+/*
     @Transactional
     public ExpenseNote adminReimburseNote(Long noteId, String comment) {
         ExpenseNote note = noteRepository.findById(noteId)
@@ -523,7 +526,7 @@ public class ExpenseService {
                 "EXP-" + note.getId(), note.getTotalAmount(), note.getId(), "Admin");
         return savedNote;
     }
-
+*/
     // Legacy validate/refuse (simple)
     @Transactional
     public ExpenseNote validateNote(Long noteId) {
@@ -1340,5 +1343,45 @@ public class ExpenseService {
             }
         }
         return null;
+    }
+    @Transactional
+    public ExpenseNote adminReimburseNote(Long noteId, String comment) {
+        // 1. Récupérer la note
+        ExpenseNote note = noteRepository.findById(noteId)
+                .orElseThrow(() -> new RuntimeException("Note not found with ID: " + noteId));
+
+        // 2. Vérifier que la note est validée
+        if (note.getStatus() != ExpenseStatus.VALIDEE) {
+            throw new IllegalStateException("Seules les notes validées peuvent être remboursées");
+        }
+
+        // 3. Calculer le montant réellement remboursé (en TND)
+        //    Soit la somme des montants remboursés des lignes via ReimbursementService
+        Double totalReimbursed = reimbursementService.getTotalReimbursedForNote(noteId);
+        if (totalReimbursed == null) {
+            // Fallback : remboursement total de la note
+            totalReimbursed = note.getTotalAmount() != null ? note.getTotalAmount() : 0.0;
+        }
+
+        // 4. Mettre à jour les champs de la note
+        note.setReimbursedAmount(totalReimbursed);
+        note.setStatus(ExpenseStatus.REMBOURSEE);
+        if (comment != null && !comment.trim().isEmpty()) {
+            note.setDecisionComment(comment);
+        }
+        note.setDecidedBy("Admin");
+        note.setDecidedAt(LocalDateTime.now());
+        note.setUpdatedAt(LocalDateTime.now());
+
+        // 5. Sauvegarder
+        ExpenseNote savedNote = noteRepository.save(note);
+
+        // 6. Notification (existe déjà)
+        String employeeEmail = getEmployeeEmail(note.getEmployeeId());
+        notificationClient.notifyExpenseReimbursed(
+                UUID.fromString(note.getEmployeeId()), employeeEmail,
+                "EXP-" + note.getId(), note.getTotalAmount(), note.getId(), "Admin");
+
+        return savedNote;
     }
 }
