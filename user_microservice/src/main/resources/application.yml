@@ -1,6 +1,6 @@
 spring:
   security:
-      enabled: false  # ⭐ Désactiver la sécurité pour les test
+    enabled: false  # ⭐ Désactiver la sécurité pour les test
   mail:
     host: smtp.gmail.com
     port: 587

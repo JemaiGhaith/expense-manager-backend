@@ -21,7 +21,7 @@ public class OCRService {
             convertedImg.getGraphics().drawImage(image, 0, 0, null);
 
             Tesseract tesseract = new Tesseract();
-            tesseract.setDatapath("C:\\Program Files\\tessdata"); // chemin vers ton dossier tessdata
+            tesseract.setDatapath(tessDataPath); // chemin vers ton dossier tessdata
             tesseract.setLanguage("eng");
 
             return tesseract.doOCR(convertedImg);
@@ -36,6 +36,7 @@ import net.sourceforge.tess4j.Tesseract;
 import org.apache.tika.Tika;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.PDFRenderer;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -44,7 +45,8 @@ import java.awt.image.BufferedImage;
 
 @Service
 public class OCRService {
-
+    @Value("${tesseract.datapath:/usr/share/tesseract-ocr/5/tessdata}")
+    private String tessDataPath;
     public String extractText(MultipartFile file) {
 
         try {
@@ -57,7 +59,7 @@ public class OCRService {
                 BufferedImage image = ImageIO.read(file.getInputStream());
 
                 Tesseract tesseract = new Tesseract();
-                tesseract.setDatapath("C:\\Program Files\\tessdata"); // dossier contenant .traineddata
+                tesseract.setDatapath(tessDataPath); // dossier contenant .traineddata
 
                 return tesseract.doOCR(image);
             }
@@ -71,7 +73,7 @@ public class OCRService {
                 StringBuilder text = new StringBuilder();
 
                 Tesseract tesseract = new Tesseract();
-                tesseract.setDatapath("C:\\Program Files\\tessdata"); // dossier contenant .traineddata
+                tesseract.setDatapath(tessDataPath); // dossier contenant .traineddata
                 tesseract.setLanguage("eng+fra+ara");
 
                 for (int i = 0; i < document.getNumberOfPages(); i++) {

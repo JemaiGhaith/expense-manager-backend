@@ -1,0 +1,37 @@
+# AI Services URLs
+ai:
+  anomaly:
+    url: ${AI_ANOMALY_URL:http://localhost:9000/detect-anomaly-ai}
+  accord:
+    analyze:
+      url: ${AI_ACCORD_ANALYZE_URL:http://localhost:9000/analyze-for-accord}
+  faiss:
+    add:
+      url: ${AI_FAISS_ADD_URL:http://localhost:9000/add-to-index}
+      accord:
+        url: ${AI_FAISS_ADD_ACCORD_URL:http://localhost:9000/add-accord-to-index}
+  full:
+    analysis:
+      url: ${AI_FULL_ANALYSIS_URL:http://localhost:8000/analyze-full}
+  validate:
+    from:
+      json:
+        url: ${AI_VALIDATE_FROM_JSON_URL:http://localhost:8085/api/ai/validate-from-json}
+  check:
+    duplicate:
+      url: ${AI_CHECK_DUPLICATE_URL:http://localhost:8085/api/ai/check-duplicate-from-text}
+
+# Other services (gateway, user, project)
+gateway:
+  url: ${GATEWAY_URL:http://localhost:8888}
+user:
+  service:
+    url: ${USER_SERVICE_URL:http://localhost:8083}
+project:
+  service:
+    url: ${PROJECT_SERVICE_URL:http://localhost:8082}
+
+# OCR Tesseract data path
+ocr:
+  tesseract:
+    datapath: ${OCR_TESSERACT_DATAPATH:/usr/share/tesseract-ocr/4.00/tessdata}

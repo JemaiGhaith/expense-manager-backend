@@ -29,7 +29,7 @@ public class NotificationClient {
     private boolean notificationEnabled;
 
     /**
-     * Send notification when expense is created
+     * Send notification when expense is created (version simple sans devise)
      */
     public void notifyExpenseCreated(UUID employeeId, String employeeEmail,
                                      String expenseReference, Double amount, Long expenseId) {
@@ -45,20 +45,17 @@ public class NotificationClient {
                 employeeId,
                 employeeEmail,
                 "EXPENSE_CREATED",
-                "📝 Expense Created",
-                "Your expense " + expenseReference + " has been created successfully",
+                "📝 Note de frais créée",
+                "Votre note de frais " + expenseReference + " a été créée avec succès",
                 data,
                 "NORMAL",
                 expenseId,
-                false  // Don't send email for creation
+                false  // Ne pas envoyer d'email pour la création
         );
     }
 
     /**
-     * Send notification when expense is approved
-     */
-    /**
-     * Overloaded version of notifyExpenseApproved that accepts converted amount and target currency.
+     * Send notification when expense is approved (avec devise)
      */
     public void notifyExpenseApproved(UUID employeeId, String employeeEmail,
                                       String expenseReference, Double originalAmountTND,
@@ -77,16 +74,16 @@ public class NotificationClient {
         data.put("detailsUrl", "/expenses/" + expenseId);
 
         String formattedAmount = String.format("%.2f %s", convertedAmount, targetCurrency);
-        String message = "Your expense " + expenseReference + " has been approved by " +
-                approverName + " for " + formattedAmount;
-
+        String message = "Votre note " + expenseReference + " a été approuvée par " + approverName +
+                " pour un montant de " + formattedAmount;
+        String title = "✅ Note approuvée";
         sendNotification(employeeId, employeeEmail, "EXPENSE_APPROVED",
-                "✅ Expense Approved", message, data,
+                title, message, data,
                 "HIGH", expenseId, true);
     }
 
     /**
-     * Overloaded version of notifyExpenseRejected that accepts converted amount and target currency.
+     * Send notification when expense is rejected (avec devise)
      */
     public void notifyExpenseRejected(UUID employeeId, String employeeEmail,
                                       String expenseReference, Double originalAmountTND,
@@ -105,16 +102,17 @@ public class NotificationClient {
         data.put("detailsUrl", "/expenses/" + expenseId);
 
         String formattedAmount = String.format("%.2f %s", convertedAmount, targetCurrency);
-        String message = "Your expense " + expenseReference + " has been rejected by " +
-                rejectorName + (reason != null ? ": " + reason : "");
+        String message = "Votre note " + expenseReference + " a été rejetée par " + rejectorName +
+                (reason != null ? " : " + reason : "");
+        String title = "❌ Note rejetée";
 
         sendNotification(employeeId, employeeEmail, "EXPENSE_REJECTED",
-                "❌ Expense Rejected", message, data,
+                title, message, data,
                 "HIGH", expenseId, true);
     }
 
     /**
-     * Send notification when expense is reimbursed
+     * Send notification when expense is reimbursed (version simple, sans devise)
      */
     public void notifyExpenseReimbursed(UUID employeeId, String employeeEmail,
                                         String expenseReference, Double amount,
@@ -132,10 +130,10 @@ public class NotificationClient {
                 employeeId,
                 employeeEmail,
                 "EXPENSE_REIMBURSED",
-                "💰 Expense Reimbursed",
-                "Your expense " + expenseReference + " has been reimbursed for " + amount + " €",
+                "💰 Note remboursée",
+                "Votre note " + expenseReference + " a été remboursée pour " + amount + " €",
                 data,
-                "NORMAL",  // Normal priority for reimbursements
+                "NORMAL",
                 expenseId,
                 true
         );
@@ -160,8 +158,8 @@ public class NotificationClient {
                 employeeId,
                 employeeEmail,
                 "DOCUMENTS_MISSING",
-                "📄 Documents Missing",
-                "Your expense " + expenseReference + " requires " + missingCount + " document(s). Please upload within " + deadlineHours + " hours.",
+                "📄 Documents manquants",
+                "Votre note " + expenseReference + " nécessite " + missingCount + " document(s). Veuillez les télécharger dans les " + deadlineHours + " heures.",
                 data,
                 "HIGH",
                 expenseId,
@@ -170,7 +168,7 @@ public class NotificationClient {
     }
 
     /**
-     * Send notification to manager about pending approvals
+     * Send notification to manager about pending approvals (list)
      */
     public void notifyManagerPendingApprovals(UUID managerId, String managerEmail,
                                               int pendingCount, String employeeName) {
@@ -185,8 +183,8 @@ public class NotificationClient {
                 managerId,
                 managerEmail,
                 "EXPENSE_PENDING",
-                "⏳ Pending Approval",
-                employeeName + " has " + pendingCount + " expense(s) waiting for your approval",
+                "⏳ Approbation en attente",
+                employeeName + " a " + pendingCount + " note(s) de frais en attente de votre approbation",
                 data,
                 "NORMAL",
                 null,
@@ -222,22 +220,20 @@ public class NotificationClient {
             HttpEntity<NotificationRequestDTO> entity = new HttpEntity<>(request, headers);
 
             String url = notificationServiceUrl + "/api/notifications";
-            log.info("📤 Sending notification: {} for user: {}", type, userId);
+            log.info("📤 Envoi notification : {} pour utilisateur : {}", type, userId);
 
             restTemplate.postForEntity(url, entity, Void.class);
-            log.info("✅ Notification sent successfully");
+            log.info("✅ Notification envoyée avec succès");
 
         } catch (Exception e) {
-            log.error("❌ Failed to send notification: {}", e.getMessage());
-            // Don't throw - notification failure shouldn't break expense operation
+            log.error("❌ Échec d'envoi de la notification : {}", e.getMessage());
+            // Ne pas interrompre le flux principal
         }
     }
-    // Dans NotificationClient.java - ajoutez ces méthodes:
 
     /**
      * Send notification to manager when a new expense is pending approval
      */
-    // NotificationClient.java - CORRIGER LES TYPES
     public void notifyManagerPendingApproval(UUID managerId, String managerEmail,
                                              String employeeName, String expenseReference,
                                              Double originalAmountTND,
@@ -287,7 +283,7 @@ public class NotificationClient {
         sendNotification(
                 managerId,
                 managerEmail,
-                "SYSTEM_ALERT",  // ✅ Changé de "CATEGORY_LIMIT_EXCEEDED" à "SYSTEM_ALERT"
+                "SYSTEM_ALERT",
                 "⚠️ Dépassement de plafond",
                 employeeName + " a dépassé le plafond de la catégorie '" + categoryName +
                         "' : " + amount + " € (plafond: " + limit + " €)",
@@ -301,7 +297,7 @@ public class NotificationClient {
     public void notifyBudgetLimitExceeded(UUID managerId, String managerEmail,
                                           String projectName, String employeeName,
                                           Double amount, Double remainingBudget, Long expenseId,
-                                          String alertType) {  // "NOTE_EXCESSIVE" ou "BUDGET_OVERUN"
+                                          String alertType) {
         if (!notificationEnabled) return;
 
         Map<String, Object> data = new HashMap<>();
@@ -337,6 +333,7 @@ public class NotificationClient {
                 false
         );
     }
+
     /**
      * Send notification to admin when notes are ready for reimbursement
      */
@@ -363,12 +360,6 @@ public class NotificationClient {
                 true
         );
     }
-    // Ajoutez ces méthodes dans NotificationClient.java
-
-    /**
-     * Send notification to admin when expense is validated by manager
-     */
-    // Dans NotificationClient.java
 
     /**
      * Send notification to admin when expense is validated by manager
@@ -409,7 +400,6 @@ public class NotificationClient {
 
     /**
      * Send notification to admin when expense has budget overrun
-     * Utilise BUDGET_LIMIT_EXCEEDED existant
      */
     public void notifyAdminBudgetOverrun(UUID adminId, String adminEmail,
                                          String projectName, String employeeName,
@@ -428,7 +418,7 @@ public class NotificationClient {
         sendNotification(
                 adminId,
                 adminEmail,
-                "BUDGET_LIMIT_EXCEEDED",  // ✅ Type existant
+                "BUDGET_LIMIT_EXCEEDED",
                 "⚠️ Dépassement de budget projet",
                 "Budget dépassé sur projet '" + projectName + "' : " + employeeName + " - " + amount + " € (budget: " + budget + " €)",
                 data,
@@ -440,7 +430,6 @@ public class NotificationClient {
 
     /**
      * Send notification to admin when expense has category limit overrun
-     * Utilise CATEGORY_LIMIT_EXCEEDED existant
      */
     public void notifyAdminCategoryLimitOverrun(UUID adminId, String adminEmail,
                                                 String categoryName, String employeeName,
@@ -459,7 +448,7 @@ public class NotificationClient {
         sendNotification(
                 adminId,
                 adminEmail,
-                "CATEGORY_LIMIT_EXCEEDED",  // ✅ Type existant
+                "CATEGORY_LIMIT_EXCEEDED",
                 "⚠️ Dépassement de plafond catégorie",
                 "Plafond dépassé pour la catégorie '" + categoryName + "' : " + employeeName + " - " + amount + " € (plafond: " + limit + " €)",
                 data,
@@ -468,6 +457,7 @@ public class NotificationClient {
                 false
         );
     }
+
     /**
      * Send notification to admin when expense is rejected by manager
      */
@@ -489,7 +479,7 @@ public class NotificationClient {
         sendNotification(
                 adminId,
                 adminEmail,
-                "EXPENSE_REJECTED",  // Utilise le type existant
+                "EXPENSE_REJECTED",
                 "❌ Note refusée par manager",
                 employeeName + " - Note " + expenseReference + " a été refusée par " + managerName +
                         (reason != null && !reason.isEmpty() ? " : " + reason : ""),
@@ -499,7 +489,10 @@ public class NotificationClient {
                 true
         );
     }
-    // Replace the existing notifyExpenseValidatedByAdmin with this:
+
+    /**
+     * Send notification to employee when expense is validated by admin
+     */
     public void notifyExpenseValidatedByAdmin(UUID employeeId, String employeeEmail,
                                               String expenseReference, Double originalAmountTND,
                                               Double convertedAmount, String targetCurrency,
@@ -515,9 +508,8 @@ public class NotificationClient {
         data.put("detailsUrl", "/expenses/" + expenseId);
 
         String formattedAmount = String.format("%.2f %s", convertedAmount, targetCurrency);
-        String message = "Your expense " + expenseReference + " has been validated by the administrator. " +
-                "Amount: " + formattedAmount + ". Payment will be processed later.";
-        String title = "✅ Expense validated by admin";
+        String message = "Votre note " + expenseReference + " a été validée par l'administrateur. Montant : " + formattedAmount + ". Le paiement sera effectué ultérieurement.";
+        String title = "✅ Note validée par l'administrateur";
 
         sendNotification(
                 employeeId,
@@ -532,7 +524,9 @@ public class NotificationClient {
         );
     }
 
-    // Replace the existing notifyExpenseReimbursed with this:
+    /**
+     * Send notification when expense is reimbursed (avec devise)
+     */
     public void notifyExpenseReimbursed(UUID employeeId, String employeeEmail,
                                         String expenseReference, Double originalAmountTND,
                                         Double convertedAmount, String targetCurrency,
@@ -549,8 +543,8 @@ public class NotificationClient {
         data.put("detailsUrl", "/expenses/" + expenseId);
 
         String formattedAmount = String.format("%.2f %s", convertedAmount, targetCurrency);
-        String message = "Your expense " + expenseReference + " has been reimbursed. Amount: " + formattedAmount;
-        String title = "💰 Expense Reimbursed";
+        String message = "Votre note " + expenseReference + " a été remboursée. Montant : " + formattedAmount;
+        String title = "💰 Note remboursée";
 
         sendNotification(
                 employeeId,
@@ -564,6 +558,7 @@ public class NotificationClient {
                 true
         );
     }
+
     /**
      * Overloaded version of notifyExpenseCreated that accepts converted amount and target currency.
      */
@@ -582,8 +577,8 @@ public class NotificationClient {
         data.put("detailsUrl", "/expenses/" + expenseId);
 
         String formattedAmount = String.format("%.2f %s", convertedAmount, targetCurrency);
-        String message = "Your expense " + expenseReference + " has been created successfully. Amount: " + formattedAmount;
-        String title = "📝 Expense Created";
+        String message = "Votre note de frais " + expenseReference + " a été créée avec succès. Montant : " + formattedAmount;
+        String title = "📝 Note de frais créée";
 
         sendNotification(employeeId, employeeEmail, "EXPENSE_CREATED", title, message,
                 data, "NORMAL", expenseId, true);
@@ -626,5 +621,51 @@ public class NotificationClient {
 
         sendNotification(managerId, managerEmail, "BUDGET_LIMIT_EXCEEDED", title, message,
                 data, "CRITICAL", expenseId, true);
+    }
+    // Dans NotificationClient.java
+    public void notifyInternalNoteAdded(UUID recipientId, String recipientEmail,
+                                        String authorName, String authorRole,
+                                        String expenseReference, String content,
+                                        Long expenseId) {
+        if (!notificationEnabled) return;
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("expenseId", expenseId);
+        data.put("expenseReference", expenseReference);
+        data.put("authorName", authorName);
+        data.put("authorRole", authorRole);
+        data.put("content", content);
+        data.put("detailsUrl", "/expenses/" + expenseId);
+
+        String title, message;
+        if ("MANAGER".equalsIgnoreCase(authorRole)) {
+            title = "📝 Nouvelle note interne d'un manager";
+            message = authorName + " (manager) a ajouté une note interne sur la note " + expenseReference;
+        } else if ("ADMIN".equalsIgnoreCase(authorRole)) {
+            title = "📝 Nouvelle note interne d'un administrateur";
+            message = authorName + " (admin) a ajouté une note interne sur la note " + expenseReference;
+        } else {
+            title = "📝 Nouvelle note interne";
+            message = authorName + " a ajouté une note sur " + expenseReference;
+        }
+
+        // Optionnel : ajouter un extrait du contenu
+        if (content != null && content.length() > 100) {
+            message += " : " + content.substring(0, 100) + "...";
+        } else if (content != null) {
+            message += " : " + content;
+        }
+
+        sendNotification(
+                recipientId,
+                recipientEmail,
+                "INTERNAL_NOTE_ADDED",
+                title,
+                message,
+                data,
+                "NORMAL",   // priorité normale
+                expenseId,
+                false       // pas d'email
+        );
     }
 }

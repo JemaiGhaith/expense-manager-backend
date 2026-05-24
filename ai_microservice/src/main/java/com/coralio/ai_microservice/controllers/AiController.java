@@ -3,7 +3,9 @@ package com.coralio.ai_microservice.controllers;
 import com.coralio.ai_microservice.model.DuplicateResult;
 import com.coralio.ai_microservice.services.DuplicateDetectionService;
 import com.coralio.ai_microservice.services.PythonAnalyzeService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.*;
 import org.springframework.util.LinkedMultiValueMap;
@@ -11,7 +13,7 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
-import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.util.Map;
 
 @RestController
@@ -22,12 +24,22 @@ public class AiController {
     private DuplicateDetectionService service;
 
     @Autowired
-    private PythonAnalyzeService pythonAnalyzeService;  // calls port 8000
+    private PythonAnalyzeService pythonAnalyzeService;
 
     @Autowired
     private ObjectMapper objectMapper;
 
-    // ========== YOUR ADVANCED ENDPOINTS (use port 9000) ==========
+    // Injected URLs – no hardcoded localhost
+    @Value("${python.compare-accord.url}")
+    private String compareAccordUrl;
+
+    @Value("${python.analyze-full.url}")
+    private String analyzeFullUrl;
+
+    @Value("${python.check-accord-duplicate.url}")
+    private String checkAccordDuplicateUrl;
+
+    // ========== ADVANCED ENDPOINTS (use port 9000) ==========
     @PostMapping("/check-duplicate")
     public DuplicateResult check(@RequestParam MultipartFile file,
                                  @RequestParam(value = "employeeId", required = false) String employeeId) throws Exception {
@@ -61,7 +73,7 @@ public class AiController {
         return service.checkDuplicateFromText(payload.get("ocrText"), employeeId, payload.get("filepath"), payload.get("excludePath"));
     }
 
-    // ========== ACCORD ENDPOINTS (use port 8000) ==========
+    // ========== ACCORD ENDPOINTS (use configurable URLs) ==========
     @PostMapping("/analyze-accord")
     public ResponseEntity<?> analyzeAccord(@RequestParam MultipartFile file) {
         try {
@@ -76,7 +88,6 @@ public class AiController {
     public ResponseEntity<?> compareAccordForm(@RequestParam("file") MultipartFile file,
                                                @RequestParam("formData") String formDataJson) {
         try {
-            String pythonUrl = "http://localhost:8000/compare-accord-form";
             RestTemplate rest = new RestTemplate();
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
             body.add("file", new ByteArrayResource(file.getBytes()) {
@@ -86,7 +97,7 @@ public class AiController {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
             HttpEntity<MultiValueMap<String, Object>> request = new HttpEntity<>(body, headers);
-            String response = rest.postForObject(pythonUrl, request, String.class);
+            String response = rest.postForObject(compareAccordUrl, request, String.class);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", e.getMessage()));
@@ -97,7 +108,6 @@ public class AiController {
     public ResponseEntity<?> analyzeFull(@RequestParam("file") MultipartFile file,
                                          @RequestParam("form_data") String formDataJson) {
         try {
-            String pythonUrl = "http://localhost:8000/analyze-full";
             RestTemplate rest = new RestTemplate();
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
             body.add("file", new ByteArrayResource(file.getBytes()) {
@@ -107,45 +117,37 @@ public class AiController {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
             HttpEntity<MultiValueMap<String, Object>> request = new HttpEntity<>(body, headers);
-            String pythonResponse = rest.postForObject(pythonUrl, request, String.class);
+            String pythonResponse = rest.postForObject(analyzeFullUrl, request, String.class);
             return ResponseEntity.ok(pythonResponse);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", e.getMessage()));
         }
     }
 
-
-
     // ============================================================
-// NOUVEAU — Check doublon spécifique accord
-// ============================================================
+    // NOUVEAU — Check doublon spécifique accord
+    // ============================================================
     @PostMapping(value = "/check-accord-duplicate", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<?> checkAccordDuplicate(
-            @RequestPart("file") MultipartFile file) {
+    public ResponseEntity<?> checkAccordDuplicate(@RequestPart("file") MultipartFile file) {
         try {
-            org.springframework.core.io.ByteArrayResource resource =
-                    new org.springframework.core.io.ByteArrayResource(file.getBytes()) {
-                        @Override public String getFilename() { return file.getOriginalFilename(); }
-                    };
+            ByteArrayResource resource = new ByteArrayResource(file.getBytes()) {
+                @Override public String getFilename() { return file.getOriginalFilename(); }
+            };
 
-            org.springframework.util.MultiValueMap<String, Object> body =
-                    new org.springframework.util.LinkedMultiValueMap<>();
+            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
             body.add("file", resource);
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
 
-            HttpEntity<org.springframework.util.MultiValueMap<String, Object>> request =
-                    new HttpEntity<>(body, headers);
+            HttpEntity<MultiValueMap<String, Object>> request = new HttpEntity<>(body, headers);
 
             RestTemplate rt = new RestTemplate();
-            Map<?, ?> result = rt.postForObject(
-                    "http://localhost:9000/check-duplicate-accord", request, Map.class);
+            Map<?, ?> result = rt.postForObject(checkAccordDuplicateUrl, request, Map.class);
 
             return ResponseEntity.ok(result);
         } catch (Exception e) {
-            return ResponseEntity.ok(
-                    Map.of("duplicate", false, "isDuplicate", false, "score", 0));
+            return ResponseEntity.ok(Map.of("duplicate", false, "isDuplicate", false, "score", 0));
         }
     }
 }

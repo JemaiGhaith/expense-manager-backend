@@ -1,24 +1,15 @@
-# src/main/resources/application.yml
 spring:
   application:
     name: notification-microservice
-
-  # Disable security for now (like your expense service)
   security:
     enabled: false
-
-  # Config Server (optional)
   config:
     import: optional:configserver:${CONFIG_SERVICE_URL:http://localhost:9999}
-
-  # Database Configuration
   datasource:
-    url: jdbc:postgresql://localhost:5432/notification_db
-    username: postgres
-    password: 112004
+    url: jdbc:postgresql://${DB_HOST:localhost}:5432/${DB_NAME:notification_db}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:112004}
     driver-class-name: org.postgresql.Driver
-
-  # JPA Configuration
   jpa:
     hibernate:
       ddl-auto: update
@@ -28,13 +19,11 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         jdbc:
           time_zone: UTC
-
-  # Mail Configuration (using your actual Gmail credentials)
   mail:
     host: smtp.gmail.com
     port: 587
-    username: datalake.rh@gmail.com
-    password: yshwctetiasbkntj
+    username: ${MAIL_USERNAME:datalake.rh@gmail.com}
+    password: ${MAIL_PASSWORD:yshwctetiasbkntj}
     properties:
       mail:
         smtp:
@@ -42,48 +31,37 @@ spring:
           starttls:
             enable: true
             required: true
-          connectiontimeout: 30000  # Increased from 5000 to 30000
-          timeout: 30000            # Increased from 5000 to 30000
-          writetimeout: 30000       # Increased from 5000 to 30000
+          connectiontimeout: 30000
+          timeout: 30000
+          writetimeout: 30000
     test-connection: false
     default-encoding: UTF-8
-
-  # Thymeleaf for email templates
   thymeleaf:
     prefix: classpath:/templates/
     suffix: .html
     cache: false
     encoding: UTF-8
     mode: HTML
-
-  # Servlet Multipart
   servlet:
     multipart:
       enabled: true
       max-file-size: 10MB
       max-request-size: 10MB
 
-# Server Configuration
 server:
-  port: 8087  # Notification service port
-  servlet:
-    context-path: /
+  port: 8087
 
-# Eureka Configuration
 eureka:
   client:
     register-with-eureka: true
     fetch-registry: true
     service-url:
-      defaultZone: http://localhost:8761/eureka/
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka}
   instance:
     prefer-ip-address: true
-    hostname: localhost
+    hostname: ${EUREKA_HOSTNAME:localhost}
     instance-id: ${spring.application.name}:${spring.application.instance_id:${random.value}}
-    lease-renewal-interval-in-seconds: 30
-    lease-expiration-duration-in-seconds: 90
 
-# Management endpoints
 management:
   endpoints:
     web:
@@ -93,18 +71,14 @@ management:
     health:
       show-details: always
 
-# Application specific
 app:
-  frontend-url: http://localhost:4200
+  frontend-url: ${FRONTEND_URL:http://localhost:4200}
   service-key: ${NOTIFICATION_SERVICE_KEY:notification-service-secret-key-2024}
-  company-name: Coral-io
-  support-email: support@coral-io.com
+  company-name: ${COMPANY_NAME:Coral-io}
+  support-email: ${SUPPORT_EMAIL:support@coral-io.com}
 
-# Logging
 logging:
   level:
     com.coralio.notification: DEBUG
     org.springframework.web: INFO
     org.springframework.mail: DEBUG
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE

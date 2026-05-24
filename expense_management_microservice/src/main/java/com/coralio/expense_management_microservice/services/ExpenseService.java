@@ -64,7 +64,29 @@ public class ExpenseService {
 
     @Value("${file.upload-dir:./uploads}")
     private String uploadsDir;
+    @Value("${ai.anomaly.url:http://localhost:9000/detect-anomaly-ai}")
+    private String anomalyUrl;
 
+    @Value("${ai.accord.analyze.url:http://localhost:9000/analyze-for-accord}")
+    private String accordAnalyzeUrl;
+
+    @Value("${ai.faiss.add.accord.url:http://localhost:9000/add-accord-to-index}")
+    private String faissAddAccordUrl;
+
+    @Value("${ai.full.analysis.url:http://localhost:8000/analyze-full}")
+    private String fullAnalysisUrl;
+
+    @Value("${project.service.url:http://localhost:8082}")
+    private String projectServiceUrl;
+
+    @Value("${user.service.url:http://localhost:8083}")
+    private String userServiceUrl;
+
+    @Value("${gateway.url:http://localhost:8888}")
+    private String gatewayUrl;
+
+    @Value("${ai.faiss.add.url:http://localhost:9000/add-to-index}")
+    private String faissAddUrl;
     // Constructor (merged)
     public ExpenseService(
             ExpenseNoteRepository noteRepository,
@@ -143,7 +165,7 @@ public class ExpenseService {
             // Détection d'anomalie IA
             try {
                 Map<String, Object> result = restTemplate.postForObject(
-                        "http://localhost:9000/detect-anomaly-ai",
+                        anomalyUrl,
                         Map.of(
                                 "employeeId", note.getEmployeeId(),
                                 "amount", line.getAmount(),
@@ -189,7 +211,7 @@ public class ExpenseService {
         if (accordFile != null && !accordFile.isEmpty()) {
             try {
                 String accordOcrText = ocrService.extractText(accordFile);
-                String analyzeUrl = "http://localhost:9000/analyze-for-accord";
+                String analyzeUrl = accordAnalyzeUrl;
                 MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
                 body.add("file", new ByteArrayResource(accordFile.getBytes()) {
                     @Override public String getFilename() { return accordFile.getOriginalFilename(); }
@@ -901,7 +923,7 @@ public class ExpenseService {
 
     private String getProjectName(Long projectId) {
         try {
-            String url = "http://localhost:8082/api/projects/" + projectId + "/name";
+            String url = projectServiceUrl + "/api/projects/" + projectId + "/name";
             return restTemplate.getForObject(url, String.class);
         } catch (Exception e) {
             return "Projet #" + projectId;
@@ -910,10 +932,10 @@ public class ExpenseService {
 
     private String getManagerIdForProjectDepartment(Long projectId) {
         try {
-            String projectUrl = "http://localhost:8082/api/projects/" + projectId + "/department";
+            String projectUrl = projectServiceUrl + "/api/projects/" + projectId + "/department";
             Long departmentId = restTemplate.getForObject(projectUrl, Long.class);
             if (departmentId == null) return null;
-            String managersUrl = "http://localhost:8083/api/users/managers";
+            String managersUrl = userServiceUrl + "/api/users/managers";
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> managers = restTemplate.getForObject(managersUrl, List.class);
             for (Map<String, Object> manager : managers) {
@@ -956,7 +978,7 @@ public class ExpenseService {
                         .filter(n -> n.getStatus() == ExpenseStatus.VALIDEE || n.getStatus() == ExpenseStatus.REMBOURSEE)
                         .filter(n -> !n.getId().equals(note.getId()))
                         .mapToDouble(ExpenseNote::getTotalAmount).sum();
-                String projectUrl = "http://localhost:8082/api/projects/public/" + note.getProjectId();
+                String projectUrl = projectServiceUrl + "/api/projects/public/" + note.getProjectId();
                 ResponseEntity<Map> projectResponse = restTemplate.getForEntity(projectUrl, Map.class);
                 Map<String, Object> project = projectResponse.getBody();
                 if (project != null) {
@@ -1025,7 +1047,7 @@ public class ExpenseService {
                 HttpHeaders headers = new HttpHeaders();
                 headers.set("X-Employee-Id", note.getEmployeeId());
                 HttpEntity<?> entity = new HttpEntity<>(headers);
-                String projectUrl = "http://localhost:8082/api/projects/" + note.getProjectId();
+                String projectUrl = projectServiceUrl + "/api/projects/" + note.getProjectId();
                 ResponseEntity<Map> projectResponse = restTemplate.exchange(projectUrl, HttpMethod.GET, entity, Map.class);
                 Map<String, Object> project = projectResponse.getBody();
                 if (project != null) {
@@ -1038,7 +1060,7 @@ public class ExpenseService {
                                 .mapToDouble(ExpenseNote::getTotalAmount).sum();
                         double remainingBudget = budget - totalExistingExpenses;
                         if (note.getTotalAmount() > remainingBudget) {
-                            String adminsUrl = "http://localhost:8083/api/users/admins";
+                            String adminsUrl = userServiceUrl + "/api/users/admins";
                             @SuppressWarnings("unchecked")
                             List<Map<String, Object>> admins = restTemplate.getForObject(adminsUrl, List.class);
                             if (admins != null) {
@@ -1083,7 +1105,7 @@ public class ExpenseService {
                     }
                     double remainingLimit = plafond - totalExistingForCategory;
                     if (line.getAmount() > remainingLimit) {
-                        String adminsUrl = "http://localhost:8083/api/users/admins";
+                        String adminsUrl = userServiceUrl + "/api/users/admins";
                         @SuppressWarnings("unchecked")
                         List<Map<String, Object>> admins = restTemplate.getForObject(adminsUrl, List.class);
                         if (admins != null) {
@@ -1110,7 +1132,7 @@ public class ExpenseService {
 
     private void notifyAdminsAboutValidatedNote(ExpenseNote note, String managerName, String targetCurrency, Double exchangeRate) {
         try {
-            String adminsUrl = "http://localhost:8083/api/users/admins";
+            String adminsUrl = userServiceUrl + "/api/users/admins";
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> admins = restTemplate.getForObject(adminsUrl, List.class);
             if (admins == null || admins.isEmpty()) return;
@@ -1138,7 +1160,7 @@ public class ExpenseService {
 
     private void notifyAdminsAboutRejectedNote(ExpenseNote note, String managerName, String reason) {
         try {
-            String adminsUrl = "http://localhost:8083/api/users/admins";
+            String adminsUrl = userServiceUrl + "/api/users/admins";
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> admins = restTemplate.getForObject(adminsUrl, List.class);
             if (admins == null || admins.isEmpty()) return;
@@ -1198,13 +1220,86 @@ public class ExpenseService {
                 .createdAt(LocalDateTime.now())
                 .build();
         try {
+            sendInternalNoteNotification(expenseNoteId, authorId, authorName, authorRole, content);
             return internalHistoryRepository.save(history);
         } catch (Exception e) {
             log.error("Error saving internal note", e);
             throw new RuntimeException("Cannot save internal note: " + e.getMessage(), e);
         }
     }
+    private void sendInternalNoteNotification(Long expenseNoteId, String authorId,
+                                              String authorName, String authorRole,
+                                              String content) {
+        try {
+            ExpenseNote note = noteRepository.findById(expenseNoteId).orElse(null);
+            if (note == null) {
+                log.warn("Impossible d'envoyer la notification : note de frais #{} introuvable", expenseNoteId);
+                return;
+            }
 
+            String expenseReference = "EXP-" + note.getId();
+
+            // Si l'auteur est un manager -> notifier tous les admins
+            if ("MANAGER".equalsIgnoreCase(authorRole)) {
+                String adminsUrl = userServiceUrl + "/api/users/admins";
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> admins = restTemplate.getForObject(adminsUrl, List.class);
+                if (admins != null && !admins.isEmpty()) {
+                    int count = 0;
+                    for (Map<String, Object> admin : admins) {
+                        String adminId = (String) admin.get("id");
+                        String adminEmail = (String) admin.get("email");
+                        if (adminId != null && adminEmail != null && !adminId.equals(authorId)) {
+                            notificationClient.notifyInternalNoteAdded(
+                                    UUID.fromString(adminId), adminEmail,
+                                    authorName, authorRole, expenseReference, content,
+                                    expenseNoteId
+                            );
+                            count++;
+                            log.info("📨 Notification interne envoyée à l'admin {} ({}) pour la note {} par le manager {}",
+                                    adminNameFromMap(admin), adminEmail, expenseReference, authorName);
+                        }
+                    }
+                    log.info("✅ {} notification(s) interne(s) envoyée(s) aux administrateurs pour la note {}", count, expenseReference);
+                } else {
+                    log.info("Aucun admin trouvé, aucune notification envoyée pour la note interne de manager sur {}", expenseReference);
+                }
+            }
+            // Si l'auteur est un admin -> notifier le manager du projet
+            else if ("ADMIN".equalsIgnoreCase(authorRole)) {
+                String managerId = getManagerIdForProjectDepartment(note.getProjectId());
+                if (managerId != null && !managerId.equals(authorId)) {
+                    String managerEmail = getEmployeeEmail(managerId);
+                    String managerName = getEmployeeName(managerId);
+                    notificationClient.notifyInternalNoteAdded(
+                            UUID.fromString(managerId), managerEmail,
+                            authorName, authorRole, expenseReference, content,
+                            expenseNoteId
+                    );
+                    log.info("📨 Notification interne envoyée au manager {} ({}) pour la note {} par l'admin {}",
+                            managerName, managerEmail, expenseReference, authorName);
+                } else if (managerId == null) {
+                    log.info("Aucun manager trouvé pour le projet #{}, notification non envoyée", note.getProjectId());
+                } else {
+                    log.info("L'admin {} est le manager du projet, pas de notification à soi-même", authorName);
+                }
+            } else {
+                log.debug("Rôle '{}' non pris en charge pour les notifications internes (seul MANAGER ou ADMIN déclenche une notification)", authorRole);
+            }
+        } catch (Exception e) {
+            log.error("Erreur lors de l'envoi de la notification pour note interne sur EXP-{} : {}", expenseNoteId, e.getMessage(), e);
+        }
+    }
+
+    // Petit helper pour extraire le nom d'un admin depuis la map
+    private String adminNameFromMap(Map<String, Object> admin) {
+        Object name = admin.get("name");
+        if (name != null) return name.toString();
+        Object username = admin.get("username");
+        if (username != null) return username.toString();
+        Object id = admin.get("id");
+        return id != null ? id.toString() : "admin inconnu";
+    }
     public List<ExpenseNoteInternalHistory> getInternalHistory(Long expenseNoteId) {
         return internalHistoryRepository.findByExpenseNoteIdOrderByCreatedAtAsc(expenseNoteId);
     }
@@ -1212,7 +1307,7 @@ public class ExpenseService {
     // ========== FAISS METHODS (with reference extraction) ==========
     private void addAccordToFaissIndex(String text, String filename, String absolutePath, String accordReference) {
         try {
-            String url = "http://localhost:9000/add-accord-to-index";
+            String url = faissAddAccordUrl;
             Map<String, Object> body = new HashMap<>();
             body.put("text", text);
             body.put("filename", filename);
@@ -1289,7 +1384,7 @@ public class ExpenseService {
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
             HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
 
-            String response = restTemplate.postForObject("http://localhost:8000/analyze-full", requestEntity, String.class);
+            String response = restTemplate.postForObject(fullAnalysisUrl, requestEntity, String.class);
             log.info("Full analysis obtained for note #{}", note.getId());
             return response;
         } catch (Exception e) {
@@ -1311,7 +1406,7 @@ public class ExpenseService {
 
     private void addToFaissIndexWithRef(String text, String filename, String absolutePath, String accordReference) {
         try {
-            String url = "http://localhost:9000/add-to-index";
+            String url = faissAddUrl;
             Map<String, Object> body = new HashMap<>();
             body.put("text", text);
             body.put("filename", filename);

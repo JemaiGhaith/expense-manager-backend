@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.client.HttpClientErrorException;
@@ -27,17 +28,31 @@ public class AccessControlService {
     @Autowired
     private RestTemplate restTemplate;
 
-    // URLs des microservices via Gateway
-    private static final String USER_SERVICE_URL = "http://localhost:8888/api/users";
-    private static final String EXPENSE_SERVICE_URL = "http://localhost:8888/api/expenses";
-    private static final String PROJECT_SERVICE_URL = "http://localhost:8888/api/projects";
-    private static final String DEPARTMENT_SERVICE_URL = "http://localhost:8888/api/departments";
+    // ✅ Inject gateway URL from configuration (overridable via environment)
+    @Value("${gateway.service.url:http://localhost:8888}")
+    private String gatewayUrl;
+
+    // Helper methods to build full URLs (no hardcoded localhost)
+    private String getUserServiceUrl() {
+        return gatewayUrl + "/api/users";
+    }
+
+    private String getExpenseServiceUrl() {
+        return gatewayUrl + "/api/expenses";
+    }
+
+    private String getProjectServiceUrl() {
+        return gatewayUrl + "/api/projects";
+    }
+
+    private String getDepartmentServiceUrl() {
+        return gatewayUrl + "/api/departments";
+    }
 
     public AccessResult checkNoteAccess(String question, String userId, String userRole, String authToken) {
         Long noteId = extractNoteId(question);
 
         if (noteId == null) {
-            // Pas de note spécifique, accès autorisé
             return new AccessResult(true, null, "Pas de note spécifique", "AUTHORIZED");
         }
 
@@ -53,25 +68,12 @@ public class AccessControlService {
 
         ExpenseNote note = noteOpt.get();
 
-        // Vérification selon le rôle
-        AccessResult result = null;
-
-        switch (userRole.toUpperCase()) {
-            case "EMPLOYEE":
-                result = checkEmployeeAccess(note, userId, noteId);
-                break;
-
-            case "MANAGER":
-                result = checkManagerAccess(note, userId, noteId, authToken);
-                break;
-
-            case "ADMIN":
-                result = new AccessResult(true, noteId, "Accès autorisé (admin)", "ADMIN_ACCESS");
-                break;
-
-            default:
-                result = new AccessResult(false, noteId, "Rôle non reconnu: " + userRole, "INVALID_ROLE");
-        }
+        AccessResult result = switch (userRole.toUpperCase()) {
+            case "EMPLOYEE" -> checkEmployeeAccess(note, userId, noteId);
+            case "MANAGER" -> checkManagerAccess(note, userId, noteId, authToken);
+            case "ADMIN" -> new AccessResult(true, noteId, "Accès autorisé (admin)", "ADMIN_ACCESS");
+            default -> new AccessResult(false, noteId, "Rôle non reconnu: " + userRole, "INVALID_ROLE");
+        };
 
         log.info("🔐 Résultat: {} - {}", result.hasAccess ? "✅" : "❌", result.reason);
         return result;
@@ -89,12 +91,9 @@ public class AccessControlService {
     }
 
     private AccessResult checkManagerAccess(ExpenseNote note, String managerId, Long noteId, String authToken) {
-        String employeeId = note.getEmployeeId();
         Long projectId = note.getProjectId();
 
-        // 1. Extraire le département du token JWT (pas besoin d'appel API !)
         Long managerDepartmentId = extractDepartmentFromToken(authToken);
-
         if (managerDepartmentId == null) {
             log.warn("⚠️ Manager {} n'a pas de département dans le token", managerId);
             return new AccessResult(false, noteId,
@@ -104,7 +103,6 @@ public class AccessControlService {
 
         log.info("📋 Manager {} a le département {} (depuis token)", managerId, managerDepartmentId);
 
-        // 2. Récupérer le département du projet
         ProjectInfo projectInfo = getProjectInfo(projectId, authToken);
         if (projectInfo == null) {
             log.warn("⚠️ Projet {} non trouvé", projectId);
@@ -116,7 +114,6 @@ public class AccessControlService {
         log.info("📋 La note #{} est sur le projet {} (département {})",
                 noteId, projectId, projectDepartmentId);
 
-        // 3. Vérifier si les départements correspondent
         boolean hasAccess = managerDepartmentId.equals(projectDepartmentId);
 
         if (hasAccess) {
@@ -132,9 +129,6 @@ public class AccessControlService {
         }
     }
 
-    /**
-     * Extrait le département du token JWT
-     */
     private Long extractDepartmentFromToken(String authToken) {
         if (authToken == null || authToken.isEmpty()) {
             log.warn("⚠️ Token manquant");
@@ -142,32 +136,23 @@ public class AccessControlService {
         }
 
         try {
-            // Enlever le préfixe "Bearer " si présent
             String token = authToken.startsWith("Bearer ") ? authToken.substring(7) : authToken;
-
-            // Séparer les parties du token
             String[] parts = token.split("\\.");
             if (parts.length < 2) {
                 log.warn("⚠️ Token invalide");
                 return null;
             }
 
-            // Décoder la partie payload (deuxième partie)
             String payload = new String(Base64.getUrlDecoder().decode(parts[1]));
-            log.debug("📦 Payload du token: {}", payload);
-
-            // Parser le JSON
             ObjectMapper mapper = new ObjectMapper();
             JsonNode root = mapper.readTree(payload);
 
-            // Extraire departmentId
             JsonNode deptNode = root.get("departmentId");
             if (deptNode == null) {
                 log.warn("⚠️ departmentId non trouvé dans le token");
                 return null;
             }
 
-            // Convertir en Long (le token peut contenir une chaîne ou un nombre)
             Long departmentId = deptNode.isNumber() ?
                     deptNode.asLong() :
                     Long.parseLong(deptNode.asText());
@@ -180,13 +165,10 @@ public class AccessControlService {
             return null;
         }
     }
-    /**
-     * Récupère les informations du manager depuis Keycloak
-     */
+
     private ManagerInfo getManagerInfo(String managerId, String authToken) {
         try {
-            String url = USER_SERVICE_URL + "/" + managerId;
-            // Ajouter le token dans les headers
+            String url = getUserServiceUrl() + "/" + managerId;   // ✅ use injected gateway
             ManagerInfo manager = restTemplate.getForObject(url, ManagerInfo.class);
             log.debug("📦 Manager info: {}", manager);
             return manager;
@@ -199,17 +181,12 @@ public class AccessControlService {
         }
     }
 
-    /**
-     * Récupère les informations du projet depuis le microservice expense
-     */
     private ProjectInfo getProjectInfo(Long projectId, String authToken) {
         try {
-            // Utiliser l'endpoint public pour les managers
-            String url = PROJECT_SERVICE_URL + "/public/" + projectId;
+            String url = getProjectServiceUrl() + "/public/" + projectId;   // ✅ use injected gateway
 
             org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
             headers.set("Authorization", "Bearer " + authToken);
-            // Ajouter le rôle pour indiquer que c'est un manager
             headers.set("X-User-Role", "MANAGER");
 
             org.springframework.http.HttpEntity<?> entity = new org.springframework.http.HttpEntity<>(headers);
@@ -258,8 +235,7 @@ public class AccessControlService {
         return null;
     }
 
-    // ==================== DTOs INTERNES ====================
-
+    // ==================== DTOs INTERNES (unchanged) ====================
     public static class AccessResult {
         public final boolean hasAccess;
         public final Long noteId;
@@ -283,7 +259,6 @@ public class AccessControlService {
         private Long departmentId;
         private List<String> roles;
 
-        // Getters et setters
         public Long getDepartmentId() { return departmentId; }
         public void setDepartmentId(Long departmentId) { this.departmentId = departmentId; }
         public List<String> getRoles() { return roles; }
@@ -302,7 +277,6 @@ public class AccessControlService {
         private Long departmentId;
         private String status;
 
-        // Getters et setters
         public Long getDepartmentId() { return departmentId; }
         public void setDepartmentId(Long departmentId) { this.departmentId = departmentId; }
 

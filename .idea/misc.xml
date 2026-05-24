@@ -6,7 +6,6 @@
       <list>
         <option value="$PROJECT_DIR$/pom.xml" />
         <option value="$PROJECT_DIR$/gatewayserver/pom.xml" />
-        <option value="$PROJECT_DIR$/expense_management_microservice/pom.xml" />
         <option value="$PROJECT_DIR$/user_microservice/pom.xml" />
         <option value="$PROJECT_DIR$/eurekaserver/pom.xml" />
         <option value="$PROJECT_DIR$/configserver/pom.xml" />
@@ -14,6 +13,7 @@
         <option value="$PROJECT_DIR$/chatbot-microservice/pom.xml" />
         <option value="$PROJECT_DIR$/notification_microservice/pom.xml" />
         <option value="$PROJECT_DIR$/ai_microservice/pom.xml" />
+        <option value="$PROJECT_DIR$/expense_management_microservice/pom.xml" />
       </list>
     </option>
   </component>

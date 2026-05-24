@@ -9,17 +9,15 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: http://localhost:8090/realms/coral-io_realm
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8090/realms/coral-io_realm}
 
   cloud:
     config:
       enabled: false
-
     gateway:
       discovery:
         locator:
           enabled: false
-
       routes:
         - id: expense-ms
           uri: lb://EXPENSE-MANAGEMENT-MICROSERVICE
@@ -30,8 +28,7 @@ spring:
               args:
                 name: expenseService
                 fallbackUri: forward:/fallback/expense
-            - TokenRelay   # 🔁 Ajoute cette ligne
-
+            - TokenRelay
         - id: user-ms
           uri: lb://USER-MICROSERVICE
           predicates:
@@ -41,7 +38,6 @@ spring:
               args:
                 name: userService
                 fallbackUri: forward:/fallback/user
-
         - id: ai-ms
           uri: lb://AI-MICROSERVICE
           predicates:
@@ -51,7 +47,6 @@ spring:
               args:
                 name: aiService
                 fallbackUri: forward:/fallback/ai
-
         - id: chatbot-ms
           uri: lb://CHATBOT-MICROSERVICE
           predicates:
@@ -65,19 +60,19 @@ spring:
         - id: notification-ms
           uri: lb://NOTIFICATION-MICROSERVICE
           predicates:
-              - Path=/api/notifications/**
+            - Path=/api/notifications/**
           filters:
-              - name: CircuitBreaker
-                args:
-                  name: notificationService
-                  fallbackUri: forward:/fallback/notification
+            - name: CircuitBreaker
+              args:
+                name: notificationService
+                fallbackUri: forward:/fallback/notification
 
 eureka:
   client:
     register-with-eureka: true
     fetch-registry: true
     service-url:
-      defaultZone: http://localhost:8761/eureka/
+      defaultZone: ${EUREKA_URI:http://localhost:8761/eureka/}
   instance:
     prefer-ip-address: true
 
@@ -118,6 +113,7 @@ resilience4j:
         timeoutDuration: 600000
       chatbotService:
         timeoutDuration: 3600000
+
 logging:
   level:
     org.springframework.cloud.gateway: DEBUG

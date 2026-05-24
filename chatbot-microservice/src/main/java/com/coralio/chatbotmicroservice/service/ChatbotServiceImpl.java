@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -52,8 +53,8 @@ public class ChatbotServiceImpl implements ChatbotService {
     private ResponseFormatter responseFormatter;
     @Autowired
     private ChatSessionService sessionService;
-    private static final String PROJECT_SERVICE_URL = "http://localhost:8888/api/projects";
-    private static final String USER_SERVICE_URL = "http://localhost:8888/api/users";
+    @Value("${gateway.service.url:http://localhost:8888}")
+    private String gatewayUrl;
 
     // Intent patterns
     private static final Map<String, Pattern> INTENT_PATTERNS = Map.ofEntries(
@@ -550,8 +551,7 @@ public class ChatbotServiceImpl implements ChatbotService {
      */
     private List<ProjectInfo> getProjectsByDepartment(Long departmentId) {
         try {
-            String url = PROJECT_SERVICE_URL + "/public/by-department/" + departmentId;
-
+            String url = getProjectServiceUrl() + "/public/by-department/" + departmentId;
             HttpHeaders headers = new HttpHeaders();
             headers.set("Authorization", "Bearer " + extractAuthToken());
             HttpEntity<?> entity = new HttpEntity<>(headers);
@@ -3076,5 +3076,13 @@ public class ChatbotServiceImpl implements ChatbotService {
             }
         }
         return null;
+    }
+    // Helper methods to build URLs (no hardcoded localhost)
+    private String getUserServiceUrl() {
+        return gatewayUrl + "/api/users";
+    }
+
+    private String getProjectServiceUrl() {
+        return gatewayUrl + "/api/projects";
     }
 }

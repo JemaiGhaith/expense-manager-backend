@@ -1,0 +1,172 @@
+networks:
+  microservices-net:
+    driver: bridge
+
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    container_name: keycloak
+    command: start-dev --import-realm
+    ports:
+      - "8090:8080"
+    networks:
+      - microservices-net
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin
+      - KC_HOSTNAME=localhost
+      - KC_HOSTNAME_STRICT=false
+      - KC_HTTP_PORT=8080
+    volumes:
+      - ./coral-io-realm.json:/opt/keycloak/data/import/realm.json
+      - ./coral-io-theme/coral-io-theme:/opt/keycloak/themes/coral-io-theme
+
+  config-server:
+    image: coralio/config-server:1.0
+    container_name: config-server
+    ports:
+      - "9999:9999"
+    networks:
+      - microservices-net
+    environment:
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=http://host.docker.internal:8090/realms/coral-io_realm/protocol/openid-connect/certs
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  eureka-server:
+    image: coralio/eureka-server:1.0
+    container_name: eureka-server
+    ports:
+      - "8761:8761"
+    networks:
+      - microservices-net
+    environment:
+      - SPRING_CLOUD_CONFIG_ENABLED=false
+
+  gateway:
+    image: coralio/gateway:1.0
+    container_name: gateway
+    ports:
+      - "8888:8888"
+    networks:
+      - microservices-net
+    environment:
+      - EUREKA_URI=http://eureka-server:8761/eureka
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=http://host.docker.internal:8090/realms/coral-io_realm/protocol/openid-connect/certs
+      - SPRING_CLOUD_GATEWAY_GLOBALCORS_CORS-CONFIGURATIONS_[/**]_ALLOWEDORIGINS=http://localhost:4200
+      - SPRING_CLOUD_GATEWAY_GLOBALCORS_CORS-CONFIGURATIONS_[/**]_ALLOWEDMETHODS=GET,POST,PUT,DELETE,OPTIONS
+      - SPRING_CLOUD_GATEWAY_GLOBALCORS_CORS-CONFIGURATIONS_[/**]_ALLOWEDHEADERS=*
+      - SPRING_CLOUD_GATEWAY_GLOBALCORS_CORS-CONFIGURATIONS_[/**]_ALLOWCREDENTIALS=true
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  expense-service:
+    image: coralio/expense-service:1.0
+    container_name: expense-service
+    ports:
+      - "8082:8082"
+    networks:
+      - microservices-net
+    environment:
+      - DB_HOST=host.docker.internal
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=112004
+      - SPRING_CLOUD_CONFIG_URI=http://config-server:9999
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=http://host.docker.internal:8090/realms/coral-io_realm/protocol/openid-connect/certs
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  user-service:
+    image: coralio/user-service:1.0
+    container_name: user-service
+    ports:
+      - "8083:8083"
+    networks:
+      - microservices-net
+    environment:
+      - DB_HOST=host.docker.internal
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=112004
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka
+      - KEYCLOAK_SERVER_URL=http://host.docker.internal:8090
+      - EXPENSE_SERVICE_URL=http://expense-service:8082
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  notification-service:
+    image: coralio/notification-service:1.0
+    container_name: notification-service
+    ports:
+      - "8087:8087"
+    networks:
+      - microservices-net
+    environment:
+      - DB_HOST=host.docker.internal
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=112004
+      - DB_NAME=notification_db
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka
+      - MAIL_USERNAME=datalake.rh@gmail.com
+      - MAIL_PASSWORD=yshwctetiasbkntj
+      - FRONTEND_URL=http://localhost:4200
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=http://host.docker.internal:8090/realms/coral-io_realm/protocol/openid-connect/certs
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  chatbot-service:
+    image: coralio/chatbot-service:1.0
+    container_name: chatbot-service
+    ports:
+      - "8086:8086"
+    networks:
+      - microservices-net
+    environment:
+      - DB_HOST=host.docker.internal
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=112004
+      - DB_NAME=expense_app
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka
+      - GATEWAY_URL=http://gateway:8888
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - SPRING_APPLICATION_NAME=chatbot-service
+      - SERVER_PORT=8086
+      - EUREKA_INSTANCE_HOSTNAME=chatbot-service
+      - EUREKA_INSTANCE_NON_SECURE_PORT=8086
+      - EUREKA_CLIENT_ENABLED=true
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=http://host.docker.internal:8090/realms/coral-io_realm/protocol/openid-connect/certs
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  ai-microservice:
+    image: coralio/ai-microservice:1.0
+    container_name: ai-microservice
+    ports:
+      - "8085:8085"
+    networks:
+      - microservices-net
+    environment:
+      - PYTHON_AI_URL=http://host.docker.internal:9000
+      - PYTHON_ANALYZE_URL=http://host.docker.internal:8000/analyze
+      - PYTHON_COMPARE_ACCORD_URL=http://host.docker.internal:8000/compare-accord-form
+      - PYTHON_ANALYZE_FULL_URL=http://host.docker.internal:8000/analyze-full
+      - PYTHON_CHECK_ACCORD_DUPLICATE_URL=http://host.docker.internal:9000/check-duplicate-accord
+      - UPLOADS_DIR=/app/uploads
+      - TESSERACT_DATAPATH=/usr/share/tesseract-ocr/5/tessdata
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=http://host.docker.internal:8090/realms/coral-io_realm/protocol/openid-connect/certs
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ai_uploads:/app/uploads
+
+  frontend:
+    image: coralio-frontend:latest
+    container_name: frontend
+    ports:
+      - "4200:80"
+    networks:
+      - microservices-net
+
+volumes:
+  ai_uploads:

@@ -1,5 +1,6 @@
 package com.coralio.ai_microservice.services;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
@@ -11,7 +12,8 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class PythonAnalyzeService {
 
-    private static final String PYTHON_ANALYZE_URL = "http://localhost:8000/analyze";
+    @Value("${python.ai.url:http://localhost:9000}")
+    private String pythonBaseUrl;
     private final RestTemplate restTemplate = new RestTemplate();
 
     public Object callPythonAnalyze(MultipartFile file) throws Exception {
@@ -30,8 +32,10 @@ public class PythonAnalyzeService {
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
         HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
 
+        String url = pythonBaseUrl + "/analyze";  // ✅ use injected base URL
+
         ResponseEntity<Object> response = restTemplate.exchange(
-                PYTHON_ANALYZE_URL,
+                url,
                 HttpMethod.POST,
                 requestEntity,
                 Object.class

@@ -35,6 +35,7 @@ import net.sourceforge.tess4j.Tesseract;
 import org.apache.tika.Tika;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.PDFRenderer;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -43,7 +44,8 @@ import java.awt.image.BufferedImage;
 
 @Service
 public class OCRService {
-
+    @Value("${ocr.tesseract.datapath:/usr/share/tesseract-ocr/4.00/tessdata}")
+    private String tesseractDataPath;
     public String extractText(MultipartFile file) {
 
         try {
@@ -56,7 +58,7 @@ public class OCRService {
                 BufferedImage image = ImageIO.read(file.getInputStream());
 
                 Tesseract tesseract = new Tesseract();
-                tesseract.setDatapath("C:\\Program Files\\Tesseract-OCR\\tessdata"); // dossier contenant .traineddata
+                tesseract.setDatapath(tesseractDataPath); // dossier contenant .traineddata
 
                 return tesseract.doOCR(image);
             }
@@ -70,7 +72,7 @@ public class OCRService {
                 StringBuilder text = new StringBuilder();
 
                 Tesseract tesseract = new Tesseract();
-                tesseract.setDatapath("C:\\Program Files\\Tesseract-OCR\\tessdata"); // dossier contenant .traineddata
+                tesseract.setDatapath(tesseractDataPath); // dossier contenant .traineddata
                 tesseract.setLanguage("eng+fra");
 
                 for (int i = 0; i < document.getNumberOfPages(); i++) {

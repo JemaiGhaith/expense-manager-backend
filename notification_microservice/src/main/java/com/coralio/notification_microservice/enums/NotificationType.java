@@ -19,4 +19,5 @@ public enum NotificationType {
     NOTES_READY_FOR_REIMBURSEMENT, // Notes validées prêtes pour remboursement (Admin)
     EXPENSE_VALIDATED_BY_MANAGER,  // ✅ NOUVEAU : Pour admin
     EXPENSE_VALIDATED_BY_ADMIN,  // <-- new
+    INTERNAL_NOTE_ADDED   // ← AJOUTER CETTE LIGNE
 }

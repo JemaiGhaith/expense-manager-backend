@@ -1,7 +1,8 @@
 package com.coralio.user_microservice.services;
 
-import com.coralio.user_microservice.dto.UserUpdateDTO;
 import com.coralio.user_microservice.controllers.UserController.UserDto;
+import com.coralio.user_microservice.dto.UserUpdateDTO;
+import jakarta.annotation.PostConstruct;
 import jakarta.ws.rs.core.Response;
 import lombok.extern.slf4j.Slf4j;
 import org.keycloak.OAuth2Constants;
@@ -10,6 +11,7 @@ import org.keycloak.admin.client.KeycloakBuilder;
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
@@ -21,36 +23,43 @@ import java.util.stream.Collectors;
 @Service
 public class KeycloakAdminClient {
 
-    private final Keycloak keycloak;
+    private Keycloak keycloak;   // NOT final – will be initialised in @PostConstruct
 
-    private static final String SERVER_URL = "http://localhost:8090";
-    private static final String REALM = "coral-io_realm";
-    private static final String CLIENT_ID = "admin-client";
-    private static final String CLIENT_SECRET = "vov2JMbDjbDsZQCyJeBZIqcH2W5blsdD";
+    @Value("${keycloak.server-url}")
+    private String serverUrl;
 
-    public KeycloakAdminClient() {
+    @Value("${keycloak.realm}")
+    private String realm;
+
+    @Value("${keycloak.client-id}")
+    private String clientId;
+
+    @Value("${keycloak.client-secret}")
+    private String clientSecret;
+
+    @PostConstruct
+    public void init() {
         keycloak = KeycloakBuilder.builder()
-                .serverUrl(SERVER_URL)
-                .realm(REALM)
+                .serverUrl(serverUrl)
+                .realm(realm)
                 .grantType(OAuth2Constants.CLIENT_CREDENTIALS)
-                .clientId(CLIENT_ID)
-                .clientSecret(CLIENT_SECRET)
+                .clientId(clientId)
+                .clientSecret(clientSecret)
                 .build();
+        log.info("✅ Keycloak Admin Client initialisé pour le realm: {}", realm);
     }
 
+    // ==================== BASIC CRUD ====================
+
     public UserRepresentation getUserById(String userId) {
-        return keycloak.realm(REALM).users().get(userId).toRepresentation();
+        return keycloak.realm(realm).users().get(userId).toRepresentation();
     }
 
     public List<UserRepresentation> getAllUsers() {
-        return keycloak.realm(REALM).users().list();
+        return keycloak.realm(realm).users().list();
     }
 
-    public List<UserRepresentation> getKeycloakUsers() {
-        return keycloak.realm(REALM).users().list();
-    }
-
-    // ==================== CRÉATION D'UTILISATEUR ====================
+    // ==================== USER CREATION ====================
 
     public String createUser(String username, String email, String firstName, String lastName,
                              String password, boolean enabled, boolean emailVerified,
@@ -74,7 +83,7 @@ public class KeycloakAdminClient {
             credential.setTemporary(true);
             user.setCredentials(List.of(credential));
 
-            Response response = keycloak.realm(REALM).users().create(user);
+            Response response = keycloak.realm(realm).users().create(user);
 
             if (response.getStatus() == 201) {
                 String location = response.getHeaderString("Location");
@@ -95,21 +104,20 @@ public class KeycloakAdminClient {
 
     private void assignRoles(String userId, List<String> roleNames) {
         try {
-            List<RoleRepresentation> roles = keycloak.realm(REALM).roles().list();
+            List<RoleRepresentation> roles = keycloak.realm(realm).roles().list();
             List<RoleRepresentation> rolesToAssign = roles.stream()
                     .filter(role -> roleNames.contains(role.getName()))
                     .collect(Collectors.toList());
             if (!rolesToAssign.isEmpty()) {
-                keycloak.realm(REALM).users().get(userId).roles().realmLevel().add(rolesToAssign);
+                keycloak.realm(realm).users().get(userId).roles().realmLevel().add(rolesToAssign);
             }
         } catch (Exception e) {
-            System.err.println("Erreur lors de l'assignation des rôles: " + e.getMessage());
+            log.error("Erreur lors de l'assignation des rôles: {}", e.getMessage());
         }
     }
 
-    // ==================== MISE À JOUR D'UTILISATEUR ====================
+    // ==================== USER UPDATE ====================
 
-    // ✅ Overloaded method (with all fields) – now correctly implemented
     public UserDto updateUser(String userId, String firstName, String lastName, String email, String password,
                               Boolean enabled, Boolean emailVerified, Map<String, List<String>> attributes,
                               List<String> realmRoles) {
@@ -124,19 +132,16 @@ public class KeycloakAdminClient {
             if (emailVerified != null) user.setEmailVerified(emailVerified);
             if (attributes != null && !attributes.isEmpty()) user.setAttributes(attributes);
 
-            // Save user
-            keycloak.realm(REALM).users().get(userId).update(user);
+            keycloak.realm(realm).users().get(userId).update(user);
 
-            // Update password if provided
             if (password != null && !password.trim().isEmpty()) {
                 CredentialRepresentation credential = new CredentialRepresentation();
                 credential.setType(CredentialRepresentation.PASSWORD);
                 credential.setValue(password);
                 credential.setTemporary(false);
-                keycloak.realm(REALM).users().get(userId).resetPassword(credential);
+                keycloak.realm(realm).users().get(userId).resetPassword(credential);
             }
 
-            // Update roles if provided
             if (realmRoles != null && !realmRoles.isEmpty()) {
                 updateUserRoles(userId, realmRoles);
             }
@@ -148,28 +153,25 @@ public class KeycloakAdminClient {
     }
 
     private void updateUserRoles(String userId, List<String> newRoleNames) {
-        // Remove current realm roles
-        List<RoleRepresentation> currentRoles = keycloak.realm(REALM)
+        List<RoleRepresentation> currentRoles = keycloak.realm(realm)
                 .users().get(userId).roles().realmLevel().listAll();
         if (!currentRoles.isEmpty()) {
-            keycloak.realm(REALM).users().get(userId).roles().realmLevel().remove(currentRoles);
+            keycloak.realm(realm).users().get(userId).roles().realmLevel().remove(currentRoles);
         }
-        // Add new roles
         if (!newRoleNames.isEmpty()) {
-            List<RoleRepresentation> roles = keycloak.realm(REALM).roles().list();
+            List<RoleRepresentation> roles = keycloak.realm(realm).roles().list();
             List<RoleRepresentation> rolesToAdd = roles.stream()
                     .filter(role -> newRoleNames.contains(role.getName()))
                     .collect(Collectors.toList());
             if (!rolesToAdd.isEmpty()) {
-                keycloak.realm(REALM).users().get(userId).roles().realmLevel().add(rolesToAdd);
+                keycloak.realm(realm).users().get(userId).roles().realmLevel().add(rolesToAdd);
             }
         }
     }
 
-    // ✅ Simple update using UserRepresentation
     public void updateUser(UserRepresentation user) {
         try {
-            keycloak.realm(REALM).users().get(user.getId()).update(user);
+            keycloak.realm(realm).users().get(user.getId()).update(user);
             log.info("✅ Utilisateur {} mis à jour", user.getUsername());
         } catch (Exception e) {
             log.error("❌ Erreur mise à jour utilisateur: {}", e.getMessage());
@@ -177,12 +179,12 @@ public class KeycloakAdminClient {
         }
     }
 
-    // ==================== MÉTHODES UTILITAIRES ====================
+    // ==================== QUERIES ====================
 
     public UserRepresentation getUserByUsername(String username) {
         log.info("🔍 Recherche utilisateur par username: {}", username);
         try {
-            List<UserRepresentation> users = keycloak.realm(REALM).users().search(username, true);
+            List<UserRepresentation> users = keycloak.realm(realm).users().search(username, true);
             if (users.isEmpty()) {
                 log.warn("⚠️ Aucun utilisateur trouvé avec username: {}", username);
                 return null;
@@ -202,7 +204,7 @@ public class KeycloakAdminClient {
             List<String> values = user.getAttributes().get("departmentId");
             if (values != null && !values.isEmpty()) departmentId = values.get(0);
         }
-        List<String> roles = getUserRoles(user.getId()); // reuse existing method
+        List<String> roles = getUserRoles(user.getId());
         return new UserDto(
                 user.getId(),
                 user.getFirstName(),
@@ -210,7 +212,7 @@ public class KeycloakAdminClient {
                 user.getUsername(),
                 user.getEmail(),
                 departmentId,
-                null, // departmentName – can be resolved later if needed
+                null,
                 user.isEnabled(),
                 user.isEmailVerified(),
                 roles
@@ -219,7 +221,7 @@ public class KeycloakAdminClient {
 
     public void deleteUser(String userId) {
         try {
-            Response response = keycloak.realm(REALM).users().delete(userId);
+            Response response = keycloak.realm(realm).users().delete(userId);
             if (response.getStatus() != 204) {
                 String error = response.readEntity(String.class);
                 throw new RuntimeException("Erreur suppression utilisateur: " + response.getStatus() + " - " + error);
@@ -231,7 +233,7 @@ public class KeycloakAdminClient {
 
     public List<String> getUserRoles(String userId) {
         try {
-            List<RoleRepresentation> realmRoles = keycloak.realm(REALM)
+            List<RoleRepresentation> realmRoles = keycloak.realm(realm)
                     .users().get(userId).roles().realmLevel().listAll();
             return realmRoles.stream().map(RoleRepresentation::getName).collect(Collectors.toList());
         } catch (Exception e) {
@@ -240,7 +242,7 @@ public class KeycloakAdminClient {
         }
     }
 
-    // ==================== PROFIL PERSONNEL ====================
+    // ==================== PROFILE UPDATE ====================
 
     public UserDto updateUserProfile(String userId, String firstName, String lastName, String email,
                                      String phone, String location) {
@@ -261,7 +263,7 @@ public class KeycloakAdminClient {
             else attributes.remove("location");
 
             user.setAttributes(attributes);
-            keycloak.realm(REALM).users().get(userId).update(user);
+            keycloak.realm(realm).users().get(userId).update(user);
             log.info("✅ Profil utilisateur {} mis à jour", userId);
             return mapToUserDto(user);
         } catch (Exception e) {
@@ -270,18 +272,18 @@ public class KeycloakAdminClient {
         }
     }
 
-    // ==================== PASSWORD ====================
+    // ==================== PASSWORD MANAGEMENT ====================
 
     public boolean verifyUserPassword(String userId, String currentPassword) {
         try {
             UserRepresentation user = getUserById(userId);
             String username = user.getUsername();
             Keycloak userKeycloak = KeycloakBuilder.builder()
-                    .serverUrl(SERVER_URL)
-                    .realm(REALM)
+                    .serverUrl(serverUrl)          // use injected field
+                    .realm(realm)                  // use injected field
                     .grantType(OAuth2Constants.PASSWORD)
-                    .clientId(CLIENT_ID)
-                    .clientSecret(CLIENT_SECRET)
+                    .clientId(clientId)            // use injected field
+                    .clientSecret(clientSecret)    // use injected field
                     .username(username)
                     .password(currentPassword)
                     .build();
@@ -300,7 +302,7 @@ public class KeycloakAdminClient {
             credential.setType(CredentialRepresentation.PASSWORD);
             credential.setValue(newPassword);
             credential.setTemporary(false);
-            keycloak.realm(REALM).users().get(userId).resetPassword(credential);
+            keycloak.realm(realm).users().get(userId).resetPassword(credential);
             log.info("✅ Mot de passe changé avec succès pour: {}", userId);
         } catch (Exception e) {
             log.error("❌ Erreur changement mot de passe pour {}: {}", userId, e.getMessage());
@@ -310,18 +312,15 @@ public class KeycloakAdminClient {
 
     public List<CredentialRepresentation> getUserCredentials(String userId) {
         try {
-            return keycloak.realm(REALM).users().get(userId).credentials();
+            return keycloak.realm(realm).users().get(userId).credentials();
         } catch (Exception e) {
             log.error("❌ Erreur récupération credentials: {}", e.getMessage());
             return List.of();
         }
     }
 
-    // ==================== CURRENCY ATTRIBUTE ====================
+    // ==================== ATTRIBUTE UPDATE ====================
 
-    /**
-     * Update a single attribute for a user.
-     */
     public void updateUserAttribute(String userId, String key, String value) {
         try {
             UserRepresentation user = getUserById(userId);
@@ -330,7 +329,6 @@ public class KeycloakAdminClient {
             if (attributes == null) attributes = new HashMap<>();
             attributes.put(key, List.of(value));
             user.setAttributes(attributes);
-            // Use the existing update method that accepts UserRepresentation
             updateUser(user);
         } catch (Exception e) {
             log.error("Failed to update attribute {} for user {}", key, userId, e);

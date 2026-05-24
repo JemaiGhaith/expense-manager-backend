@@ -47,11 +47,18 @@ public class ExpenseProcessingService {
 
     @Value("${file.upload-dir:./uploads}")
     private String uploadsDir;
+    @Value("${ai.faiss.add.url:http://localhost:9000/add-to-index}")
+    private String faissAddUrl;
 
+    @Value("${ai.validate.from.json.url:http://localhost:8085/api/ai/validate-from-json}")
+    private String validateFromJsonUrl;
+
+    @Value("${ai.check.duplicate.url:http://localhost:8085/api/ai/check-duplicate-from-text}")
+    private String checkDuplicateUrl;
     // Helper to add a document to FAISS
     private void addToFaissIndex(String text, String filename, String absolutePath) {
         try {
-            String url = "http://localhost:9000/add-to-index";
+            String url = faissAddUrl;
             Map<String, Object> body = Map.of(
                     "text", text,
                     "filename", filename,
@@ -93,7 +100,7 @@ public class ExpenseProcessingService {
                     Map<String, Object> extractedJson = optExt.get().getExtractedJson();
                     try {
                         Map<String, Object> validationResult = restTemplate.postForObject(
-                                "http://localhost:8085/api/ai/validate-from-json",
+                                validateFromJsonUrl,
                                 extractedJson,
                                 Map.class
                         );
@@ -123,7 +130,7 @@ public class ExpenseProcessingService {
                         "excludePath", excludePath
                 );
                 Map<String, Object> result = restTemplate.postForObject(
-                        "http://localhost:8085/api/ai/check-duplicate-from-text?employeeId=" + employeeId,
+                        checkDuplicateUrl + "?employeeId=" + employeeId,
                         payload,
                         Map.class
                 );
@@ -195,7 +202,7 @@ public class ExpenseProcessingService {
                         "excludePath", excludePath
                 );
                 Map<String, Object> result = restTemplate.postForObject(
-                        "http://localhost:8085/api/ai/check-duplicate-from-text?employeeId=" + employeeId,
+                        checkDuplicateUrl + "?employeeId=" + employeeId,
                         payload,
                         Map.class
                 );
@@ -250,7 +257,7 @@ public class ExpenseProcessingService {
         }
         byte[] fileBytes = Files.readAllBytes(fullPath);
 
-        String analyzeUrl = "http://localhost:9000/analyze";
+        String analyzeUrl = faissAddUrl.replace("/add-to-index", "/analyze");
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
         body.add("file", new ByteArrayResource(fileBytes) {
             @Override public String getFilename() { return fullPath.getFileName().toString(); }
@@ -287,7 +294,7 @@ public class ExpenseProcessingService {
         }
         byte[] fileBytes = Files.readAllBytes(fullPath);
 
-        String analyzeUrl = "http://localhost:9000/analyze";
+        String analyzeUrl = faissAddUrl.replace("/add-to-index", "/analyze");
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
         body.add("file", new ByteArrayResource(fileBytes) {
             @Override public String getFilename() { return fullPath.getFileName().toString(); }
