@@ -162,7 +162,7 @@ public class ExpenseService {
                 line.setJustificatifPath(factureFileNames.get(i));
             }
 
-            // Détection d'anomalie IA
+            // Détection d'anomalie IA (synchrone – reste acceptable car rapide)
             try {
                 Map<String, Object> result = restTemplate.postForObject(
                         anomalyUrl,
@@ -207,51 +207,16 @@ public class ExpenseService {
             }
         }
 
-        // ========== ACCORD EXTRACTION + FAISS INDEXING (using /analyze-for-accord) ==========
-        if (accordFile != null && !accordFile.isEmpty()) {
-            try {
-                String accordOcrText = ocrService.extractText(accordFile);
-                String analyzeUrl = accordAnalyzeUrl;
-                MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-                body.add("file", new ByteArrayResource(accordFile.getBytes()) {
-                    @Override public String getFilename() { return accordFile.getOriginalFilename(); }
-                });
-                HttpHeaders headers = new HttpHeaders();
-                headers.setContentType(MediaType.MULTIPART_FORM_DATA);
-                HttpEntity<MultiValueMap<String, Object>> request = new HttpEntity<>(body, headers);
-                Map<String, Object> analyzeResponse = restTemplate.postForObject(analyzeUrl, request, Map.class);
-                Map<String, Object> structuredJson = (Map<String, Object>) analyzeResponse.get("structured");
-
-                // Sauvegarde en base
-                ExpenseNoteExtraction extraction = ExpenseNoteExtraction.builder()
-                        .expenseNoteId(savedNote.getId())
-                        .ocrText(accordOcrText)
-                        .extractedJson(structuredJson)
-                        .extractionVersion("v1")
-                        .build();
-                noteExtractionRepository.save(extraction);
-                log.info("✅ Accord extraction saved for note {}", savedNote.getId());
-
-                String pythonOcrText = analyzeResponse.get("ocr_text") instanceof String
-                        ? (String) analyzeResponse.get("ocr_text")
-                        : accordOcrText;
-
-                String accordRef = extractAccordReference(pythonOcrText);
-                log.info("🔍 Référence extraite pour l'accord : {}", accordRef);
-
-                Path accordAbsPath = Paths.get(uploadsDir, savedNote.getEmployeeId(), savedNote.getAccordPath()).toAbsolutePath();
-                addAccordToFaissIndex(pythonOcrText, savedNote.getAccordPath(), accordAbsPath.toString(), accordRef);
-            } catch (Exception e) {
-                log.error("Failed to extract/index accord data for note {}: {}", savedNote.getId(), e.getMessage(), e);
-            }
-        }
+        // ========== PLUS AUCUN TRAITEMENT LOURD DE L'ACCORD ICI ==========
+        // L'analyse complète sera faite de manière asynchrone dans ExpenseProcessingService
+        // ===============================================================
 
         // 5. Total amount
         double total = lines.stream().mapToDouble(ExpenseLine::getAmount).sum();
         savedNote.setTotalAmount(total);
         savedNote.setUpdatedAt(LocalDateTime.now());
 
-        // ========== NOTIFICATIONS WITH CURRENCY ==========
+        // ========== NOTIFICATIONS WITH CURRENCY (inchangé) ==========
         String employeeTargetCurrency = displayCurrency;
         Double employeeRate = exchangeRate;
         if (employeeTargetCurrency == null || employeeTargetCurrency.isEmpty()) {
@@ -1346,7 +1311,7 @@ public class ExpenseService {
         return null;
     }
 
-    private String callFullAnalysis(ExpenseNote note, List<ExpenseLine> lines, String accordFileName) {
+    public String callFullAnalysis(ExpenseNote note, List<ExpenseLine> lines, String accordFileName) {
         try {
             String accordFullPath = fileStorageService.getFullPath(note.getEmployeeId(), accordFileName);
             File accordFile = new File(accordFullPath);

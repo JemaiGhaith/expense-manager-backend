@@ -58,7 +58,7 @@ public class OCRService {
                 BufferedImage image = ImageIO.read(file.getInputStream());
 
                 Tesseract tesseract = new Tesseract();
-                tesseract.setDatapath(tesseractDataPath); // dossier contenant .traineddata
+                tesseract.setDatapath(getEffectiveDataPath()); // dossier contenant .traineddata
 
                 return tesseract.doOCR(image);
             }
@@ -72,7 +72,7 @@ public class OCRService {
                 StringBuilder text = new StringBuilder();
 
                 Tesseract tesseract = new Tesseract();
-                tesseract.setDatapath(tesseractDataPath); // dossier contenant .traineddata
+                tesseract.setDatapath(getEffectiveDataPath()); // dossier contenant .traineddata
                 tesseract.setLanguage("eng+fra");
 
                 for (int i = 0; i < document.getNumberOfPages(); i++) {
@@ -93,6 +93,17 @@ public class OCRService {
 
         } catch (Exception e) {
             throw new RuntimeException("Erreur extraction texte : " + e.getMessage());
+        }
+    }
+    private String getEffectiveDataPath() {
+        if (tesseractDataPath != null && !tesseractDataPath.isEmpty()) {
+            return tesseractDataPath;
+        }
+        String os = System.getProperty("os.name").toLowerCase();
+        if (os.contains("win")) {
+            return "C:\\Program Files\\Tesseract-OCR\\tessdata";
+        } else {
+            return "/usr/share/tesseract-ocr/4.00/tessdata";
         }
     }
 }

@@ -45,6 +45,10 @@ public class ExpenseProcessingService {
     @Autowired
     private ExpenseNoteExtractionRepository noteExtractionRepository;
 
+    // ✅ ADDED: inject ExpenseService to call full analysis
+    @Autowired
+    private ExpenseService expenseService;
+
     @Value("${file.upload-dir:./uploads}")
     private String uploadsDir;
     @Value("${ai.faiss.add.url:http://localhost:9000/add-to-index}")
@@ -55,6 +59,7 @@ public class ExpenseProcessingService {
 
     @Value("${ai.check.duplicate.url:http://localhost:8085/api/ai/check-duplicate-from-text}")
     private String checkDuplicateUrl;
+
     // Helper to add a document to FAISS
     private void addToFaissIndex(String text, String filename, String absolutePath) {
         try {
@@ -233,6 +238,19 @@ public class ExpenseProcessingService {
                         log.info("No duplicate found for accord of note {}", noteId);
                     }
                 }
+
+                // ========== ✅ ADDED: Full AI analysis (anomalies) ==========
+                // Call the existing method from ExpenseService (no changes needed there)
+                String analysisResult = expenseService.callFullAnalysis(note, lines, note.getAccordPath());
+                if (analysisResult != null) {
+                    note.setAiAnalysisResult(analysisResult);
+                    noteRepository.save(note);
+                    log.info("✅ Full AI analysis saved for note {}", noteId);
+                } else {
+                    log.warn("Full analysis returned null for note {}", noteId);
+                }
+                // =========================================================
+
             } catch (Exception e) {
                 log.error("Error processing accord for note {}: {}", noteId, e.getMessage(), e);
             }
