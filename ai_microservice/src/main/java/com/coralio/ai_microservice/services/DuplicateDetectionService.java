@@ -16,9 +16,14 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.file.*;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class DuplicateDetectionService {
@@ -153,7 +158,7 @@ public class DuplicateDetectionService {
 
             String ocrText = (String) analyzeResponse.get("ocr_text");
             Map<String, Object> structured = (Map<String, Object>) analyzeResponse.get("structured");
-            String humanDescription = (String) analyzeResponse.get("human_description"); // Récupération de la description humaine
+            String humanDescription = (String) analyzeResponse.get("human_description");
 
             if (structured.containsKey("invoice") && structured.get("invoice") instanceof Map) {
                 structured = (Map<String, Object>) structured.get("invoice");
@@ -163,7 +168,7 @@ public class DuplicateDetectionService {
             if (humanDescription != null) {
                 response.put("humanDescription", humanDescription);
             }
-            log.info("📥 /analyze retourné ocrText ({} chars) et structured, humanDescription={}", ocrText != null ? ocrText.length() : 0, humanDescription);
+            log.info("📥 /analyze retourné ocrText ({} chars) et structured", ocrText != null ? ocrText.length() : 0);
 
             List<String> requestedFields = new ArrayList<>();
             if (fieldsJson != null && !fieldsJson.isBlank()) {
@@ -190,6 +195,101 @@ public class DuplicateDetectionService {
                 }
             }
 
+            // ========== EXTRACTION EXPLICITE DES CHAMPS MANQUANTS ==========
+            log.info("🔍 Vérification des champs manquants: {}", requestedFields);
+            log.info("📌 Le champ 'nombre_nuits' est-il demandé? {}", requestedFields.contains("nombre_nuits"));
+            log.info("📌 Le champ 'nombre_nuits' est-il déjà extrait? {}", extracted.containsKey("nombre_nuits"));
+
+            // Extraction du nombre de nuits - FORCÉE
+            if (requestedFields.contains("nombre_nuits")) {
+                log.info("📌 FORCAGE: Extraction explicite du nombre de nuits");
+
+                // Calcul direct depuis check_in/check_out
+                String nights = null;
+                Object checkInObj = structured.get("check_in");
+                Object checkOutObj = structured.get("check_out");
+
+                log.info("   - check_in: {}", checkInObj);
+                log.info("   - check_out: {}", checkOutObj);
+
+                if (checkInObj != null && checkOutObj != null) {
+                    try {
+                        String checkIn = checkInObj.toString();
+                        String checkOut = checkOutObj.toString();
+
+                        LocalDate start = parseDate(checkIn);
+                        LocalDate end = parseDate(checkOut);
+
+                        log.info("   - start parsée: {}", start);
+                        log.info("   - end parsée: {}", end);
+
+                        if (start != null && end != null) {
+                            long nightsCalc = ChronoUnit.DAYS.between(start, end);
+                            if (nightsCalc > 0) {
+                                nights = String.valueOf(nightsCalc);
+                                log.info("   ✅ Calcul direct: {} nuits", nights);
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.error("   ❌ Erreur calcul direct: {}", e.getMessage());
+                    }
+                }
+
+                // Si pas trouvé, essayer depuis la humanDescription
+                if (nights == null && humanDescription != null) {
+                    log.info("   - Tentative extraction depuis humanDescription");
+                    String nightsFromDesc = extractNightsFromText(humanDescription);
+                    if (nightsFromDesc != null) {
+                        nights = nightsFromDesc;
+                        log.info("   ✅ Trouvé dans humanDescription: {} nuits", nights);
+                    }
+                }
+
+                // Si pas trouvé, essayer depuis l'OCR text
+                if (nights == null && ocrText != null) {
+                    log.info("   - Tentative extraction depuis OCR text");
+                    Pattern pattern = Pattern.compile("(\\d+)\\s*(?:nuits?|nights?)", Pattern.CASE_INSENSITIVE);
+                    Matcher matcher = pattern.matcher(ocrText);
+                    if (matcher.find()) {
+                        nights = matcher.group(1);
+                        log.info("   ✅ Trouvé dans OCR: {} nuits", nights);
+                    }
+                }
+
+                if (nights != null && !nights.isEmpty()) {
+                    extracted.put("nombre_nuits", nights);
+                    log.info("✅ Nombre de nuits AJOUTÉ à extracted: {}", nights);
+                } else {
+                    log.warn("⚠️ Impossible d'extraire le nombre de nuits");
+                    // Ajouter une valeur par défaut pour tester
+                    extracted.put("nombre_nuits", "0");
+                    log.info("📌 Valeur par défaut ajoutée: 0");
+                }
+            }
+
+            // Extraction du nom d'hôtel
+            if (requestedFields.contains("hotel_name") && !extracted.containsKey("hotel_name")) {
+                log.info("📌 Extraction explicite du nom d'hôtel");
+                Object hotelName = findExactKey(structured, "hotel_name");
+                if (hotelName == null) hotelName = findExactKey(structured, "merchant_name");
+                if (hotelName != null && !hotelName.toString().isEmpty()) {
+                    extracted.put("hotel_name", hotelName.toString());
+                    log.info("✅ Nom d'hôtel extrait: {}", hotelName);
+                }
+            }
+
+            // Extraction du nombre de personnes
+            if (requestedFields.contains("nombre_personnes") && !extracted.containsKey("nombre_personnes")) {
+                log.info("📌 Extraction explicite du nombre de personnes");
+                String guests = extractNumberOfGuests(structured);
+                if (guests != null && !guests.isEmpty()) {
+                    extracted.put("nombre_personnes", guests);
+                    log.info("✅ Nombre de personnes extrait: {}", guests);
+                }
+            }
+
+            // ========== FIN EXTRACTION EXPLICITE ==========
+
             if (requestedFields.contains("expenseDate") && !extracted.containsKey("expenseDate")) {
                 Object date = findBestDate(structured);
                 if (date != null) extracted.put("expenseDate", date);
@@ -205,7 +305,8 @@ public class DuplicateDetectionService {
                     if (currency != null) extracted.put("currency", currency);
                 }
             }
-            log.info("✅ Champs extraits: {}", extracted);
+
+            log.info("✅ Champs finaux extraits: {}", extracted);
 
         } catch (Exception e) {
             response.put("error", "Service IA indisponible: " + e.getMessage());
@@ -342,11 +443,47 @@ public class DuplicateDetectionService {
         return null;
     }
 
+    // ========== EXTRACTION DES NUITS DEPUIS TEXTE ==========
+    private String extractNightsFromText(String text) {
+        if (text == null) return null;
+
+        // Chercher "X nuits" dans le texte
+        Pattern pattern = Pattern.compile("(\\d+)\\s*(?:nuits?|nights?)", Pattern.CASE_INSENSITIVE);
+        Matcher matcher = pattern.matcher(text);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+
+        // Chercher une plage de dates "du X au Y"
+        Pattern datePattern = Pattern.compile(
+                "du\\s+(\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4})\\s+au\\s+(\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4})",
+                Pattern.CASE_INSENSITIVE
+        );
+        Matcher dateMatcher = datePattern.matcher(text);
+        if (dateMatcher.find()) {
+            try {
+                LocalDate start = parseDate(dateMatcher.group(1));
+                LocalDate end = parseDate(dateMatcher.group(2));
+                if (start != null && end != null) {
+                    long nights = ChronoUnit.DAYS.between(start, end);
+                    if (nights > 0) {
+                        return String.valueOf(nights);
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("Erreur extraction nuits depuis texte: {}", e.getMessage());
+            }
+        }
+
+        return null;
+    }
+
     // ------------------------------------------------------------
-    // CORRECTED extractFieldValueGeneric – handles depart, description, transportType properly
+    // extractFieldValueGeneric – avec support pour nuits, personnes, km, litres
     // ------------------------------------------------------------
     private Object extractFieldValueGeneric(Map<String, Object> json, String fieldName) {
         String lowerField = fieldName.toLowerCase();
+
         // amount, total, montant
         if (lowerField.equals("amount") || lowerField.equals("montant") || lowerField.equals("total")) {
             return findBestAmount(json);
@@ -355,11 +492,11 @@ public class DuplicateDetectionService {
         if (lowerField.equals("expensedate") || lowerField.equals("date") || lowerField.equals("date_facture")) {
             return findBestDate(json);
         }
-        // description – use improved findBestDescription (fallback si human_description non utilisé)
+        // description – use improved findBestDescription
         if (lowerField.equals("description") || lowerField.equals("objet") || lowerField.equals("motif")) {
             return findBestDescription(json);
         }
-        // DEPART – priority: origin → departure (without "_time") → similar
+        // DEPART
         if (lowerField.equals("depart") || lowerField.equals("departure") || lowerField.equals("departure_location")) {
             Object origin = findExactKey(json, "origin");
             if (origin != null && !origin.toString().isBlank()) return origin;
@@ -369,7 +506,7 @@ public class DuplicateDetectionService {
             if (val != null) return val;
             return null;
         }
-        // DESTINATION – arrival city
+        // DESTINATION
         if (lowerField.equals("destination") || lowerField.equals("arrival") || lowerField.equals("arrival_city")) {
             Object dest = findExactKey(json, "destination");
             if (dest != null) return dest;
@@ -377,7 +514,7 @@ public class DuplicateDetectionService {
             if (arrival != null) return arrival;
             return null;
         }
-        // TRANSPORT TYPE – deduce from train_number, flight_number, or document_type
+        // TRANSPORT TYPE
         if (lowerField.equals("transporttype") || lowerField.equals("transport")) {
             Object explicit = findExactKey(json, "transport_type");
             if (explicit != null) return explicit;
@@ -393,6 +530,39 @@ public class DuplicateDetectionService {
             }
             return null;
         }
+
+        // ========== Gestion spécifique pour les quantités ==========
+
+        // Nombre de nuits
+        if (lowerField.equals("nuits") || lowerField.equals("nights") || lowerField.equals("nombre_nuits") ||
+                lowerField.equals("number_of_nights") || lowerField.equals("nuit")) {
+            return extractNumberOfNights(json);
+        }
+
+        // Nombre de personnes
+        if (lowerField.equals("personnes") || lowerField.equals("guests") || lowerField.equals("nombre_personnes") ||
+                lowerField.equals("number_of_guests") || lowerField.equals("pax") || lowerField.equals("voyageurs")) {
+            return extractNumberOfGuests(json);
+        }
+
+        // Kilométrage
+        if (lowerField.equals("km") || lowerField.equals("distance") || lowerField.equals("kilometres") ||
+                lowerField.equals("mileage")) {
+            return extractDistance(json);
+        }
+
+        // Quantité générale
+        if (lowerField.equals("quantite") || lowerField.equals("quantity") || lowerField.equals("qty") ||
+                lowerField.equals("nombre")) {
+            return extractGeneralQuantity(json);
+        }
+
+        // Litres
+        if (lowerField.equals("litres") || lowerField.equals("liters") || lowerField.equals("volume") ||
+                lowerField.equals("fuel_quantity")) {
+            return extractVolume(json);
+        }
+
         // generic similar key for any other field
         String normalizedTarget = normalizeKey(lowerField);
         Object rawValue = findValueBySimilarKey(json, normalizedTarget);
@@ -400,7 +570,253 @@ public class DuplicateDetectionService {
         return null;
     }
 
-    // Helper: find key containing target but exclude '_time' (for depart)
+    // ========== METHODES D'EXTRACTION SPÉCIFIQUES ==========
+
+    /**
+     * Extrait le nombre de nuits d'un JSON d'hôtel
+     */
+    private String extractNumberOfNights(Map<String, Object> json) {
+        log.info("🔍 Extraction nombre de nuits depuis JSON");
+
+        // 1. Recherche directe des clés
+        String[] nightKeys = {"nights", "number_of_nights", "nuit", "nuits", "nb_nuits", "quantity", "qty", "nbre_nuits"};
+        for (String key : nightKeys) {
+            Object value = findExactKey(json, key);
+            if (value != null) {
+                String extracted = extractNumberFromString(value.toString());
+                if (extracted != null) {
+                    try {
+                        if (Double.parseDouble(extracted) > 0) {
+                            log.info("✅ Nuits trouvées via clé '{}': {}", key, extracted);
+                            return extracted;
+                        }
+                    } catch (NumberFormatException e) {}
+                }
+            }
+        }
+
+        // 2. Recherche par similarité
+        Object nightValue = findValueByKeyContaining(json, "night");
+        if (nightValue != null) {
+            String extracted = extractNumberFromString(nightValue.toString());
+            if (extracted != null) {
+                try {
+                    if (Double.parseDouble(extracted) > 0) {
+                        log.info("✅ Nuits trouvées via similarité 'night': {}", extracted);
+                        return extracted;
+                    }
+                } catch (NumberFormatException e) {}
+            }
+        }
+
+        // 3. Calcul à partir des paires de dates
+        Long nights = calculateNightsFromDatePairs(json);
+        if (nights != null && nights > 0) {
+            log.info("✅ Nuits calculées depuis dates: {}", nights);
+            return String.valueOf(nights);
+        }
+
+        // 4. Recherche dans les items
+        if (json.containsKey("items")) {
+            Object items = json.get("items");
+            if (items instanceof List) {
+                for (Object item : (List<?>) items) {
+                    if (item instanceof Map) {
+                        Map<?, ?> itemMap = (Map<?, ?>) item;
+                        Object name = itemMap.get("name");
+                        if (name != null && name.toString().toLowerCase().contains("nuit")) {
+                            String extracted = extractNumberFromString(name.toString());
+                            if (extracted != null) {
+                                log.info("✅ Nuits trouvées dans item name: {}", extracted);
+                                return extracted;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        log.warn("⚠️ Aucun nombre de nuits trouvé dans le JSON");
+        return null;
+    }
+
+    /**
+     * Calcule le nombre de nuits à partir de différentes paires de dates
+     */
+    private Long calculateNightsFromDatePairs(Map<String, Object> json) {
+        String[][] datePairs = {
+                {"check_in", "check_out"},
+                {"checkin", "checkout"},
+                {"date_depart", "date_arrivee"},
+                {"departure_date", "arrival_date"},
+                {"start_date", "end_date"},
+                {"date_debut", "date_fin"},
+                {"from_date", "to_date"},
+                {"date1", "date2"},
+                {"debut", "fin"},
+                {"start", "end"},
+                {"from", "to"}
+        };
+
+        for (String[] pair : datePairs) {
+            Object startObj = findExactKey(json, pair[0]);
+            Object endObj = findExactKey(json, pair[1]);
+
+            if (startObj != null && endObj != null) {
+                try {
+                    LocalDate start = parseDate(startObj.toString());
+                    LocalDate end = parseDate(endObj.toString());
+
+                    if (start != null && end != null) {
+                        long nights = ChronoUnit.DAYS.between(start, end);
+                        if (nights > 0) {
+                            log.debug("Calculé {} nuits entre {} et {}", nights, pair[0], pair[1]);
+                            return nights;
+                        }
+                    }
+                } catch (Exception e) {
+                    log.debug("Impossible de calculer les nuits avec {}/{}: {}", pair[0], pair[1], e.getMessage());
+                }
+            }
+        }
+
+        // Recherche récursive
+        for (Map.Entry<String, Object> entry : json.entrySet()) {
+            if (entry.getValue() instanceof Map) {
+                Long nested = calculateNightsFromDatePairs((Map<String, Object>) entry.getValue());
+                if (nested != null && nested > 0) {
+                    return nested;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Extrait le nombre de personnes
+     */
+    private String extractNumberOfGuests(Map<String, Object> json) {
+        String[] guestKeys = {"guests", "persons", "personnes", "pax", "number_of_guests", "nb_personnes",
+                "adults", "adultes", "occupancy"};
+        for (String key : guestKeys) {
+            Object value = findExactKey(json, key);
+            if (value != null) {
+                String extracted = extractNumberFromString(value.toString());
+                if (extracted != null) return extracted;
+            }
+        }
+
+        Object guestValue = findValueByKeyContaining(json, "guest");
+        if (guestValue != null) {
+            String extracted = extractNumberFromString(guestValue.toString());
+            if (extracted != null) return extracted;
+        }
+
+        return null;
+    }
+
+    /**
+     * Extrait la distance / kilométrage
+     */
+    private String extractDistance(Map<String, Object> json) {
+        String[] distanceKeys = {"km", "distance", "kilometres", "mileage", "kilometers", "kms"};
+        for (String key : distanceKeys) {
+            Object value = findExactKey(json, key);
+            if (value != null) {
+                String extracted = extractNumberFromString(value.toString());
+                if (extracted != null) return extracted;
+            }
+        }
+
+        Object distanceValue = findValueByKeyContaining(json, "km");
+        if (distanceValue != null) {
+            String extracted = extractNumberFromString(distanceValue.toString());
+            if (extracted != null) return extracted;
+        }
+
+        return null;
+    }
+
+    /**
+     * Extrait une quantité générale
+     */
+    private String extractGeneralQuantity(Map<String, Object> json) {
+        String[] qtyKeys = {"quantity", "qty", "quantite", "nombre", "count"};
+        for (String key : qtyKeys) {
+            Object value = findExactKey(json, key);
+            if (value != null) {
+                String extracted = extractNumberFromString(value.toString());
+                if (extracted != null) return extracted;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Extrait un volume (litres)
+     */
+    private String extractVolume(Map<String, Object> json) {
+        String[] volumeKeys = {"litres", "liters", "volume", "fuel_quantity", "carburant"};
+        for (String key : volumeKeys) {
+            Object value = findExactKey(json, key);
+            if (value != null) {
+                String extracted = extractNumberFromString(value.toString());
+                if (extracted != null) return extracted;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Extrait un nombre depuis une chaîne
+     */
+    private String extractNumberFromString(String text) {
+        if (text == null) return null;
+        Pattern pattern = Pattern.compile("\\d+([.,]\\d+)?");
+        Matcher matcher = pattern.matcher(text);
+        if (matcher.find()) {
+            String number = matcher.group();
+            number = number.replace(',', '.');
+            return number;
+        }
+        return null;
+    }
+
+    /**
+     * Parse une date à partir de différents formats
+     */
+    private LocalDate parseDate(String dateStr) {
+        if (dateStr == null || dateStr.isBlank()) return null;
+        dateStr = dateStr.trim();
+
+        // Format français dd/MM/yyyy - AJOUTER CECI EN PREMIER
+        try {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+            return LocalDate.parse(dateStr, formatter);
+        } catch (Exception e) {}
+
+        // Format ISO yyyy-MM-dd
+        try {
+            return LocalDate.parse(dateStr);
+        } catch (Exception e) {}
+
+        // Autres formats
+        String[] formats = {
+                "MM/dd/yyyy", "dd-MM-yyyy", "MM-dd-yyyy",
+                "yyyy/MM/dd", "dd.MM.yyyy", "MM.dd.yyyy"
+        };
+        for (String format : formats) {
+            try {
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern(format);
+                return LocalDate.parse(dateStr, formatter);
+            } catch (Exception ignored) {}
+        }
+
+        return null;
+    }
+
+    // Helper: find key containing target but exclude '_time'
     private Object findValueByKeyContainingExceptTime(Map<String, Object> map, String target) {
         String targetNorm = normalizeKey(target);
         for (Map.Entry<String, Object> entry : map.entrySet()) {
@@ -426,54 +842,36 @@ public class DuplicateDetectionService {
     }
 
     // ------------------------------------------------------------
-    // IMPROVED findBestDescription – uses short description first,
-    // then document_type (if not generic), then construction, then fallback
+    // IMPROVED findBestDescription
     // ------------------------------------------------------------
     private Object findBestDescription(Map<String, Object> json) {
-        // 1) Recherche d'une description courte et explicite (objet, payment_description, title)
         Object shortDesc = findShortDescription(json);
         if (shortDesc != null && !isTooLongOrLegal(shortDesc.toString())) {
             return shortDesc;
         }
 
-        // 2) Si aucune bonne description courte, essayons le document_type (sauf s'il est générique)
+        Object reason = findValueByKeyContaining(json, "reason");
+        if (reason != null && !reason.toString().isBlank() && !isTooLongOrLegal(reason.toString())) {
+            return reason.toString();
+        }
+        Object objet = findExactKey(json, "objet");
+        if (objet != null && !objet.toString().isBlank() && !isTooLongOrLegal(objet.toString())) {
+            return objet.toString();
+        }
+
         Object docType = json.get("document_type");
         if (docType != null && !isGenericDocumentType(docType.toString())) {
             return docType.toString();
         }
 
-        // 3) Construction à partir de ticket_type + origine + destination
-        Object ticketType = json.get("ticket_type");
-        Object origin = json.get("origin");
-        Object dest = json.get("destination");
-        if (ticketType != null && origin != null && dest != null) {
-            return ticketType.toString() + " : " + origin + " → " + dest;
-        }
-        if (origin != null && dest != null) {
-            return "Voyage de " + origin + " à " + dest;
-        }
-
-        // 4) Fallback : description, name, items, surcharge
         Object desc = findValueByKeyContaining(json, "description");
         if (desc != null && !desc.toString().isEmpty()) return desc;
         Object name = json.get("name");
         if (name != null && !name.toString().toLowerCase().contains("jones")) return name;
-        if (json.containsKey("items")) {
-            Object itemsObj = json.get("items");
-            if (itemsObj instanceof List && !((List<?>) itemsObj).isEmpty()) {
-                Object first = ((List<?>) itemsObj).get(0);
-                if (first instanceof Map) {
-                    Object itemName = ((Map<?, ?>) first).get("name");
-                    if (itemName != null) return itemName.toString();
-                }
-            }
-        }
-        Object surchargeDesc = findSurchargeDescription(json);
-        if (surchargeDesc != null) return surchargeDesc;
+
         return "receipt";
     }
 
-    // Helper to extract a short description first (payment_description, objet, title)
     private Object findShortDescription(Map<String, Object> json) {
         Object paymentDesc = findValueByKeyContaining(json, "payment_description");
         if (paymentDesc != null && !paymentDesc.toString().isEmpty()) return paymentDesc;
@@ -481,10 +879,11 @@ public class DuplicateDetectionService {
         if (objet != null && !objet.toString().isEmpty()) return objet;
         Object title = findValueByKeyContaining(json, "title");
         if (title != null && !title.toString().isEmpty()) return title;
+        Object reason = findValueByKeyContaining(json, "reason");
+        if (reason != null && !reason.toString().isEmpty()) return reason;
         return null;
     }
 
-    // Check if text is too long (>200 chars) or contains legal keywords
     private boolean isTooLongOrLegal(String text) {
         if (text.length() > 200) return true;
         String lower = text.toLowerCase();
@@ -497,14 +896,13 @@ public class DuplicateDetectionService {
         return false;
     }
 
-    // Check if document_type is generic (should be ignored for description)
     private boolean isGenericDocumentType(String docType) {
         String lower = docType.toLowerCase();
         return lower.equals("other") || lower.equals("receipt") || lower.equals("unknown") || lower.equals("document");
     }
 
     // ------------------------------------------------------------
-    // Existing helper methods (unchanged)
+    // Existing helper methods
     // ------------------------------------------------------------
     private Object findValueBySimilarKey(Map<String, Object> map, String targetNorm) {
         for (Map.Entry<String, Object> entry : map.entrySet()) {
@@ -544,6 +942,7 @@ public class DuplicateDetectionService {
     private Object postProcessValue(Object raw, String fieldName) {
         String lowerField = fieldName.toLowerCase();
         String str = raw.toString().trim();
+
         if (lowerField.contains("amount") || lowerField.contains("montant") || lowerField.contains("total") ||
                 lowerField.contains("prix") || lowerField.contains("cout") || lowerField.contains("price")) {
             return normalizeAmount(str);
@@ -551,11 +950,21 @@ public class DuplicateDetectionService {
         if (lowerField.contains("date")) {
             return normalizeDate(str);
         }
+
         if (lowerField.contains("nuit") || lowerField.contains("personne") || lowerField.contains("km") ||
-                lowerField.contains("quantite") || lowerField.contains("litre")) {
+                lowerField.contains("quantite") || lowerField.contains("litre") || lowerField.contains("volume") ||
+                lowerField.equals("nights") || lowerField.equals("guests") || lowerField.equals("distance")) {
+            String extracted = extractNumberFromString(str);
+            if (extracted != null) {
+                if (extracted.contains(".0") && !extracted.matches(".*\\.[1-9].*")) {
+                    return extracted.replace(".0", "");
+                }
+                return extracted;
+            }
             String digits = str.replaceAll("[^0-9]", "");
             if (!digits.isEmpty()) return digits;
         }
+
         if (lowerField.equals("destination") || lowerField.equals("arrival") ||
                 lowerField.equals("depart") || lowerField.equals("departure")) {
             return str.replaceAll(",$", "").trim();
@@ -564,7 +973,6 @@ public class DuplicateDetectionService {
     }
 
     private Object findBestAmount(Map<String, Object> json) {
-        // 1. Recherche exacte des clés prioritaires (total TTC d'abord)
         String[] priorityKeys = {"total_ttc", "total_tva_comprise", "grand_total", "total"};
         for (String key : priorityKeys) {
             Object exact = findExactKey(json, key);
@@ -574,17 +982,14 @@ public class DuplicateDetectionService {
             }
         }
 
-        // 2. Recherche par similarité (contient "total") mais en évitant "subtotal" si possible
         Object best = null;
         for (Map.Entry<String, Object> entry : json.entrySet()) {
             String keyLower = entry.getKey().toLowerCase();
             if (keyLower.contains("total")) {
-                // Ignorer les clés qui contiennent "sous", "sub", "ht" si on a déjà une meilleure alternative
                 if (keyLower.contains("sub") || keyLower.contains("sous") || keyLower.contains("ht")) {
                     if (best == null) best = entry.getValue();
                     continue;
                 }
-                // Sinon, c'est probablement un vrai total TTC
                 String norm = normalizeAmount(entry.getValue().toString());
                 if (norm != null) return norm;
             }
@@ -594,11 +999,9 @@ public class DuplicateDetectionService {
             if (norm != null) return norm;
         }
 
-        // 3. Surcharge éventuelle
         Object surcharge = findSurchargeAmount(json);
         if (surcharge != null) return surcharge;
 
-        // 4. Somme des items (en dernier recours)
         for (String itemsKey : Arrays.asList("items", "line_items")) {
             if (json.containsKey(itemsKey)) {
                 Object items = json.get(itemsKey);
@@ -732,9 +1135,8 @@ public class DuplicateDetectionService {
         };
         for (String pattern : patterns) {
             try {
-                java.time.format.DateTimeFormatter formatter =
-                        java.time.format.DateTimeFormatter.ofPattern(pattern, java.util.Locale.ENGLISH);
-                java.time.LocalDate date = java.time.LocalDate.parse(raw, formatter);
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern(pattern, Locale.ENGLISH);
+                LocalDate date = LocalDate.parse(raw, formatter);
                 return date.toString();
             } catch (Exception ignored) {}
         }

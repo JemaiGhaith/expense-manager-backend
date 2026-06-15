@@ -410,4 +410,26 @@ public class CategoryService {
                 .map(Category::getName)
                 .orElse("Catégorie inconnue");
     }
+    // Dans CategoryService.java
+
+    /**
+     * Récupère les noms des champs dynamiques pour une catégorie
+     */
+    public List<String> getCategoryFieldNames(Long categoryId) {
+        if (categoryId == null) {
+            return Collections.emptyList();
+        }
+        String sql = "SELECT field_name FROM category_fields WHERE category_id = ? ORDER BY display_order";
+        return jdbcTemplate.queryForList(sql, String.class, categoryId);
+    }
+
+    /**
+     * Récupère les champs complets (avec métadonnées) pour une catégorie
+     */
+    public List<CategoryField> getCategoryFields(Long categoryId) {
+        if (categoryId == null) {
+            return Collections.emptyList();
+        }
+        return categoryFieldRepository.findByCategoryIdOrderByDisplayOrderAsc(categoryId);
+    }
 }

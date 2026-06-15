@@ -10,4 +10,6 @@ public interface ExpenseDuplicateRepository extends JpaRepository<ExpenseDuplica
     void deleteByExpenseNoteId(Long expenseNoteId);
     boolean existsByExpenseNoteIdAndExpenseLineIdAndUploadedFile(Long expenseNoteId, Long expenseLineId, String uploadedFile);
     boolean existsByExpenseNoteIdAndExpenseLineIdIsNullAndUploadedFile(Long expenseNoteId, String uploadedFile);
+    void deleteByExpenseNoteIdAndExpenseLineIdAndUploadedFile(Long noteId, Long lineId, String uploadedFile);
+    void deleteByExpenseNoteIdAndExpenseLineIdIsNullAndUploadedFile(Long noteId, String uploadedFile);
 }

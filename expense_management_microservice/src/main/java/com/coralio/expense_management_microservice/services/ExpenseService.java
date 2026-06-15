@@ -55,7 +55,8 @@ public class ExpenseService {
     private OCRService ocrService;
     @Autowired
     private FileStorageService fileStorageService;
-
+    @Autowired
+    private ExpenseProcessingService expenseProcessingService;
     private final ExpenseExtractionRepository extractionRepository;
     private final ExpenseNoteExtractionRepository noteExtractionRepository;
     private final CurrencyService currencyService;
@@ -296,7 +297,6 @@ public class ExpenseService {
 
         if (managerRate == null) managerRate = 1.0;
         checkProjectBudget(savedNote, savedNote.getId(), managerTargetCurrency, managerRate);
-
         return noteRepository.save(savedNote);
     }
 
@@ -591,11 +591,11 @@ public class ExpenseService {
         lineRepository.deleteByExpenseNoteId(noteId);
         noteRepository.delete(note);
     }
-
     @Transactional
     public ExpenseNote updateExpenseNoteWithFiles(
             Long noteId, String employeeId, ExpenseNote updatedNote, List<ExpenseLine> updatedLines,
             MultipartFile newAccordFile, List<MultipartFile> newFactureFiles) {
+
         ExpenseNote existingNote = noteRepository.findById(noteId)
                 .orElseThrow(() -> new RuntimeException("Note not found with ID: " + noteId));
         if (!existingNote.getEmployeeId().equals(employeeId)) {
@@ -604,12 +604,18 @@ public class ExpenseService {
         if (existingNote.getStatus() != ExpenseStatus.EN_ATTENTE) {
             throw new IllegalStateException("Only pending notes can be modified.");
         }
+
         existingNote.setProjectId(updatedNote.getProjectId());
+        existingNote.setNoteDescription(updatedNote.getNoteDescription());
         existingNote.setUpdatedAt(LocalDateTime.now());
 
-        if (newAccordFile != null && !newAccordFile.isEmpty()) {
-            if (existingNote.getAccordPath() != null) {
-                fileStorageService.deleteFile(employeeId, existingNote.getAccordPath());
+        // ----- Capture old accord path BEFORE change -----
+        String oldAccordPath = existingNote.getAccordPath();
+        boolean accordChanged = (newAccordFile != null && !newAccordFile.isEmpty());
+
+        if (accordChanged) {
+            if (oldAccordPath != null) {
+                fileStorageService.deleteFile(employeeId, oldAccordPath);
             }
             String newAccordFileName = fileStorageService.storeFile(newAccordFile, employeeId, "accords");
             existingNote.setAccordPath(newAccordFileName);
@@ -623,6 +629,7 @@ public class ExpenseService {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
 
+        // Delete removed lines
         for (ExpenseLine oldLine : oldLines) {
             if (!updatedLineIds.contains(oldLine.getId())) {
                 if (oldLine.getJustificatifPath() != null) {
@@ -633,11 +640,20 @@ public class ExpenseService {
         }
 
         double total = 0.0;
+        List<Integer> changedLineIndices = new ArrayList<>();
+        // Store old paths for changed lines (index -> old path)
+        Map<Integer, String> oldLinePaths = new HashMap<>();
+
         for (int i = 0; i < updatedLines.size(); i++) {
             ExpenseLine line = updatedLines.get(i);
             ExpenseLine lineToSave;
+
             if (line.getId() != null && oldLinesMap.containsKey(line.getId())) {
                 lineToSave = oldLinesMap.get(line.getId());
+                // Capture old path before modifying
+                if (lineToSave.getJustificatifPath() != null) {
+                    oldLinePaths.put(i, lineToSave.getJustificatifPath());
+                }
                 lineToSave.setCategoryId(line.getCategoryId());
                 lineToSave.setAmount(line.getAmount());
                 lineToSave.setExpenseDate(line.getExpenseDate());
@@ -654,12 +670,15 @@ public class ExpenseService {
             }
 
             MultipartFile fileForThisLine = (newFactureFiles != null && i < newFactureFiles.size()) ? newFactureFiles.get(i) : null;
-            if (fileForThisLine != null && !fileForThisLine.isEmpty()) {
+            boolean fileChanged = (fileForThisLine != null && !fileForThisLine.isEmpty());
+
+            if (fileChanged) {
                 if (lineToSave.getJustificatifPath() != null) {
                     fileStorageService.deleteFile(employeeId, lineToSave.getJustificatifPath());
                 }
                 String fileName = fileStorageService.storeFile(fileForThisLine, employeeId, "factures");
                 lineToSave.setJustificatifPath(fileName);
+                changedLineIndices.add(i);
             }
 
             if (lineToSave.getExpenseDate() == null) {
@@ -678,6 +697,7 @@ public class ExpenseService {
         existingNote.setTotalAmount(total);
         ExpenseNote savedNote = noteRepository.save(existingNote);
 
+        // Re‑check category limits and project budget (unchanged)
         for (ExpenseLine line : updatedLines) {
             List<ExpenseLine> savedLines = lineRepository.findByExpenseNoteId(savedNote.getId());
             for (ExpenseLine savedLine : savedLines) {
@@ -690,6 +710,12 @@ public class ExpenseService {
             }
         }
         checkProjectBudget(savedNote, savedNote.getId());
+
+        // ========== ASYNC POST‑UPDATE PROCESSING with old paths ==========
+        if (!changedLineIndices.isEmpty() || accordChanged) {
+            expenseProcessingService.processAfterUpdate(savedNote.getId(), changedLineIndices, accordChanged, oldAccordPath, oldLinePaths);
+        }
+
         return savedNote;
     }
 

@@ -40,8 +40,10 @@ public class IntentClassifierService {
     public static final Map<String, Pattern> SIMPLE_PATTERNS = Map.ofEntries(
             // ✅ Add this pattern FIRST (prioritize note details)
             Map.entry("NOTE_DETAILS", Pattern.compile("(?i).*(donner|afficher|voir|lister|montrer|détail|details?|info).*(note|dépense|frais).*#?\\d+.*")),
+            Map.entry("VIEW_NOTES", Pattern.compile(
+                    "(?i).*(voir|afficher|lister|mes|ma|dernière|récente).*(notes?|dépense|frais).*"
+            )),
             Map.entry("CREATE_NOTE", Pattern.compile("(?i).*(cr[ée]er|nouvelle|ajouter).*(note|d[ée]pense|frais).*")),
-            Map.entry("VIEW_NOTES", Pattern.compile("(?i).*(voir|afficher|lister|mes).*(notes?).*")),
             Map.entry("FILTER_NOTES_BY_STATUS", Pattern.compile(
                     "(?i).*(mes notes|notes).*(en attente|validées?|refusées?|remboursées?).*"
             )),

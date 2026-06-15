@@ -10,6 +10,8 @@ import com.coralio.expense_management_microservice.services.ExpenseService;
 import com.coralio.expense_management_microservice.services.FileStorageService;
 import com.coralio.expense_management_microservice.services.ProjectService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
@@ -42,6 +44,7 @@ public class ExpenseController {
     private ObjectMapper objectMapper;
     @Autowired
     private ExpenseProcessingService expenseProcessingService;
+    private static final Logger log = LoggerFactory.getLogger(ExpenseController.class);
 
     public ExpenseController(
             ExpenseService expenseService,
@@ -67,17 +70,58 @@ public class ExpenseController {
             @RequestParam(value = "exchangeRate", required = false) Double exchangeRate) {
         try {
             ExpenseNote note = objectMapper.readValue(noteJson, ExpenseNote.class);
-            List<ExpenseLine> lines = objectMapper.readValue(
+
+            // Lire comme Map
+            List<Map<String, Object>> lineMaps = objectMapper.readValue(
                     linesJson,
-                    objectMapper.getTypeFactory().constructCollectionType(List.class, ExpenseLine.class)
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, Map.class)
             );
 
+            List<ExpenseLine> lines = new ArrayList<>();
+
+            // ✅ Stocker les infos de devise par index temporaire
+            Map<Integer, Map<String, Object>> tempCurrencyInfos = new HashMap<>();
+
+            for (int i = 0; i < lineMaps.size(); i++) {
+                Map<String, Object> lineMap = lineMaps.get(i);
+
+                ExpenseLine line = new ExpenseLine();
+
+                // Champs standards
+                if (lineMap.get("id") != null) {
+                    line.setId(Long.valueOf(lineMap.get("id").toString()));
+                }
+                if (lineMap.get("categoryId") != null) {
+                    line.setCategoryId(Long.valueOf(lineMap.get("categoryId").toString()));
+                }
+                if (lineMap.get("amount") != null) {
+                    line.setAmount(Double.valueOf(lineMap.get("amount").toString()));
+                }
+                if (lineMap.get("expenseDate") != null) {
+                    line.setExpenseDate(LocalDate.parse(lineMap.get("expenseDate").toString()));
+                }
+                if (lineMap.get("description") != null) {
+                    line.setDescription(lineMap.get("description").toString());
+                }
+
+
+                lines.add(line);
+
+                // ✅ Stocker les devises dans une Map temporaire
+                Map<String, Object> currencyInfo = new HashMap<>();
+                currencyInfo.put("invoiceCurrency", lineMap.getOrDefault("invoiceCurrency", "TND").toString());
+                currencyInfo.put("rateToTND", Double.valueOf(lineMap.getOrDefault("rateToTND", 1.0).toString()));
+                tempCurrencyInfos.put(i, currencyInfo);
+            }
+
+            // Sauvegarde de l'accord
             String accordFileName = null;
             if (accordFile != null && !accordFile.isEmpty()) {
                 accordFileName = fileStorageService.storeFile(accordFile, note.getEmployeeId(), "accords");
                 note.setAccordPath(accordFileName);
             }
 
+            // Sauvegarde des factures
             List<String> factureFileNames = new ArrayList<>();
             if (factureFiles != null) {
                 for (MultipartFile file : factureFiles) {
@@ -86,15 +130,30 @@ public class ExpenseController {
                         factureFileNames.add(savedFileName);
                     }
                 }
+                for (int i = 0; i < lines.size() && i < factureFileNames.size(); i++) {
+                    lines.get(i).setJustificatifPath(factureFileNames.get(i));
+                }
             }
 
+            // Création de la note
             ExpenseNote savedNote = expenseService.createExpenseNoteWithFiles(
                     note, lines, accordFileName, factureFileNames, accordFile,
                     displayCurrency, exchangeRate
             );
 
+            // Récupérer les lignes sauvegardées
             List<ExpenseLine> savedLines = expenseService.getLines(savedNote.getId());
-            expenseProcessingService.processAfterSubmission(savedNote.getId(), savedLines);
+
+            // ✅ Reconstruire la Map avec les vrais IDs
+            Map<Long, Map<String, Object>> currencyInfos = new HashMap<>();
+            for (int i = 0; i < savedLines.size() && i < lineMaps.size(); i++) {
+                currencyInfos.put(savedLines.get(i).getId(), tempCurrencyInfos.get(i));
+                log.info("📦 Devise pour ligne {}: {}", savedLines.get(i).getId(), tempCurrencyInfos.get(i));
+            }
+
+            // ✅ Remplacer l'appel à processAfterSubmission par la nouvelle méthode
+            // expenseProcessingService.processAfterSubmission(savedNote.getId(), savedLines);
+            expenseProcessingService.processAfterSubmissionWithCurrency(savedNote.getId(), savedLines, currencyInfos);
 
             return ResponseEntity.accepted().body(Map.of(
                     "id", savedNote.getId(),

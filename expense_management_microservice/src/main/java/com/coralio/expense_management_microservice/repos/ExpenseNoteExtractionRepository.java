@@ -6,4 +6,5 @@ import java.util.Optional;
 
 public interface ExpenseNoteExtractionRepository extends JpaRepository<ExpenseNoteExtraction, Long> {
     Optional<ExpenseNoteExtraction> findByExpenseNoteId(Long expenseNoteId);
+    void deleteByExpenseNoteId(Long expenseNoteId);
 }
