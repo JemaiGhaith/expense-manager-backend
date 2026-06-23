@@ -6,6 +6,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -20,7 +23,6 @@ public class CategoryField {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // ✅ UN SEUL NOM - UNIQUE DANS TOUTE LA TABLE
     @Column(nullable = false, unique = true)
     private String fieldName;
 
@@ -30,11 +32,14 @@ public class CategoryField {
     @Column(length = 1000)
     private String fieldOptions;   // Pour SELECT: ["Train","Avion","Taxi","Voiture"]
 
-    private boolean required;      // Champ obligatoire ?
+    // ⚠️ On retire required et displayOrder, car ils sont maintenant dans le mapping
+    // private boolean required;
+    // private Integer displayOrder;
 
-    private Integer displayOrder;  // Ordre d'affichage
+    // Relation inverse vers les mappings
+    @OneToMany(mappedBy = "field", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<CategoryFieldMapping> categoryMappings = new ArrayList<>();
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "category_id", nullable = false)
-    private Category category;
+    // ✅ On garde la contrainte d'unicité sur fieldName
 }

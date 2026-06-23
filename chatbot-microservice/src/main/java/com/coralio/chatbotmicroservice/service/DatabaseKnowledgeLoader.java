@@ -1,7 +1,7 @@
 package com.coralio.chatbotmicroservice.service;
 
-
 import com.coralio.chatbotmicroservice.entity.Category;
+import com.coralio.chatbotmicroservice.entity.CategoryFieldMapping;
 import com.coralio.chatbotmicroservice.entity.ExpenseNote;
 import com.coralio.chatbotmicroservice.repository.CategoryRepository;
 import com.coralio.chatbotmicroservice.repository.ExpenseNoteRepository;
@@ -46,9 +46,9 @@ public class DatabaseKnowledgeLoader {
             String content = buildCategoryContent(category);
             Document doc = new Document(content);
             doc.getMetadata().put("type", "category");
-            doc.getMetadata().put("category_id", category.getId());
-            doc.getMetadata().put("category_name", category.getName());
-            doc.getMetadata().put("plafond", category.getPlafond());
+            doc.getMetadata().put("category_id", category.getId() != null ? category.getId() : 0L);
+            doc.getMetadata().put("category_name", category.getName() != null ? category.getName() : "Inconnu");
+            doc.getMetadata().put("plafond", category.getPlafond() != null ? category.getPlafond() : 0.0);
             documents.add(doc);
             log.debug("Added category: {}", category.getName());
         }
@@ -59,7 +59,7 @@ public class DatabaseKnowledgeLoader {
             String content = buildExampleNoteContent(note);
             Document doc = new Document(content);
             doc.getMetadata().put("type", "example");
-            doc.getMetadata().put("amount", note.getTotalAmount());
+            doc.getMetadata().put("amount", note.getTotalAmount() != null ? note.getTotalAmount() : 0.0);
             documents.add(doc);
         }
 
@@ -80,9 +80,16 @@ public class DatabaseKnowledgeLoader {
             content.append(String.format("Description: %s\n", category.getDescription()));
         }
 
-        if (!category.getFields().isEmpty()) {
+        // ✅ CORRECTION : Utiliser fieldMappings au lieu de getFields()
+        List<CategoryFieldMapping> mappings = category.getFieldMappings();
+        if (mappings != null && !mappings.isEmpty()) {
             content.append("Champs:\n");
-            content.append(category.getFieldDescriptions());
+            for (CategoryFieldMapping mapping : mappings) {
+                String fieldName = mapping.getField().getFieldName();
+                String fieldType = mapping.getField().getFieldType();
+                String required = mapping.isRequired() ? " [OBLIGATOIRE]" : " [optionnel]";
+                content.append(String.format("- %s (%s)%s\n", fieldName, fieldType, required));
+            }
         }
 
         return content.toString();
@@ -91,7 +98,9 @@ public class DatabaseKnowledgeLoader {
     private String buildExampleNoteContent(ExpenseNote note) {
         return String.format(
                 "Exemple de note approuvée #%d: Montant %.2f TND, créée le %s",
-                note.getId(), note.getTotalAmount(), note.getFormattedDate()
+                note.getId(),
+                note.getTotalAmount(),
+                note.getFormattedDate() != null ? note.getFormattedDate() : "date inconnue"
         );
     }
 

@@ -1142,4 +1142,32 @@ public class DuplicateDetectionService {
         }
         return raw;
     }
+    // Dans DuplicateDetectionService.java
+    public Map<String, Object> extractSpecificFields(MultipartFile file, String fieldsJson, String selectOptions) throws Exception {
+        log.info("📌 extractSpecificFields appelé pour file={}, fieldsJson={}, selectOptions={}",
+                file.getOriginalFilename(), fieldsJson, selectOptions);
+
+        RestTemplate restTemplate = new RestTemplate();
+        String pythonUrl = pythonBaseUrl + "/extract-specific-fields";
+
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        body.add("file", new ByteArrayResource(file.getBytes()) {
+            @Override public String getFilename() { return file.getOriginalFilename(); }
+        });
+        body.add("fields_json", fieldsJson);
+        if (selectOptions != null && !selectOptions.isEmpty()) {
+            body.add("select_options", selectOptions);  // ← AJOUTER
+        }
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+        HttpEntity<MultiValueMap<String, Object>> request = new HttpEntity<>(body, headers);
+
+        log.info("📤 Appel Python: {}", pythonUrl);
+        Map<String, Object> response = restTemplate.postForObject(pythonUrl, request, Map.class);
+        log.info("📥 Réponse Python: {}", response);
+
+        return response;
+    }
 }

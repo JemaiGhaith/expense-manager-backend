@@ -150,4 +150,18 @@ public class AiController {
             return ResponseEntity.ok(Map.of("duplicate", false, "isDuplicate", false, "score", 0));
         }
     }
+    // Dans AiController.java
+    @PostMapping("/extract-specific-fields")
+    public ResponseEntity<Map<String, Object>> extractSpecificFields(
+            @RequestParam MultipartFile file,
+            @RequestParam("fields_json") String fieldsJson,
+            @RequestParam(value = "select_options", required = false) String selectOptions) {  // ← AJOUTER CE PARAMÈTRE
+        try {
+            Map<String, Object> result = service.extractSpecificFields(file, fieldsJson, selectOptions);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", e.getMessage(), "success", false));
+        }
+    }
 }

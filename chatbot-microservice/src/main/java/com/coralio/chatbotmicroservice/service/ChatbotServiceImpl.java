@@ -2860,48 +2860,48 @@ public class ChatbotServiceImpl implements ChatbotService {
     private ChatResponse buildCategoryDetailResponseFromDatabase(Category category, ChatRequest request) {
         StringBuilder sb = new StringBuilder();
 
-        // En-tête comme dans Smart Chatbot
+        // En-tête
         sb.append("La catégorie est : **").append(category.getName()).append("**\n\n");
         sb.append("Voici les détails :\n");
 
         // Plafond
         sb.append("* Plafond : ").append(String.format("%.2f", category.getPlafond())).append(" TND\n");
 
-        // Description (si disponible)
+        // Description
         if (category.getDescription() != null && !category.getDescription().isEmpty()) {
             sb.append("* Description : ").append(category.getDescription()).append("\n");
         }
 
-        // ✅ Champs - Utiliser la liste de CategoryField
-        List<CategoryField> fields = category.getFields();
-
-        if (fields != null && !fields.isEmpty()) {
+        // ✅ CORRECTION: Utiliser fieldMappings au lieu de fields
+        List<CategoryFieldMapping> mappings = category.getFieldMappings();
+        if (mappings != null && !mappings.isEmpty()) {
             sb.append("* Champs : \n");
 
-            // Séparer les champs obligatoires et optionnels
-            List<CategoryField> requiredFields = fields.stream()
-                    .filter(CategoryField::isRequired)
+            // Séparer obligatoires et optionnels
+            List<CategoryFieldMapping> requiredMappings = mappings.stream()
+                    .filter(CategoryFieldMapping::isRequired)
                     .toList();
-            List<CategoryField> optionalFields = fields.stream()
-                    .filter(f -> !f.isRequired())
+            List<CategoryFieldMapping> optionalMappings = mappings.stream()
+                    .filter(m -> !m.isRequired())
                     .toList();
 
             // Champs obligatoires
-            for (CategoryField field : requiredFields) {
+            for (CategoryFieldMapping mapping : requiredMappings) {
+                CategoryField field = mapping.getField();
                 sb.append("  - ").append(field.getFieldName())
                         .append(" (").append(field.getFieldType()).append(")")
                         .append(" [OBLIGATOIRE]\n");
             }
 
             // Champs optionnels
-            for (CategoryField field : optionalFields) {
+            for (CategoryFieldMapping mapping : optionalMappings) {
+                CategoryField field = mapping.getField();
                 sb.append("  - ").append(field.getFieldName())
                         .append(" (").append(field.getFieldType()).append(")")
                         .append(" [OPTIONNEL]\n");
             }
         }
 
-        // Conseils pour créer une note
         sb.append("\n💡 Pour créer une note avec cette catégorie, dites : 'créer note ").append(category.getName().toLowerCase()).append("'");
 
         return ChatResponse.builder()

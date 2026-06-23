@@ -11,7 +11,8 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 @Entity
-@Table(name = "category_fields")
+@Table(name = "category_fields",
+        uniqueConstraints = @UniqueConstraint(columnNames = {"fieldName"}))
 public class CategoryField {
 
     @Id
@@ -22,18 +23,15 @@ public class CategoryField {
     private String fieldName;
 
     @Column(nullable = false)
-    private String fieldType;
+    private String fieldType;      // TEXT, NUMBER, DATE, SELECT, TEXTAREA
 
     @Column(length = 1000)
-    private String fieldOptions;
+    private String fieldOptions;   // Pour SELECT: "Train,Avion,Taxi,Voiture"
 
-    private boolean required;
-
-    private Integer displayOrder;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "category_id", nullable = false)
-    private Category category;
+    // ❌ Supprimer required, displayOrder, et category_id
+    // private boolean required;
+    // private Integer displayOrder;
+    // @ManyToOne private Category category;
 
     public String[] getOptionsArray() {
         if (fieldOptions == null || fieldOptions.isEmpty()) {

@@ -4,8 +4,11 @@ import com.coralio.expense_management_microservice.dto.CategoryDTO;
 import com.coralio.expense_management_microservice.dto.CategoryFieldDTO;
 import com.coralio.expense_management_microservice.entities.Category;
 import com.coralio.expense_management_microservice.entities.CategoryField;
+import com.coralio.expense_management_microservice.entities.CategoryFieldMapping;
 import com.coralio.expense_management_microservice.repos.CategoryRepository;
 import org.springframework.stereotype.Service;
+
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -18,7 +21,7 @@ public class EmployeeCategoryService {
         this.categoryRepository = categoryRepository;
     }
 
-    // 🔥 Retourne les catégories AVEC leurs champs (UN SEUL NOM)
+    // 🔥 Retourne les catégories AVEC leurs champs (via les mappings)
     public List<CategoryDTO> getActiveCategoriesForEmployees() {
         return categoryRepository.findByActiveTrue().stream()
                 .map(this::convertToDTO)
@@ -26,27 +29,32 @@ public class EmployeeCategoryService {
     }
 
     private CategoryDTO convertToDTO(Category category) {
+        // Récupérer les champs à partir des mappings
+        List<CategoryFieldDTO> fieldDTOs = category.getFieldMappings().stream()
+                .map(this::convertMappingToDTO)
+                .sorted(Comparator.comparingInt(CategoryFieldDTO::getDisplayOrder))
+                .collect(Collectors.toList());
+
         return CategoryDTO.builder()
                 .id(category.getId())
                 .name(category.getName())
                 .plafond(category.getPlafond())
                 .description(category.getDescription())
                 .active(category.isActive())
-                .fields(category.getFields().stream()
-                        .map(this::convertFieldToDTO)
-                        .collect(Collectors.toList()))
+                .fields(fieldDTOs)
                 .build();
     }
 
-    // ✅ Conversion directe - UN SEUL NOM
-    private CategoryFieldDTO convertFieldToDTO(CategoryField field) {
+    // ✅ Conversion à partir du mapping
+    private CategoryFieldDTO convertMappingToDTO(CategoryFieldMapping mapping) {
+        CategoryField field = mapping.getField();
         return CategoryFieldDTO.builder()
                 .id(field.getId())
-                .fieldName(field.getFieldName())     // "depart"
-                .fieldType(field.getFieldType())     // "TEXT"
-                .fieldOptions(field.getFieldOptions()) // null ou JSON
-                .required(field.isRequired())        // true
-                .displayOrder(field.getDisplayOrder()) // 1
+                .fieldName(field.getFieldName())
+                .fieldType(field.getFieldType())
+                .fieldOptions(field.getFieldOptions())
+                .required(mapping.isRequired())       // depuis le mapping
+                .displayOrder(mapping.getDisplayOrder()) // depuis le mapping
                 .build();
     }
 }

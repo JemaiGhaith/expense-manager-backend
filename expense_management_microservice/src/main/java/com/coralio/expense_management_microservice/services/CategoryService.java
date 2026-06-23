@@ -5,6 +5,8 @@ import com.coralio.expense_management_microservice.dto.CategoryFieldDTO;
 import com.coralio.expense_management_microservice.dto.CategoryRequest;
 import com.coralio.expense_management_microservice.entities.Category;
 import com.coralio.expense_management_microservice.entities.CategoryField;
+import com.coralio.expense_management_microservice.entities.CategoryFieldMapping;
+import com.coralio.expense_management_microservice.repos.CategoryFieldMappingRepository;
 import com.coralio.expense_management_microservice.repos.CategoryFieldRepository;
 import com.coralio.expense_management_microservice.repos.CategoryRepository;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -19,16 +21,19 @@ import java.util.stream.Collectors;
 public class CategoryService {
     private final CategoryRepository categoryRepository;
     private final CategoryFieldRepository categoryFieldRepository;
+    private final CategoryFieldMappingRepository mappingRepository;
     private final DatabaseMigrationService migrationService;
     private final JdbcTemplate jdbcTemplate;
 
     public CategoryService(
             CategoryRepository categoryRepository,
             CategoryFieldRepository categoryFieldRepository,
+            CategoryFieldMappingRepository mappingRepository,
             DatabaseMigrationService migrationService,
             JdbcTemplate jdbcTemplate) {
         this.categoryRepository = categoryRepository;
         this.categoryFieldRepository = categoryFieldRepository;
+        this.mappingRepository = mappingRepository;
         this.migrationService = migrationService;
         this.jdbcTemplate = jdbcTemplate;
     }
@@ -37,7 +42,6 @@ public class CategoryService {
     public CategoryDTO createCategory(CategoryRequest request) {
         try {
             // ✅ 1. VÉRIFICATION: Les champs existants peuvent être réutilisés
-            // Seuls les NOUVEAUX champs (qui n'existent pas dans category_fields) doivent être uniques
             validateFieldNamesForCreation(request.getFields());
 
             // ✅ 2. Vérifier et créer les colonnes manquantes dans expense_lines
@@ -53,38 +57,31 @@ public class CategoryService {
 
             Category savedCategory = categoryRepository.save(category);
 
-            // ✅ 4. Ajouter les champs
+            // ✅ 4. Ajouter les champs via les mappings
             if (request.getFields() != null && !request.getFields().isEmpty()) {
+                int order = 1;
                 for (CategoryFieldDTO fieldDTO : request.getFields()) {
-                    // ✅ Vérifier si le champ existe déjà dans category_fields
-                    Optional<CategoryField> existingField = categoryFieldRepository.findByFieldName(fieldDTO.getFieldName());
+                    // Chercher ou créer le champ (définition unique)
+                    CategoryField field = categoryFieldRepository
+                            .findByFieldName(fieldDTO.getFieldName())
+                            .orElseGet(() -> {
+                                CategoryField newField = CategoryField.builder()
+                                        .fieldName(fieldDTO.getFieldName())
+                                        .fieldType(fieldDTO.getFieldType())
+                                        .fieldOptions(fieldDTO.getFieldOptions())
+                                        .build();
+                                return categoryFieldRepository.save(newField);
+                            });
 
-                    CategoryField field;
-                    if (existingField.isPresent()) {
-                        // ✅ RÉUTILISER le champ existant
-                        field = existingField.get();
-                        // Mettre à jour les métadonnées pour cette catégorie
-                        field.setFieldType(fieldDTO.getFieldType());
-                        field.setFieldOptions(fieldDTO.getFieldOptions());
-                        field.setRequired(fieldDTO.isRequired());
-                        field.setDisplayOrder(fieldDTO.getDisplayOrder());
-                        // Associer à la nouvelle catégorie
-                        field.setCategory(savedCategory);
-                        System.out.println("♻️ Réutilisation du champ existant: " + fieldDTO.getFieldName());
-                    } else {
-                        // ✅ CRÉER un nouveau champ
-                        field = CategoryField.builder()
-                                .fieldName(fieldDTO.getFieldName())
-                                .fieldType(fieldDTO.getFieldType())
-                                .fieldOptions(fieldDTO.getFieldOptions())
-                                .required(fieldDTO.isRequired())
-                                .displayOrder(fieldDTO.getDisplayOrder())
-                                .category(savedCategory)
-                                .build();
-                        System.out.println("➕ Création nouveau champ: " + fieldDTO.getFieldName());
-                    }
-
-                    categoryFieldRepository.save(field);
+                    // Créer le mapping avec les attributs spécifiques à cette catégorie
+                    CategoryFieldMapping mapping = CategoryFieldMapping.builder()
+                            .category(savedCategory)
+                            .field(field)
+                            .required(fieldDTO.isRequired())
+                            .displayOrder(fieldDTO.getDisplayOrder() != null ? fieldDTO.getDisplayOrder() : order)
+                            .build();
+                    mappingRepository.save(mapping);
+                    order++;
                 }
             }
 
@@ -121,64 +118,63 @@ public class CategoryService {
 
             Category updatedCategory = categoryRepository.save(category);
 
-            // ✅ 4. Gestion des champs - Permettre la réutilisation
-            List<CategoryField> existingFields = categoryFieldRepository.findByCategoryId(id);
-            Map<String, CategoryField> existingFieldsMap = existingFields.stream()
-                    .collect(Collectors.toMap(CategoryField::getFieldName, field -> field));
+            // ✅ 4. Gestion des mappings
+            List<CategoryFieldMapping> existingMappings = mappingRepository.findByCategoryId(id);
+            Map<String, CategoryFieldMapping> existingMap = existingMappings.stream()
+                    .collect(Collectors.toMap(
+                            m -> m.getField().getFieldName(),
+                            m -> m
+                    ));
 
-            // Traiter les champs de la requête
-            if (request.getFields() != null && !request.getFields().isEmpty()) {
-                for (CategoryFieldDTO fieldDTO : request.getFields()) {
-                    CategoryField field;
+            // Nouveaux noms de champs (dans la requête)
+            Set<String> newFieldNames = request.getFields().stream()
+                    .map(CategoryFieldDTO::getFieldName)
+                    .collect(Collectors.toSet());
 
-                    // ✅ Vérifier si le champ existe déjà dans cette catégorie
-                    if (existingFieldsMap.containsKey(fieldDTO.getFieldName())) {
-                        // MISE À JOUR du champ existant dans cette catégorie
-                        field = existingFieldsMap.get(fieldDTO.getFieldName());
-                        field.setFieldType(fieldDTO.getFieldType());
-                        field.setFieldOptions(fieldDTO.getFieldOptions());
-                        field.setRequired(fieldDTO.isRequired());
-                        field.setDisplayOrder(fieldDTO.getDisplayOrder());
-                        System.out.println("🔄 Mise à jour champ: " + fieldDTO.getFieldName());
-                    } else {
-                        // ✅ Vérifier si le champ existe dans category_fields (autre catégorie)
-                        Optional<CategoryField> globalField = categoryFieldRepository.findByFieldName(fieldDTO.getFieldName());
-
-                        if (globalField.isPresent()) {
-                            // ✅ RÉUTILISER le champ existant d'une autre catégorie
-                            field = globalField.get();
-                            field.setFieldType(fieldDTO.getFieldType());
-                            field.setFieldOptions(fieldDTO.getFieldOptions());
-                            field.setRequired(fieldDTO.isRequired());
-                            field.setDisplayOrder(fieldDTO.getDisplayOrder());
-                            field.setCategory(updatedCategory);
-                            System.out.println("♻️ Réutilisation champ existant d'une autre catégorie: " + fieldDTO.getFieldName());
-                        } else {
-                            // ✅ CRÉER un nouveau champ
-                            field = CategoryField.builder()
-                                    .fieldName(fieldDTO.getFieldName())
-                                    .fieldType(fieldDTO.getFieldType())
-                                    .fieldOptions(fieldDTO.getFieldOptions())
-                                    .required(fieldDTO.isRequired())
-                                    .displayOrder(fieldDTO.getDisplayOrder())
-                                    .category(updatedCategory)
-                                    .build();
-                            System.out.println("➕ Création nouveau champ: " + fieldDTO.getFieldName());
-                        }
-                    }
-
-                    categoryFieldRepository.save(field);
-                    existingFieldsMap.remove(fieldDTO.getFieldName());
-                }
+            // Supprimer les mappings qui ne sont plus dans la requête
+            List<CategoryFieldMapping> toRemove = existingMappings.stream()
+                    .filter(m -> !newFieldNames.contains(m.getField().getFieldName()))
+                    .collect(Collectors.toList());
+            if (!toRemove.isEmpty()) {
+                mappingRepository.deleteAll(toRemove);
+                mappingRepository.flush(); // ⬅️ Force la suppression avant de recharger
             }
 
-            // Supprimer les champs orphelins (ceux qui ne sont plus dans la requête)
-            if (!existingFieldsMap.isEmpty()) {
-                List<Long> fieldIdsToDelete = existingFieldsMap.values().stream()
-                        .map(CategoryField::getId)
-                        .collect(Collectors.toList());
-                categoryFieldRepository.deleteAllByIdInBatch(fieldIdsToDelete);
-                System.out.println("🗑️ Suppression de " + fieldIdsToDelete.size() + " champs orphelins");
+            // Ajouter ou mettre à jour les mappings
+            if (request.getFields() != null && !request.getFields().isEmpty()) {
+                int order = 1;
+                for (CategoryFieldDTO fieldDTO : request.getFields()) {
+                    // Chercher ou créer le champ (définition)
+                    CategoryField field = categoryFieldRepository
+                            .findByFieldName(fieldDTO.getFieldName())
+                            .orElseGet(() -> {
+                                CategoryField newField = CategoryField.builder()
+                                        .fieldName(fieldDTO.getFieldName())
+                                        .fieldType(fieldDTO.getFieldType())
+                                        .fieldOptions(fieldDTO.getFieldOptions())
+                                        .build();
+                                return categoryFieldRepository.save(newField);
+                            });
+
+                    // Vérifier si un mapping existe déjà
+                    CategoryFieldMapping mapping = existingMap.get(fieldDTO.getFieldName());
+                    if (mapping != null) {
+                        // Mettre à jour les attributs
+                        mapping.setRequired(fieldDTO.isRequired());
+                        mapping.setDisplayOrder(fieldDTO.getDisplayOrder() != null ? fieldDTO.getDisplayOrder() : order);
+                        mappingRepository.save(mapping);
+                    } else {
+                        // Créer un nouveau mapping
+                        mapping = CategoryFieldMapping.builder()
+                                .category(updatedCategory)
+                                .field(field)
+                                .required(fieldDTO.isRequired())
+                                .displayOrder(fieldDTO.getDisplayOrder() != null ? fieldDTO.getDisplayOrder() : order)
+                                .build();
+                        mappingRepository.save(mapping);
+                    }
+                    order++;
+                }
             }
 
             Category refreshedCategory = categoryRepository.findById(id)
@@ -256,10 +252,10 @@ public class CategoryService {
             }
         }
 
-        // 2️⃣ Récupérer les champs existants de CETTE catégorie
-        List<CategoryField> existingFieldsInCategory = categoryFieldRepository.findByCategoryId(categoryId);
-        Set<String> existingFieldNamesInCategory = existingFieldsInCategory.stream()
-                .map(CategoryField::getFieldName)
+        // 2️⃣ Récupérer les champs existants de CETTE catégorie via les mappings
+        List<CategoryFieldMapping> existingMappings = mappingRepository.findByCategoryId(categoryId);
+        Set<String> existingFieldNamesInCategory = existingMappings.stream()
+                .map(m -> m.getField().getFieldName())
                 .collect(Collectors.toSet());
 
         // 3️⃣ Vérifier UNIQUEMENT les NOUVEAUX champs (qui ne sont pas déjà dans cette catégorie)
@@ -272,7 +268,6 @@ public class CategoryService {
             }
 
             // ✅ Pour les NOUVEAUX champs, on permet la réutilisation des champs existants
-            // Donc on ne vérifie PAS l'unicité globale
             System.out.println("📝 Nouveau champ dans cette catégorie (peut être existant ailleurs): " + fieldName);
         }
 
@@ -320,15 +315,13 @@ public class CategoryService {
 
             System.out.println("📋 Catégorie trouvée: " + category.getName());
 
-            List<CategoryField> fields = categoryFieldRepository.findByCategoryId(id);
-            System.out.println("📊 " + fields.size() + " champs associés trouvés");
+            // Supprimer les mappings
+            List<CategoryFieldMapping> mappings = mappingRepository.findByCategoryId(id);
+            System.out.println("📊 " + mappings.size() + " mappings trouvés");
 
-            if (!fields.isEmpty()) {
-                List<Long> fieldIds = fields.stream()
-                        .map(CategoryField::getId)
-                        .collect(Collectors.toList());
-                categoryFieldRepository.deleteAllByIdInBatch(fieldIds);
-                categoryFieldRepository.flush();
+            if (!mappings.isEmpty()) {
+                mappingRepository.deleteAll(mappings);
+                mappingRepository.flush();
             }
 
             categoryRepository.delete(category);
@@ -369,29 +362,45 @@ public class CategoryService {
     // ==================== CONVERSION ====================
 
     public CategoryDTO convertToDTO(Category category) {
+        // Récupérer les champs à partir des mappings
+        List<CategoryFieldDTO> fieldDTOs = category.getFieldMappings().stream()
+                .map(mapping -> {
+                    CategoryField field = mapping.getField();
+                    return CategoryFieldDTO.builder()
+                            .id(field.getId())
+                            .fieldName(field.getFieldName())
+                            .fieldType(field.getFieldType())
+                            .fieldOptions(field.getFieldOptions())
+                            .required(mapping.isRequired())   // pris du mapping
+                            .displayOrder(mapping.getDisplayOrder()) // pris du mapping
+                            .build();
+                })
+                .sorted(Comparator.comparingInt(CategoryFieldDTO::getDisplayOrder))
+                .collect(Collectors.toList());
+
         return CategoryDTO.builder()
                 .id(category.getId())
                 .name(category.getName())
                 .plafond(category.getPlafond())
                 .description(category.getDescription())
                 .active(category.isActive())
-                .fields(category.getFields().stream()
-                        .map(this::convertFieldToDTO)
-                        .collect(Collectors.toList()))
+                .fields(fieldDTOs)
                 .build();
     }
 
     private CategoryFieldDTO convertFieldToDTO(CategoryField field) {
+        // Pour la bibliothèque, on n'a pas de mapping, donc required et displayOrder ne sont pas disponibles
         return CategoryFieldDTO.builder()
                 .id(field.getId())
                 .fieldName(field.getFieldName())
                 .fieldType(field.getFieldType())
                 .fieldOptions(field.getFieldOptions())
-                .required(field.isRequired())
-                .displayOrder(field.getDisplayOrder())
+                .required(false)  // valeur par défaut
+                .displayOrder(0)  // valeur par défaut
                 .build();
     }
-    // À AJOUTER dans votre CategoryService.java existant
+
+    // ==================== MÉTHODES UTILITAIRES (conservées) ====================
 
     /**
      * Récupère le plafond d'une catégorie par son ID
@@ -410,16 +419,19 @@ public class CategoryService {
                 .map(Category::getName)
                 .orElse("Catégorie inconnue");
     }
-    // Dans CategoryService.java
 
     /**
-     * Récupère les noms des champs dynamiques pour une catégorie
+     * Récupère les noms des champs dynamiques pour une catégorie (via les mappings)
      */
     public List<String> getCategoryFieldNames(Long categoryId) {
         if (categoryId == null) {
             return Collections.emptyList();
         }
-        String sql = "SELECT field_name FROM category_fields WHERE category_id = ? ORDER BY display_order";
+        String sql = "SELECT cf.field_name " +
+                "FROM category_field_mapping cfm " +
+                "JOIN category_fields cf ON cfm.field_id = cf.id " +
+                "WHERE cfm.category_id = ? " +
+                "ORDER BY cfm.display_order";
         return jdbcTemplate.queryForList(sql, String.class, categoryId);
     }
 
@@ -430,6 +442,9 @@ public class CategoryService {
         if (categoryId == null) {
             return Collections.emptyList();
         }
-        return categoryFieldRepository.findByCategoryIdOrderByDisplayOrderAsc(categoryId);
+        List<CategoryFieldMapping> mappings = mappingRepository.findByCategoryId(categoryId);
+        return mappings.stream()
+                .map(CategoryFieldMapping::getField)
+                .collect(Collectors.toList());
     }
 }

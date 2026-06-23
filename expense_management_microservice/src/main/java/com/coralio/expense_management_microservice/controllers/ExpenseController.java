@@ -23,10 +23,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @RestController
@@ -71,23 +68,24 @@ public class ExpenseController {
         try {
             ExpenseNote note = objectMapper.readValue(noteJson, ExpenseNote.class);
 
-            // Lire comme Map
             List<Map<String, Object>> lineMaps = objectMapper.readValue(
                     linesJson,
                     objectMapper.getTypeFactory().constructCollectionType(List.class, Map.class)
             );
 
             List<ExpenseLine> lines = new ArrayList<>();
-
-            // ✅ Stocker les infos de devise par index temporaire
             Map<Integer, Map<String, Object>> tempCurrencyInfos = new HashMap<>();
+
+            // ✅ Clés standards (déjà traitées explicitement)
+            Set<String> standardKeys = Set.of("id", "categoryId", "amount", "expenseDate",
+                    "description", "justificatifPath", "ocrText",
+                    "extractedJson", "invoiceCurrency", "rateToTND");
 
             for (int i = 0; i < lineMaps.size(); i++) {
                 Map<String, Object> lineMap = lineMaps.get(i);
-
                 ExpenseLine line = new ExpenseLine();
 
-                // Champs standards
+                // --- Champs standards ---
                 if (lineMap.get("id") != null) {
                     line.setId(Long.valueOf(lineMap.get("id").toString()));
                 }
@@ -104,10 +102,17 @@ public class ExpenseController {
                     line.setDescription(lineMap.get("description").toString());
                 }
 
+                // ✅ Copie des champs dynamiques (tous les autres)
+                for (Map.Entry<String, Object> entry : lineMap.entrySet()) {
+                    String key = entry.getKey();
+                    if (!standardKeys.contains(key)) {
+                        line.setDynamicField(key, entry.getValue());
+                    }
+                }
 
                 lines.add(line);
 
-                // ✅ Stocker les devises dans une Map temporaire
+                // Devises (inchangé)
                 Map<String, Object> currencyInfo = new HashMap<>();
                 currencyInfo.put("invoiceCurrency", lineMap.getOrDefault("invoiceCurrency", "TND").toString());
                 currencyInfo.put("rateToTND", Double.valueOf(lineMap.getOrDefault("rateToTND", 1.0).toString()));
@@ -141,18 +146,14 @@ public class ExpenseController {
                     displayCurrency, exchangeRate
             );
 
-            // Récupérer les lignes sauvegardées
             List<ExpenseLine> savedLines = expenseService.getLines(savedNote.getId());
 
-            // ✅ Reconstruire la Map avec les vrais IDs
             Map<Long, Map<String, Object>> currencyInfos = new HashMap<>();
             for (int i = 0; i < savedLines.size() && i < lineMaps.size(); i++) {
                 currencyInfos.put(savedLines.get(i).getId(), tempCurrencyInfos.get(i));
                 log.info("📦 Devise pour ligne {}: {}", savedLines.get(i).getId(), tempCurrencyInfos.get(i));
             }
 
-            // ✅ Remplacer l'appel à processAfterSubmission par la nouvelle méthode
-            // expenseProcessingService.processAfterSubmission(savedNote.getId(), savedLines);
             expenseProcessingService.processAfterSubmissionWithCurrency(savedNote.getId(), savedLines, currencyInfos);
 
             return ResponseEntity.accepted().body(Map.of(
@@ -167,7 +168,6 @@ public class ExpenseController {
                     .body(Map.of("message", e.getMessage()));
         }
     }
-
     // =========================
     // UPLOAD NOTE + FICHIERS (ACCORD + FACTURES) - ANCIEN ENDPOINT (gardé pour compatibilité)
     // =========================

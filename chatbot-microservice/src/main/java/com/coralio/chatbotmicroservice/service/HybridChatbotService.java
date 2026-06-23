@@ -430,33 +430,51 @@ public class HybridChatbotService {
         if (accessCheck.noteId != null) {
             switch (accessCheck.code) {
                 case "NOT_FOUND":
-                    message = String.format("La note #%d n'existe pas.", accessCheck.noteId);
+                    message = "❌ **Note introuvable**\n\n" +
+                            "La note #" + accessCheck.noteId + " n'existe pas.\n\n" +
+                            "💡 **Vérifiez le numéro** ou dites 'mes notes' pour voir la liste de vos notes.";
                     break;
                 case "NOT_OWNER":
-                    message = "Désolé, cette note ne vous appartient pas.";
+                    message = "❌ **Accès refusé**\n\n" +
+                            "Cette note appartient à un autre employé.\n\n" +
+                            "💡 **Conseil :** Dites 'mes notes' pour voir la liste de vos notes.";
                     break;
                 case "MANAGER_NO_DEPARTMENT":
-                    message = "Vous n'avez pas de département assigné en tant que manager.";
+                    message = "❌ **Erreur**\n\n" +
+                            "Vous n'avez pas de département assigné en tant que manager.\n\n" +
+                            "💡 Contactez votre administrateur pour corriger ce problème.";
                     break;
                 case "PROJECT_NOT_FOUND":
-                    message = "Le projet associé à cette note n'a pas été trouvé.";
+                    message = "❌ **Erreur**\n\n" +
+                            "Le projet associé à cette note n'a pas été trouvé.\n\n" +
+                            "💡 Vérifiez que le projet existe toujours.";
                     break;
                 case "WRONG_DEPARTMENT":
-                    message = "Cette note appartient à un projet d'un autre département.";
+                    message = "❌ **Accès refusé**\n\n" +
+                            "Cette note appartient à un projet d'un autre département.\n\n" +
+                            "💡 Vous ne pouvez consulter que les notes de votre département.";
                     break;
                 default:
-                    message = "Vous n'êtes pas autorisé à consulter cette note.";
+                    message = "❌ **Accès non autorisé**\n\n" +
+                            "Vous n'êtes pas autorisé à consulter cette note.\n\n" +
+                            "💡 Vérifiez vos droits d'accès.";
             }
         } else {
-            message = "Accès non autorisé.";
+            message = "❌ **Accès non autorisé**\n\n" +
+                    "Vous n'êtes pas autorisé à effectuer cette action.";
         }
 
-        String formattedMessage = responseFormatter.formatErrorResponse(message, request.getUserRole());
+        // ✅ NE PAS appeler formatErrorResponse !
+        // Le message est déjà formaté correctement
 
         return ChatResponse.builder()
-                .answer(formattedMessage)
+                .answer(message)  // ← Directement le message formaté
                 .sessionId(request.getSessionId())
                 .timestamp(LocalDateTime.now())
+                .quickReplies(List.of(
+                        QuickReply.builder().text("📋 Mes notes").payload("VIEW_NOTES").icon("📋").build(),
+                        QuickReply.builder().text("❓ Aide").payload("HELP").icon("❓").build()
+                ))
                 .responseType("error")
                 .build();
     }
