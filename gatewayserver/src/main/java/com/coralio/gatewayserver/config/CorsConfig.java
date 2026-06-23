@@ -18,6 +18,9 @@ public class CorsConfig {
         config.addAllowedHeader("*");
         config.addAllowedMethod("*");
 
+        // ⭐ AJOUTER CECI POUR ÉVITER LES DOUBLONS
+        config.setExposedHeaders(java.util.Arrays.asList("*"));
+
         UrlBasedCorsConfigurationSource source =
                 new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);

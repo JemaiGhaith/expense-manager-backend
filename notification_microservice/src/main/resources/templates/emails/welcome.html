@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Welcome to Coral-io</title>
+</head>
+<body>
+<div th:replace="~{emails/base :: container}">
+    <div th:fragment="content">
+        <p>Bonjour <strong th:text="${name}">Utilisateur</strong>,</p>
+
+        <p>Nous avons le plaisir de vous accueillir sur <strong>Coral-io</strong>, votre plateforme de gestion des notes de frais !</p>
+
+        <div class="expense-details">
+            <h3 style="margin-top: 0;">🔐 Vos identifiants de connexion</h3>
+            <table>
+                <tr>
+                    <td>Nom d'utilisateur :</td>
+                    <td><strong th:text="${username}">user@coralio.com</strong></td>
+                </tr>
+                <tr>
+                    <td>Mot de passe temporaire :</td>
+                    <td><strong th:text="${temporaryPassword}">Temp@123</strong></td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="info-box">
+            <strong>📌 Première connexion :</strong>
+            <ul style="margin: 10px 0 0 20px;">
+                <li>Connectez-vous avec vos identifiants</li>
+                <li>Changez votre mot de passe immédiatement</li>
+                <li>Complétez votre profil utilisateur</li>
+            </ul>
+        </div>
+
+        <div class="warning-box">
+            <strong>⚠️ Important :</strong>
+            <ul style="margin: 10px 0 0 20px;">
+                <li>Ne partagez jamais vos identifiants</li>
+                <li>En cas de problème, contactez l'administrateur</li>
+            </ul>
+        </div>
+    </div>
+</div>
+</body>
+</html>

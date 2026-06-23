@@ -1,4 +1,6 @@
 spring:
+  security:
+    enabled: false  # ⭐ Désactiver la sécurité pour les test
   mail:
     host: smtp.gmail.com
     port: 587
@@ -66,7 +68,7 @@ keycloak:
   server-url: http://localhost:8090
   realm: coral-io_realm
   client-id: admin-client
-  client-secret: sXpiIV8tivS92L9iN5dCzVve1rzEfUFi
+  client-secret: vov2JMbDjbDsZQCyJeBZIqcH2W5blsdD
 
 
 logging:

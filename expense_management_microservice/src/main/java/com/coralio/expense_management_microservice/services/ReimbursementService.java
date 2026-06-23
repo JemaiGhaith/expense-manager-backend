@@ -1,5 +1,7 @@
 package com.coralio.expense_management_microservice.services;
 
+import com.coralio.expense_management_microservice.client.NotificationClient;
+import com.coralio.expense_management_microservice.client.UserServiceClient;
 import com.coralio.expense_management_microservice.dto.LineReimbursementDTO;
 import com.coralio.expense_management_microservice.dto.ReimbursementRequestDTO;
 import com.coralio.expense_management_microservice.entities.*;
@@ -13,10 +15,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Service
 public class ReimbursementService {
@@ -29,20 +28,27 @@ public class ReimbursementService {
     private final ReimbursedLineRepository reimbursedLineRepository;
     private final PdfGenerationService pdfGenerationService;
     private final CategoryService categoryService;
+    private final NotificationClient notificationClient;
+    private final UserServiceClient userServiceClient;
 
+    // Updated constructor with notification dependencies
     public ReimbursementService(
             ExpenseNoteRepository expenseNoteRepository,
             ExpenseLineRepository expenseLineRepository,
             PaymentOrderRepository paymentOrderRepository,
             ReimbursedLineRepository reimbursedLineRepository,
             PdfGenerationService pdfGenerationService,
-            CategoryService categoryService) {
+            CategoryService categoryService,
+            NotificationClient notificationClient,
+            UserServiceClient userServiceClient) {
         this.expenseNoteRepository = expenseNoteRepository;
         this.expenseLineRepository = expenseLineRepository;
         this.paymentOrderRepository = paymentOrderRepository;
         this.reimbursedLineRepository = reimbursedLineRepository;
         this.pdfGenerationService = pdfGenerationService;
         this.categoryService = categoryService;
+        this.notificationClient = notificationClient;
+        this.userServiceClient = userServiceClient;
     }
 
     /**
@@ -68,7 +74,7 @@ public class ReimbursementService {
             throw new IllegalStateException("Un ordre de paiement existe déjà pour cette note");
         }
 
-        // 3. Récupérer toutes les lignes de la note pour validation
+        // 3. Récupérer toutes les lignes de la note
         List<ExpenseLine> allLines = expenseLineRepository.findByExpenseNoteId(note.getId());
         Map<Long, ExpenseLine> linesMap = new HashMap<>();
         for (ExpenseLine line : allLines) {
@@ -83,8 +89,15 @@ public class ReimbursementService {
         paymentOrder.setPaymentReference(request.getPaymentReference());
         paymentOrder.setAdminComment(request.getAdminComment());
 
+        // AJOUTER LES INFOS DE DEVISE
+        String displayCurrency = request.getDisplayCurrency() != null ? request.getDisplayCurrency() : "TND";
+        Double exchangeRate = request.getExchangeRate() != null ? request.getExchangeRate() : 1.0;
+        paymentOrder.setDisplayCurrency(displayCurrency);
+        paymentOrder.setExchangeRate(exchangeRate);
+
         List<ReimbursedLine> reimbursedLines = new ArrayList<>();
         double totalReimbursed = 0.0;
+        double totalReimbursedTND = 0.0;
 
         // 5. Traiter chaque ligne de la requête
         for (LineReimbursementDTO lineReimb : request.getLines()) {
@@ -98,23 +111,18 @@ public class ReimbursementService {
 
             Double reimbursedAmount = lineReimb.getReimbursedAmount();
 
-            // Si montant null ou 0, on ne rembourse pas cette ligne
             if (reimbursedAmount == null || reimbursedAmount <= 0) {
                 log.debug("Ligne #{} non remboursée", line.getId());
                 continue;
             }
 
-            // Récupérer le plafond de la catégorie
             Double categoryCeiling = categoryService.getPlafondByCategoryId(line.getCategoryId());
             String categoryName = categoryService.getCategoryName(line.getCategoryId());
 
-            // Valider le montant selon les règles métier
             validateReimbursedAmount(line, reimbursedAmount, categoryCeiling, categoryName);
 
-            // Déterminer si c'est un remboursement total ou partiel
             boolean isFullyReimbursed = Math.abs(reimbursedAmount - line.getAmount()) < 0.01;
 
-            // Créer la ligne remboursée
             ReimbursedLine reimbursedLine = new ReimbursedLine();
             reimbursedLine.setExpenseLine(line);
             reimbursedLine.setPaymentOrder(paymentOrder);
@@ -123,28 +131,53 @@ public class ReimbursementService {
             reimbursedLine.setIsFullyReimbursed(isFullyReimbursed);
             reimbursedLine.setAdminComment(lineReimb.getComment());
 
+            // CALCULER LE MONTANT DANS LA DEVISE D'AFFICHAGE
+            double amountInDisplayCurrency = reimbursedAmount * exchangeRate;
+            reimbursedLine.setReimbursedAmountDisplay(amountInDisplayCurrency);
+
             reimbursedLines.add(reimbursedLine);
             totalReimbursed += reimbursedAmount;
+            totalReimbursedTND += reimbursedAmount;
 
             String reimbursementType = isFullyReimbursed ? "TOTAL" : "PARTIEL";
-            log.info("Ligne #{}: {} - {}€ (original: {}€, plafond: {}€)",
-                    line.getId(), reimbursementType, reimbursedAmount, line.getAmount(), categoryCeiling);
+            log.info("Ligne #{}: {} - {}{} (original: {}{}, plafond: {}{})",
+                    line.getId(), reimbursementType,
+                    String.format("%.2f", amountInDisplayCurrency), displayCurrency,
+                    line.getAmount(), "TND", categoryCeiling, "TND");
         }
 
-        // 6. Vérifier qu'au moins une ligne est remboursée
         if (reimbursedLines.isEmpty()) {
             throw new IllegalArgumentException("Aucune ligne sélectionnée pour le remboursement");
         }
 
-        // 7. Associer les lignes à l'ordre de paiement
         paymentOrder.setReimbursedLines(reimbursedLines);
         paymentOrder.setTotalAmount(totalReimbursed);
+        paymentOrder.setTotalAmountOriginalTND(totalReimbursedTND);
 
-        // 8. Sauvegarder l'ordre de paiement
         PaymentOrder savedOrder = paymentOrderRepository.save(paymentOrder);
 
-        log.info("Ordre de paiement #{} créé avec succès. Montant total: {}€",
-                savedOrder.getId(), totalReimbursed);
+        // ==================== SEND ADMIN VALIDATION NOTIFICATION ====================
+        try {
+            String employeeEmail = userServiceClient.getUserEmail(note.getEmployeeId());
+            double convertedTotal = totalReimbursed * exchangeRate;  // already have exchangeRate and totalReimbursed
+            notificationClient.notifyExpenseValidatedByAdmin(
+                    UUID.fromString(note.getEmployeeId()),
+                    employeeEmail,
+                    "EXP-" + note.getId(),
+                    note.getTotalAmount(),          // original TND amount
+                    convertedTotal,                 // converted amount
+                    displayCurrency,                // target currency
+                    note.getId()
+            );
+            log.info("Admin validation notification sent for note {}", note.getId());
+        } catch (Exception e) {
+            log.error("Failed to send admin validation notification: {}", e.getMessage());
+        }
+
+        log.info("Ordre de paiement #{} créé avec succès. Montant total: {}{} (TND: {}{})",
+                savedOrder.getId(),
+                String.format("%.2f", totalReimbursed * exchangeRate), displayCurrency,
+                totalReimbursed, "TND");
 
         return savedOrder;
     }
@@ -206,9 +239,29 @@ public class ReimbursementService {
         // Mettre à jour le statut de la note
         ExpenseNote note = order.getExpenseNote();
         note.setStatus(ExpenseStatus.REMBOURSEE);
+        note.setReimbursedAmount(order.getTotalAmountOriginalTND());   // ou order.getTotalAmount() si stocké en TND
         expenseNoteRepository.save(note);
 
         PaymentOrder savedOrder = paymentOrderRepository.save(order);
+
+        // ==================== SEND REIMBURSEMENT NOTIFICATION ====================
+        try {
+            String employeeEmail = userServiceClient.getUserEmail(note.getEmployeeId());
+            double convertedTotal = order.getTotalAmount() * order.getExchangeRate();  // order has exchangeRate and totalAmount in TND
+            notificationClient.notifyExpenseReimbursed(
+                    UUID.fromString(note.getEmployeeId()),
+                    employeeEmail,
+                    "EXP-" + note.getId(),
+                    note.getTotalAmount(),          // original TND
+                    convertedTotal,                 // converted amount
+                    order.getDisplayCurrency(),     // stored currency
+                    note.getId(),
+                    "Admin"
+            );
+            log.info("Reimbursement notification sent for note {}", note.getId());
+        } catch (Exception e) {
+            log.error("Failed to send reimbursement notification: {}", e.getMessage());
+        }
 
         // Générer le PDF pour archivage
         try {
@@ -298,4 +351,14 @@ public class ReimbursementService {
     public List<PaymentOrder> getPaymentOrdersByStatus(PaymentOrderStatus status) {
         return paymentOrderRepository.findByStatus(status);
     }
+    // Dans ReimbursementService.java
+    public Double getTotalReimbursedForNote(Long expenseNoteId) {
+        Optional<PaymentOrder> optionalOrder = paymentOrderRepository.findByExpenseNoteId(expenseNoteId);
+        if (optionalOrder.isPresent() && optionalOrder.get().getStatus() == PaymentOrderStatus.PAYE) {
+            return optionalOrder.get().getTotalAmountOriginalTND() != null
+                    ? optionalOrder.get().getTotalAmountOriginalTND() : 0.0;
+        }
+        return 0.0;
+    }
+
 }

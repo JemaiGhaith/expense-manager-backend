@@ -2,15 +2,16 @@ package com.coralio.expense_management_microservice.controllers;
 
 import com.coralio.expense_management_microservice.dto.ExpenseLineDetailDTO;
 import com.coralio.expense_management_microservice.dto.ExpenseRequest;
-import com.coralio.expense_management_microservice.entities.ExpenseLine;
-import com.coralio.expense_management_microservice.entities.ExpenseNote;
-import com.coralio.expense_management_microservice.entities.ExpenseStatus;
-import com.coralio.expense_management_microservice.entities.Project;
+import com.coralio.expense_management_microservice.entities.*;
+import com.coralio.expense_management_microservice.repos.ExpenseDuplicateRepository;
 import com.coralio.expense_management_microservice.repos.ExpenseLineRepository;
+import com.coralio.expense_management_microservice.services.ExpenseProcessingService;
 import com.coralio.expense_management_microservice.services.ExpenseService;
 import com.coralio.expense_management_microservice.services.FileStorageService;
 import com.coralio.expense_management_microservice.services.ProjectService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
@@ -22,10 +23,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @RestController
@@ -35,12 +33,15 @@ public class ExpenseController {
     private final JdbcTemplate jdbcTemplate;
     private final ExpenseService expenseService;
     private final ProjectService projectService;
-
+    @Autowired
+    private ExpenseDuplicateRepository duplicateRepository;
     @Autowired
     private FileStorageService fileStorageService;
-
     @Autowired
     private ObjectMapper objectMapper;
+    @Autowired
+    private ExpenseProcessingService expenseProcessingService;
+    private static final Logger log = LoggerFactory.getLogger(ExpenseController.class);
 
     public ExpenseController(
             ExpenseService expenseService,
@@ -54,7 +55,121 @@ public class ExpenseController {
     }
 
     // =========================
-    // UPLOAD NOTE + FICHIERS (ACCORD + FACTURES)
+    // NOUVEAU ENDPOINT SOUMISSION ASYNCHRONE
+    // =========================
+    @PostMapping(value = "/submit", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> submitExpense(
+            @RequestPart("note") String noteJson,
+            @RequestPart("lines") String linesJson,
+            @RequestPart(value = "accordFile", required = false) MultipartFile accordFile,
+            @RequestPart(value = "factureFiles", required = false) List<MultipartFile> factureFiles,
+            @RequestParam(value = "displayCurrency", required = false) String displayCurrency,
+            @RequestParam(value = "exchangeRate", required = false) Double exchangeRate) {
+        try {
+            ExpenseNote note = objectMapper.readValue(noteJson, ExpenseNote.class);
+
+            List<Map<String, Object>> lineMaps = objectMapper.readValue(
+                    linesJson,
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, Map.class)
+            );
+
+            List<ExpenseLine> lines = new ArrayList<>();
+            Map<Integer, Map<String, Object>> tempCurrencyInfos = new HashMap<>();
+
+            // ✅ Clés standards (déjà traitées explicitement)
+            Set<String> standardKeys = Set.of("id", "categoryId", "amount", "expenseDate",
+                    "description", "justificatifPath", "ocrText",
+                    "extractedJson", "invoiceCurrency", "rateToTND");
+
+            for (int i = 0; i < lineMaps.size(); i++) {
+                Map<String, Object> lineMap = lineMaps.get(i);
+                ExpenseLine line = new ExpenseLine();
+
+                // --- Champs standards ---
+                if (lineMap.get("id") != null) {
+                    line.setId(Long.valueOf(lineMap.get("id").toString()));
+                }
+                if (lineMap.get("categoryId") != null) {
+                    line.setCategoryId(Long.valueOf(lineMap.get("categoryId").toString()));
+                }
+                if (lineMap.get("amount") != null) {
+                    line.setAmount(Double.valueOf(lineMap.get("amount").toString()));
+                }
+                if (lineMap.get("expenseDate") != null) {
+                    line.setExpenseDate(LocalDate.parse(lineMap.get("expenseDate").toString()));
+                }
+                if (lineMap.get("description") != null) {
+                    line.setDescription(lineMap.get("description").toString());
+                }
+
+                // ✅ Copie des champs dynamiques (tous les autres)
+                for (Map.Entry<String, Object> entry : lineMap.entrySet()) {
+                    String key = entry.getKey();
+                    if (!standardKeys.contains(key)) {
+                        line.setDynamicField(key, entry.getValue());
+                    }
+                }
+
+                lines.add(line);
+
+                // Devises (inchangé)
+                Map<String, Object> currencyInfo = new HashMap<>();
+                currencyInfo.put("invoiceCurrency", lineMap.getOrDefault("invoiceCurrency", "TND").toString());
+                currencyInfo.put("rateToTND", Double.valueOf(lineMap.getOrDefault("rateToTND", 1.0).toString()));
+                tempCurrencyInfos.put(i, currencyInfo);
+            }
+
+            // Sauvegarde de l'accord
+            String accordFileName = null;
+            if (accordFile != null && !accordFile.isEmpty()) {
+                accordFileName = fileStorageService.storeFile(accordFile, note.getEmployeeId(), "accords");
+                note.setAccordPath(accordFileName);
+            }
+
+            // Sauvegarde des factures
+            List<String> factureFileNames = new ArrayList<>();
+            if (factureFiles != null) {
+                for (MultipartFile file : factureFiles) {
+                    if (file != null && !file.isEmpty()) {
+                        String savedFileName = fileStorageService.storeFile(file, note.getEmployeeId(), "factures");
+                        factureFileNames.add(savedFileName);
+                    }
+                }
+                for (int i = 0; i < lines.size() && i < factureFileNames.size(); i++) {
+                    lines.get(i).setJustificatifPath(factureFileNames.get(i));
+                }
+            }
+
+            // Création de la note
+            ExpenseNote savedNote = expenseService.createExpenseNoteWithFiles(
+                    note, lines, accordFileName, factureFileNames, accordFile,
+                    displayCurrency, exchangeRate
+            );
+
+            List<ExpenseLine> savedLines = expenseService.getLines(savedNote.getId());
+
+            Map<Long, Map<String, Object>> currencyInfos = new HashMap<>();
+            for (int i = 0; i < savedLines.size() && i < lineMaps.size(); i++) {
+                currencyInfos.put(savedLines.get(i).getId(), tempCurrencyInfos.get(i));
+                log.info("📦 Devise pour ligne {}: {}", savedLines.get(i).getId(), tempCurrencyInfos.get(i));
+            }
+
+            expenseProcessingService.processAfterSubmissionWithCurrency(savedNote.getId(), savedLines, currencyInfos);
+
+            return ResponseEntity.accepted().body(Map.of(
+                    "id", savedNote.getId(),
+                    "status", "PENDING",
+                    "message", "Note soumise, traitement en cours"
+            ));
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", e.getMessage()));
+        }
+    }
+    // =========================
+    // UPLOAD NOTE + FICHIERS (ACCORD + FACTURES) - ANCIEN ENDPOINT (gardé pour compatibilité)
     // =========================
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> uploadExpense(
@@ -207,14 +322,10 @@ public class ExpenseController {
     // ========== ENDPOINTS GET AVEC NOUVEAUX CHAMPS ==========
 
     @GetMapping("/employee/{employeeId}")
-    public ResponseEntity<List<Map<String, Object>>> getNotesByEmployee(
-            @PathVariable String employeeId) {
-
+    public ResponseEntity<List<Map<String, Object>>> getNotesByEmployee(@PathVariable String employeeId) {
         List<ExpenseNote> notes = expenseService.getNotesByEmployee(employeeId);
-
         List<Map<String, Object>> response = notes.stream().map(note -> {
             Map<String, Object> map = new HashMap<>();
-
             map.put("id", note.getId());
             map.put("employeeId", note.getEmployeeId());
             map.put("projectId", note.getProjectId());
@@ -222,22 +333,21 @@ public class ExpenseController {
             map.put("totalAmount", note.getTotalAmount());
             map.put("status", note.getStatus());
             map.put("accordPath", note.getAccordPath());
-
-            // ✅ NOUVEAUX CHAMPS
+            map.put("noteDescription", note.getNoteDescription());
             map.put("decisionComment", note.getDecisionComment());
             map.put("decidedBy", note.getDecidedBy());
             map.put("decidedAt", note.getDecidedAt());
-            map.put("managerId", note.getManagerId()); // ✅ AJOUTÉ
+            map.put("managerId", note.getManagerId());
+            // ⭐ AJOUTER LE MONTANT REMBOURSÉ
+            map.put("reimbursedAmount", note.getReimbursedAmount() != null ? note.getReimbursedAmount() : 0.0);
 
             projectService.getProjectById(note.getProjectId())
                     .ifPresentOrElse(
                             project -> map.put("projectName", project.getName()),
                             () -> map.put("projectName", "Projet inconnu")
                     );
-
             return map;
-        }).toList();
-
+        }).collect(Collectors.toList());
         return ResponseEntity.ok(response);
     }
 
@@ -261,23 +371,20 @@ public class ExpenseController {
             map.put("totalAmount", note.getTotalAmount());
             map.put("status", note.getStatus());
             map.put("accordPath", note.getAccordPath());
-
-            // ✅ NOUVEAUX CHAMPS
             map.put("decisionComment", note.getDecisionComment());
             map.put("decidedBy", note.getDecidedBy());
             map.put("decidedAt", note.getDecidedAt());
-            map.put("managerId", note.getManagerId()); // ✅ AJOUTÉ
-
+            map.put("managerId", note.getManagerId());
+            // ⭐ AJOUTER LE MONTANT REMBOURSÉ
+            map.put("reimbursedAmount", note.getReimbursedAmount() != null ? note.getReimbursedAmount() : 0.0);
             return map;
-        }).toList();
+        }).collect(Collectors.toList());
 
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/department/{departmentId}")
-    public ResponseEntity<List<Map<String, Object>>> getNotesByDepartment(
-            @PathVariable Long departmentId) {
-
+    public ResponseEntity<List<Map<String, Object>>> getNotesByDepartment(@PathVariable Long departmentId) {
         try {
             List<ExpenseNote> notes = expenseService.getNotesByDepartment(departmentId);
 
@@ -290,39 +397,40 @@ public class ExpenseController {
                 map.put("totalAmount", note.getTotalAmount());
                 map.put("status", note.getStatus());
                 map.put("accordPath", note.getAccordPath());
-
-                // ✅ NOUVEAUX CHAMPS
                 map.put("decisionComment", note.getDecisionComment());
                 map.put("decidedBy", note.getDecidedBy());
                 map.put("decidedAt", note.getDecidedAt());
-                map.put("managerId", note.getManagerId()); // ✅ AJOUTÉ
+                map.put("managerId", note.getManagerId());
+                // ⭐ AJOUTER LE MONTANT REMBOURSÉ
+                map.put("reimbursedAmount", note.getReimbursedAmount() != null ? note.getReimbursedAmount() : 0.0);
 
                 projectService.getProjectById(note.getProjectId())
                         .ifPresentOrElse(
                                 project -> map.put("projectName", project.getName()),
                                 () -> map.put("projectName", "Projet inconnu")
                         );
-
                 return map;
             }).collect(Collectors.toList());
 
             return ResponseEntity.ok(response);
-
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.internalServerError().build();
         }
     }
 
-    // ========== NOUVEAUX ENDPOINTS POUR MANAGER ==========
+    // ========== NOUVEAUX ENDPOINTS POUR MANAGER (MODIFIED) ==========
 
     @PutMapping("/manager/validate/{noteId}")
     public ResponseEntity<ExpenseNote> managerValidate(
             @PathVariable Long noteId,
             @RequestParam String comment,
             @RequestParam String managerId,
-            @RequestParam String managerName) {
-        return ResponseEntity.ok(expenseService.managerValidateNote(noteId, comment, managerId, managerName));
+            @RequestParam String managerName,
+            @RequestParam(required = false) String displayCurrency,
+            @RequestParam(required = false) Double exchangeRate) {
+        return ResponseEntity.ok(expenseService.managerValidateNote(
+                noteId, comment, managerId, managerName, displayCurrency, exchangeRate));
     }
 
     @PutMapping("/manager/reject/{noteId}")
@@ -330,22 +438,27 @@ public class ExpenseController {
             @PathVariable Long noteId,
             @RequestParam String comment,
             @RequestParam String managerId,
-            @RequestParam String managerName) {
-        return ResponseEntity.ok(expenseService.managerRejectNote(noteId, comment, managerId, managerName));
+            @RequestParam String managerName,
+            @RequestParam(required = false) String displayCurrency,
+            @RequestParam(required = false) Double exchangeRate) {
+        return ResponseEntity.ok(expenseService.managerRejectNote(
+                noteId, comment, managerId, managerName, displayCurrency, exchangeRate));
     }
 
-    // ========== NOUVEAUX ENDPOINTS POUR ADMIN ==========
+    // ========== NOUVEAUX ENDPOINTS POUR ADMIN (MODIFIED) ==========
 
     @PutMapping("/admin/reject/{noteId}")
     public ResponseEntity<?> adminReject(
             @PathVariable Long noteId,
-            @RequestParam String comment) {
+            @RequestParam String comment,
+            @RequestParam(required = false) String displayCurrency,
+            @RequestParam(required = false) Double exchangeRate) {
         try {
             if (comment == null || comment.trim().isEmpty()) {
                 return ResponseEntity.badRequest()
                         .body(Map.of("error", "Le commentaire est obligatoire pour le refus"));
             }
-            ExpenseNote updatedNote = expenseService.adminRejectNote(noteId, comment);
+            ExpenseNote updatedNote = expenseService.adminRejectNote(noteId, comment, displayCurrency, exchangeRate);
             return ResponseEntity.ok(updatedNote);
         } catch (IllegalStateException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -543,5 +656,39 @@ public class ExpenseController {
         } else {
             return "application/octet-stream";
         }
+    }
+
+    // ✅ Sauvegarder les doublons détectés (appelé par Angular après soumission)
+    @PostMapping("/{noteId}/duplicates")
+    public ResponseEntity<?> saveDuplicates(
+            @PathVariable Long noteId,
+            @RequestBody List<Map<String, Object>> duplicates
+    ) {
+        try {
+            duplicateRepository.deleteByExpenseNoteId(noteId);
+            List<ExpenseDuplicate> saved = new ArrayList<>();
+            for (Map<String, Object> d : duplicates) {
+                ExpenseDuplicate dup = new ExpenseDuplicate();
+                dup.setExpenseNoteId(noteId);
+                if (d.get("expenseLineId") != null) {
+                    dup.setExpenseLineId(Long.parseLong(d.get("expenseLineId").toString()));
+                }
+                dup.setUploadedFile(d.get("uploadedFile") != null ? d.get("uploadedFile").toString() : null);
+                dup.setDuplicateFile(d.get("duplicateFile") != null ? d.get("duplicateFile").toString() : null);
+                dup.setSimilarity(d.get("similarity") != null ? Double.parseDouble(d.get("similarity").toString()) : null);
+                saved.add(duplicateRepository.save(dup));
+            }
+            return ResponseEntity.ok(Map.of("saved", saved.size()));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    // ✅ Récupérer les doublons d'une note (pour le manager)
+    @GetMapping("/{noteId}/duplicates")
+    public ResponseEntity<List<ExpenseDuplicate>> getDuplicates(@PathVariable Long noteId) {
+        return ResponseEntity.ok(duplicateRepository.findByExpenseNoteId(noteId));
     }
 }

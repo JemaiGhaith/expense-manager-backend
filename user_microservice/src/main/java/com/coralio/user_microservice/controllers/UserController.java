@@ -6,6 +6,7 @@ import com.coralio.user_microservice.dto.UserCreateDTO;
 import com.coralio.user_microservice.dto.UserUpdateDTO;
 import com.coralio.user_microservice.services.KeycloakAdminClient;
 import com.coralio.user_microservice.services.DepartmentService;
+import com.coralio.user_microservice.services.UserService;
 import lombok.RequiredArgsConstructor;
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
@@ -27,6 +28,7 @@ public class UserController {
 
     private final KeycloakAdminClient keycloakClient;
     private final DepartmentService departmentService;
+    private final UserService userService;  // ✅ AJOUTER CETTE LIGNE
 
     @GetMapping("/{id}")
     public ResponseEntity<UserDto> getUserById(@PathVariable("id") String id) {
@@ -428,6 +430,119 @@ public class UserController {
         } catch (Exception e) {
             log.error("❌ Erreur vérification statut mot de passe: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+    // Récupérer le département d'un employé
+    @GetMapping("/{userId}/department")
+    public ResponseEntity<Long> getUserDepartment(@PathVariable String userId) {
+        UserDto user = userService.getUserById(userId);
+        if (user == null || user.departmentId == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(Long.parseLong(user.departmentId));
+    }
+
+    // Récupérer tous les managers
+    @GetMapping("/managers")
+    public ResponseEntity<List<UserDto>> getAllManagers() {
+        List<UserDto> managers = userService.getAllManagers();
+        return ResponseEntity.ok(managers);
+    }
+
+    // Récupérer le nom d'un utilisateur
+    @GetMapping("/{userId}/name")
+    public ResponseEntity<String> getUserName(@PathVariable String userId) {
+        UserDto user = userService.getUserById(userId);
+        if (user == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(user.firstName + " " + user.lastName);
+    }
+    // Ajoutez cette méthode dans UserController.java
+
+    /**
+     * Récupère tous les utilisateurs avec le rôle ADMIN
+     */
+    @GetMapping("/admins")
+    public ResponseEntity<List<UserDto>> getAllAdmins() {
+        try {
+            log.info("👑 Récupération de tous les admins");
+
+            // Récupérer tous les utilisateurs
+            List<UserRepresentation> users = keycloakClient.getAllUsers();
+
+            // Filtrer ceux qui ont le rôle ADMIN
+            List<UserDto> admins = users.stream()
+                    .filter(user -> {
+                        try {
+                            List<String> roles = keycloakClient.getUserRoles(user.getId());
+                            boolean isAdmin = roles.contains("ADMIN");
+                            if (isAdmin) {
+                                log.info("✅ Admin trouvé: {} ({})", user.getUsername(), user.getId());
+                            }
+                            return isAdmin;
+                        } catch (Exception e) {
+                            log.error("❌ Erreur récupération rôles pour user {}: {}", user.getId(), e.getMessage());
+                            return false;
+                        }
+                    })
+                    .map(user -> {
+                        String departmentId = extractAttribute(user, "departmentId");
+                        String departmentName = null;
+
+                        if (departmentId != null) {
+                            try {
+                                departmentName = departmentService.getDepartmentName(Long.parseLong(departmentId));
+                            } catch (Exception e) {
+                                // Ignorer si département non trouvé
+                            }
+                        }
+
+                        List<String> roles = extractRoles(user);
+
+                        return new UserDto(
+                                user.getId(),
+                                user.getFirstName(),
+                                user.getLastName(),
+                                user.getUsername(),
+                                user.getEmail(),
+                                departmentId,
+                                departmentName,
+                                user.isEnabled(),
+                                user.isEmailVerified(),
+                                roles
+                        );
+                    })
+                    .collect(Collectors.toList());
+
+            log.info("👑 Total admins trouvés: {}", admins.size());
+            return ResponseEntity.ok(admins);
+
+        } catch (Exception e) {
+            log.error("❌ Erreur récupération des admins: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+    @GetMapping("/{userId}/preferred-currency")
+    public ResponseEntity<String> getUserPreferredCurrency(@PathVariable String userId) {
+        String currency = userService.getUserPreferredCurrency(userId);
+        return ResponseEntity.ok(currency);
+    }
+    @PutMapping("/{userId}/preferred-currency")
+    public ResponseEntity<?> updatePreferredCurrency(@PathVariable String userId,
+                                                     @RequestParam String currency) {
+        try {
+            userService.updateUserPreferredCurrency(userId, currency);
+            Map<String, Object> response = new HashMap<>();
+            response.put("message", "Preferred currency updated successfully");
+            response.put("currency", currency.toUpperCase());
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error updating preferred currency for user {}: {}", userId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", e.getMessage()));
         }
     }
 }

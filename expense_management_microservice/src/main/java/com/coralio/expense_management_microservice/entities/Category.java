@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Data
 @NoArgsConstructor
@@ -22,7 +23,7 @@ public class Category {
     private Long id;
 
     @Column(nullable = false, unique = true)
-    private String name;           // "Transport", "Hébergement", "Restauration", etc.
+    private String name;
 
     private Double plafond;
 
@@ -31,14 +32,27 @@ public class Category {
 
     private boolean active = true;
 
-    // 🔥 Une catégorie a plusieurs champs
+    // ✅ Relation ManyToMany via la table de liaison
     @OneToMany(mappedBy = "category", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("displayOrder ASC")
-    @Builder.Default  // ← IMPORTANT pour que Lombok garde l'initialisation
-    private List<CategoryField> fields = new ArrayList<>();
+    @Builder.Default
+    private List<CategoryFieldMapping> fieldMappings = new ArrayList<>();
 
-    public void addField(CategoryField field) {
-        fields.add(field);
-        field.setCategory(this);
+    // ⚠️ On garde une méthode utilitaire pour ajouter un champ avec ses attributs
+    public void addField(CategoryField field, boolean required, Integer displayOrder) {
+        CategoryFieldMapping mapping = CategoryFieldMapping.builder()
+                .category(this)
+                .field(field)
+                .required(required)
+                .displayOrder(displayOrder != null ? displayOrder : fieldMappings.size() + 1)
+                .build();
+        fieldMappings.add(mapping);
+    }
+
+    // Méthode pour récupérer les champs (via les mappings)
+    public List<CategoryField> getFields() {
+        return fieldMappings.stream()
+                .map(CategoryFieldMapping::getField)
+                .collect(Collectors.toList());
     }
 }

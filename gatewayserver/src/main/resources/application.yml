@@ -5,46 +5,116 @@ spring:
   application:
     name: gatewayserver
 
-  # Keep security disabled for now
   security:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: http://localhost:8090/realms/coral-io_realm
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8090/realms/coral-io_realm}
 
   cloud:
     config:
       enabled: false
-
     gateway:
       discovery:
         locator:
-          enabled: false  # We'll define routes manually
-
+          enabled: false
       routes:
         - id: expense-ms
-          uri: lb://EXPENSE-MANAGEMENT-MICROSERVICE  # Use Eureka service name
+          uri: lb://EXPENSE-MANAGEMENT-MICROSERVICE
           predicates:
-            - Path=/api/expenses/**, /api/categories/** , /api/projects/**, /api/admin/**, /api/departments/**
+            - Path=/api/expenses/**, /api/categories/**, /api/projects/**, /api/admin/**, /api/departments/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: expenseService
+                fallbackUri: forward:/fallback/expense
+            - TokenRelay
         - id: user-ms
-          uri: lb://USER-MICROSERVICE  # Use Eureka service name
+          uri: lb://USER-MICROSERVICE
           predicates:
-            - Path=/api/users/** , /api/profile/**
+            - Path=/api/users/**, /api/profile/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: userService
+                fallbackUri: forward:/fallback/user
+        - id: ai-ms
+          uri: lb://AI-MICROSERVICE
+          predicates:
+            - Path=/api/ai/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: aiService
+                fallbackUri: forward:/fallback/ai
+        - id: chatbot-ms
+          uri: lb://CHATBOT-MICROSERVICE
+          predicates:
+            - Path=/api/chatbot/**, /ws-chatbot/**
+          filters:
+            - StripPrefix=0
+            - name: CircuitBreaker
+              args:
+                name: chatbotService
+                fallbackUri: forward:/fallback/chatbot
+        - id: notification-ms
+          uri: lb://NOTIFICATION-MICROSERVICE
+          predicates:
+            - Path=/api/notifications/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: notificationService
+                fallbackUri: forward:/fallback/notification
 
 eureka:
   client:
     register-with-eureka: true
     fetch-registry: true
     service-url:
-      defaultZone: http://localhost:8761/eureka/
+      defaultZone: ${EUREKA_URI:http://localhost:8761/eureka/}
   instance:
     prefer-ip-address: true
 
+resilience4j:
+  circuitbreaker:
+    instances:
+      expenseService:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        waitDurationInOpenState: 30000
+        failureRateThreshold: 50
+      userService:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        waitDurationInOpenState: 30000
+      aiService:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 3
+        waitDurationInOpenState: 30000
+      chatbotService:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        waitDurationInOpenState: 30000
+        failureRateThreshold: 50
+  timelimiter:
+    instances:
+      expenseService:
+        timeoutDuration: 600000
+      userService:
+        timeoutDuration: 600000
+      aiService:
+        timeoutDuration: 600000
+      chatbotService:
+        timeoutDuration: 3600000
 
 logging:
   level:
+    org.springframework.cloud.gateway: DEBUG
     org.springframework.security: DEBUG
-    org.springframework.security.oauth2: DEBUG
-    org.springframework.security.oauth2.jwt: DEBUG
-    org.springframework.web: DEBUG
-

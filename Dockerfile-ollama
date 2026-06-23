@@ -1,0 +1,8 @@
+FROM ollama/ollama:latest
+RUN --mount=type=cache,target=/root/.ollama \
+    ollama serve & \
+    sleep 15 && \
+    ollama pull mistral:7b-instruct && \
+    ollama pull qwen3:1.7b && \
+    ollama pull gemma3:4b && \
+    pkill ollama

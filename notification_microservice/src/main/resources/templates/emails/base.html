@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${notification.title}">Notification</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header .icon { font-size: 48px; margin-bottom: 10px; }
+        .header h1 { margin: 0; font-size: 28px; }
+        .content { padding: 30px; }
+        .footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #6c757d;
+            border-top: 1px solid #dee2e6;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 30px;
+            background-color: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            margin: 20px 0;
+            font-weight: 600;
+        }
+        @media only screen and (max-width: 600px) {
+            .container { width: 100% !important; margin: 0 !important; }
+            .content { padding: 20px !important; }
+            .button { display: block !important; width: 100% !important; text-align: center; }
+        }
+    </style>
+</head>
+<body>
+<div th:fragment="container" class="container">
+    <div class="header" th:classappend="${headerClass}">
+        <div class="icon" th:text="${icon}">📬</div>
+        <h1 th:text="${notification.title}">Notification</h1>
+        <p th:if="${formattedDate}" th:text="'Date: ' + ${formattedDate}" style="margin-top: 10px; opacity: 0.9;"></p>
+    </div>
+
+    <div class="content">
+        <th:block th:replace="${contentFragment}" />
+    </div>
+
+    <div class="footer">
+        <p>© <span th:text="${currentYear}">2024</span> <span th:text="${companyName}">Coral-io</span>. Tous droits réservés.</p>
+        <p>Cet email a été envoyé automatiquement, merci de ne pas y répondre.</p>
+        <p><a th:href="${frontendUrl} + '/settings/notifications'">Gérer mes notifications</a> | <a th:href="${frontendUrl}">Accéder à Coral-io</a></p>
+    </div>
+</div>
+</body>
+</html>

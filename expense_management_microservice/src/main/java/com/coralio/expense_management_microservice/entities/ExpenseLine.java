@@ -38,7 +38,11 @@ public class ExpenseLine {
 
     @Column(name = "justificatif_path")
     private String justificatifPath;
+    @Transient
+    private String ocrText;
 
+    @Transient
+    private Map<String, Object> extractedJson;
     // 🚗 TRANSPORT
     private String depart;
     private String destination;
@@ -59,11 +63,63 @@ public class ExpenseLine {
     // 📦 DIVERS
     private String detail;
 
+    @Column(name = "is_anomaly_depense")
+    private Boolean isAnomalyDepense = false;
+
+    @Column(name = "anomaly_expense_message", columnDefinition = "TEXT")
+    private String anomalyExpenseMessage;
+
+
     // ✅ CHAMPS DYNAMIQUES - Pour les colonnes non déclarées
     @Transient
     @Builder.Default
     private Map<String, Object> dynamicFields = new HashMap<>();
+    // Dans ExpenseLine.java, après les autres champs
 
+        // ========== CHAMPS POUR LA VALIDATION IA ==========
+        @Column(name = "validation_valid")
+        private Boolean validationValid;          // true si validé, false si anomalie
+
+        @Column(name = "validation_score")
+        private Double validationScore;           // score de confiance (0-100)
+
+        @Column(name = "validation_issues")
+        private String validationIssues;          // problèmes détectés, séparés par "; "
+
+        // ========== CHAMPS POUR LA DÉTECTION DE DOUBLON (optionnels, car déjà dans expense_duplicates) ==========
+        @Column(name = "duplicate_detected")
+        private Boolean duplicateDetected;
+
+        @Column(name = "duplicate_score")
+        private Double duplicateScore;
+
+        @Column(name = "duplicate_matched_file")
+        private String duplicateMatchedFile;
+
+        // ========== CHAMPS POUR LA COMPARAISON FACTURE vs FORMULAIRE ==========
+        @Column(columnDefinition = "TEXT")
+        private String invoiceFormComparison;      // Résultat JSON complet de la comparaison
+
+        @Column(name = "is_consistent_with_invoice")
+        private Boolean isConsistentWithInvoice;    // true si facture cohérente avec formulaire
+
+        @Column(name = "consistency_confidence")
+        private Double consistencyConfidence;       // Score de confiance (0-1)
+
+        @Column(name = "consistency_issues", columnDefinition = "TEXT")
+        private String consistencyIssues;           // Problèmes détectés (séparés par "; ")
+    // Suggestions de correction
+    @Column(name = "suggested_amount")
+    private Double suggestedAmount;
+
+    @Column(name = "suggested_date")
+    private LocalDate suggestedDate;
+
+    @Column(name = "suggested_description")
+    private String suggestedDescription;
+
+    @Column(name = "suggested_category_id")
+    private Long suggestedCategoryId;
     /**
      * ✅ Cette méthode capture TOUTES les propriétés JSON qui n'ont pas
      * de correspondance dans l'entité et les stocke dans dynamicFields

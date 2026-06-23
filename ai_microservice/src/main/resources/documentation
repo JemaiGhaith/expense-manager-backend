@@ -1,0 +1,88 @@
+📋 Documentation de test – AI Microservice (Coralio)
+🎯 Objectif
+Tester le microservice IA qui analyse les factures : détection de doublons, extraction de champs, détection d'anomalies via IA locale (Ollama + Mistral).
+
+📦 Prérequis (à installer si pas déjà fait)
+Logiciel	Version	Lien / Commande
+Java JDK	17+	java -version
+Python	3.10+	python --version
+Ollama	latest	https://ollama.com/download
+Tesseract OCR	5.x	https://github.com/UB-Mannheim/tesseract/wiki
+PostgreSQL	14+	(déjà installé pour l'autre partie)
+Git	latest	git --version
+
+
+1️⃣ Installation du modèle IA (Ollama)
+bash
+# 1. Démarrer Ollama (une fois installé)
+ollama serve
+
+# 2. Dans un nouveau terminal, télécharger le modèle Mistral
+ollama pull mistral:7b-instruct
+
+# 3. (Optionnel) Modèle de secours plus léger
+ollama pull qwen3:1.7b
+✅ Vérification : ollama list doit afficher mistral:7b-instruct
+
+
+2️⃣ Structure des dossiers à créer
+# Créer le dossier pour Tesseract (si pas déjà fait)
+# Le chemin doit être: C:\Program Files\Tesseract-OCR\tessdata
+
+3️⃣ Configuration du AI Microservice (Python FastAPI)
+3.1 Dossier du service Python
+lien git Branch ghofrane: https://github.com/manelboulares8/ai-service.git
+bash
+cd coralio/ai-microservice-python   # ou votre chemin
+
+
+# Installer les dépendances
+pip install -r requirements.txt
+4️⃣ Configuration du AI Microservice (Spring Boot)
+4.1 Vérifier application.properties
+Assurez-vous que ces lignes sont présentes dans src/main/resources/application.properties :
+
+properties
+server.port=8085
+spring.application.name=ai-microservice
+
+# ⚠️ Chemin ABSOLU vers uploads (À MODIFIER selon votre PC)
+uploads.dir=C:/Users/ghofr/Desktop/work/stage2026/e0_safe/back/coral_io_BackEnd-manel/uploads
+
+# URL du service Python
+embedding.service.url=http://127.0.0.1:9000
+
+# Eureka (si utilisé)
+eureka.client.register-with-eureka=true
+eureka.client.fetch-registry=true
+eureka.client.service-url.defaultZone=http://localhost:8761/eureka/
+
+# Tesseract
+tesseract.datapath=C:\\Program Files\\Tesseract-OCR\\tessdata
+tesseract.language=eng
+
+# CORS
+spring.web.cors.allowed-origins=*
+
+# Taille max fichiers
+spring.servlet.multipart.max-file-size=50MB
+spring.servlet.multipart.max-request-size=50MB
+4.2 Lancer Spring Boot
+bash
+cd coralio/ai-microservice-spring   # ou votre chemin
+./mvnw spring-boot:run
+# ou
+mvn spring-boot:run
+5️⃣ Lancement des services (Ordre IMPORTANT)
+Terminal 1 – Service Python FastAPI
+bash
+cd coralio/ai-microservice-python
+venv\Scripts\activate   # Windows
+python -m uvicorn main:app --port 9000 --reload
+✅ Vérification : http://localhost:9000/docs (doit afficher Swagger)
+
+Terminal 2 – Spring Boot
+bash
+cd coralio/ai-microservice-spring
+mvn spring-boot:run
+✅ Vérification : http://localhost:8085/actuator/health

@@ -23,4 +23,8 @@ public interface ExpenseLineRepository extends JpaRepository<ExpenseLine, Long> 
             nativeQuery = true)
     List<ExpenseLine> findByExpenseNoteIdWithAllColumns(@Param("noteId") Long noteId);
     void deleteByExpenseNoteId(Long expenseNoteId);
+    @Query("SELECT el FROM ExpenseLine el WHERE el.justificatifPath LIKE :fileName")
+    List<ExpenseLine> findByJustificatifPathLike(@Param("fileName") String fileName);
+    @Query("SELECT el FROM ExpenseLine el WHERE el.justificatifPath LIKE CONCAT('%', :fileName)")
+    List<ExpenseLine> findByJustificatifPathEndingWith(@Param("fileName") String fileName);
 }

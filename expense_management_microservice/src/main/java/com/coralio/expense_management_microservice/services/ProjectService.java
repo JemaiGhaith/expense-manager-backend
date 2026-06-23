@@ -2,14 +2,19 @@ package com.coralio.expense_management_microservice.services;
 
 import com.coralio.expense_management_microservice.dto.ProjectRequestDTO;
 import com.coralio.expense_management_microservice.dto.ProjectResponseDTO;
+import com.coralio.expense_management_microservice.entities.ExpenseNote;
+import com.coralio.expense_management_microservice.entities.ExpenseStatus;
 import com.coralio.expense_management_microservice.entities.Project;
 import com.coralio.expense_management_microservice.enums.ProjectStatus;
 import com.coralio.expense_management_microservice.repos.EmployeeProjectAssignmentRepository;
+import com.coralio.expense_management_microservice.repos.ExpenseNoteRepository;
 import com.coralio.expense_management_microservice.repos.ProjectRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -19,13 +24,16 @@ public class ProjectService {
     private final ProjectRepository projectRepository;
     private final EmployeeProjectService employeeProjectService;
     private final EmployeeProjectAssignmentRepository assignmentRepository;
+    private final ExpenseNoteRepository expenseNoteRepository; // ✅ AJOUTER
 
     public ProjectService(ProjectRepository projectRepository,
                           EmployeeProjectService employeeProjectService,
-                          EmployeeProjectAssignmentRepository assignmentRepository) {
+                          EmployeeProjectAssignmentRepository assignmentRepository,
+                          ExpenseNoteRepository expenseNoteRepository) { // ✅ AJOUTER
         this.projectRepository = projectRepository;
         this.employeeProjectService = employeeProjectService;
         this.assignmentRepository = assignmentRepository;
+        this.expenseNoteRepository = expenseNoteRepository; // ✅ AJOUTER
     }
 
     // Conversion rendue publique pour l'utiliser ailleurs
@@ -166,5 +174,56 @@ public class ProjectService {
                 .stream()
                 .map(this::convertToResponseDTO)
                 .collect(Collectors.toList());
+    }
+    // ✅ NOUVELLE MÉTHODE : Récupérer la consommation du budget
+    public Map<String, Object> getBudgetConsumed(Long projectId) {
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new RuntimeException("Projet non trouvé avec l'id: " + projectId));
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("budget", project.getBudget());
+
+        // Détails par statut
+        Map<String, Double> byStatus = new HashMap<>();
+        byStatus.put("EN_ATTENTE", 0.0);
+        byStatus.put("VALIDEE", 0.0);
+        byStatus.put("REMBOURSEE", 0.0);
+        byStatus.put("REFUSEE", 0.0);
+
+        List<ExpenseNote> notes = expenseNoteRepository.findByProjectId(projectId);
+        for (ExpenseNote note : notes) {
+            if (note.getStatus() != null) {
+                byStatus.merge(note.getStatus().name(), note.getTotalAmount(), Double::sum);
+            }
+        }
+
+        response.put("byStatus", byStatus);
+
+        // Total consommé (excluant REFUSEE)
+        double consumed = byStatus.get("EN_ATTENTE") +
+                byStatus.get("VALIDEE") +
+                byStatus.get("REMBOURSEE");
+        response.put("consumed", consumed);
+        response.put("remaining", project.getBudget() - consumed);
+        response.put("isOverBudget", consumed > project.getBudget());
+
+        return response;
+    }
+
+    // ✅ Méthode pour obtenir juste le budget restant
+    public Double getRemainingBudget(Long projectId) {
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new RuntimeException("Projet non trouvé avec l'id: " + projectId));
+
+        Double totalExpenses = expenseNoteRepository
+                .findByProjectId(projectId)
+                .stream()
+                .filter(note -> note.getStatus() == ExpenseStatus.EN_ATTENTE ||
+                        note.getStatus() == ExpenseStatus.VALIDEE ||
+                        note.getStatus() == ExpenseStatus.REMBOURSEE)
+                .mapToDouble(ExpenseNote::getTotalAmount)
+                .sum();
+
+        return project.getBudget() - totalExpenses;
     }
 }

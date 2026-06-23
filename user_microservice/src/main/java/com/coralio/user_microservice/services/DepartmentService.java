@@ -1,5 +1,6 @@
 package com.coralio.user_microservice.services;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -7,8 +8,8 @@ import org.springframework.web.client.RestTemplate;
 public class DepartmentService {
 
     private final RestTemplate restTemplate;
-    private final String expenseServiceUrl = "http://localhost:8082/api/departments";
-
+    @Value("${expense.service.url:http://localhost:8082}")
+    private String expenseServiceUrl;
     public DepartmentService() {
         this.restTemplate = new RestTemplate();
     }
@@ -16,7 +17,7 @@ public class DepartmentService {
     public String getDepartmentName(Long departmentId) {
         try {
             // Appeler le microservice expense pour récupérer le département
-            String url = expenseServiceUrl + "/" + departmentId;
+            String url = expenseServiceUrl + "/api/departments/" + departmentId;
             DepartmentDto department = restTemplate.getForObject(url, DepartmentDto.class);
             return department != null ? department.getName() : null;
         } catch (Exception e) {

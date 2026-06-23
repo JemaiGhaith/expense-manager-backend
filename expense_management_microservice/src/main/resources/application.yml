@@ -1,6 +1,9 @@
 spring:
   security:
-    enabled: false  # Add this to disable ALL security
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8090/realms/coral-io_realm}
   application:
     name: expense-management-microservice
   servlet:
@@ -8,19 +11,16 @@ spring:
       enabled: true
       max-file-size: 10MB
       max-request-size: 10MB
-
   web:
     resources:
-      static-locations: file:./uploads/,classpath:/static/
+      static-locations: file:${FILE_UPLOAD_DIR:./uploads}/,classpath:/static/
   config:
     import: optional:configserver:${CONFIG_SERVICE_URL:http://localhost:9999}
   datasource:
-    url: jdbc:postgresql://localhost:5432/expense_app
-    username: postgres
-    password: 112004
-    #    password: postgres
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:expense_app}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:112004}
     driver-class-name: org.postgresql.Driver
-
   jpa:
     hibernate:
       ddl-auto: update
@@ -30,7 +30,6 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         jdbc:
           time_zone: UTC
-
   cloud:
     config:
       enabled: true
@@ -41,17 +40,17 @@ spring:
       mode: never
 
 server:
-  port: 8082
+  port: ${SERVER_PORT:8082}
 
 eureka:
   client:
     register-with-eureka: true
     fetch-registry: true
     service-url:
-      defaultZone: http://localhost:8761/eureka/
+      defaultZone: ${EUREKA_URI:http://localhost:8761/eureka/}
   instance:
     prefer-ip-address: true
-    hostname: localhost
+    hostname: ${EUREKA_HOSTNAME:localhost}
 
 management:
   endpoints:
@@ -59,14 +58,21 @@ management:
       exposure:
         include: '*'
 
+notification:
+  service:
+    url: ${NOTIFICATION_SERVICE_URL:http://localhost:8087}
+    enabled: true
+
 build:
   version: 1.0
 
 file:
-  upload-dir: ./uploads
+  upload-dir: ${FILE_UPLOAD_DIR:./uploads}
+
 logging:
   level:
-    org.springframework.security: DEBUG
-    org.springframework.security.oauth2: DEBUG
-    org.springframework.security.oauth2.jwt: DEBUG
-    org.springframework.web: DEBUG
+    org.springframework.security: ${LOG_LEVEL_SECURITY:DEBUG}
+    org.springframework.security.oauth2: ${LOG_LEVEL_OAUTH2:DEBUG}
+    org.springframework.security.oauth2.jwt: ${LOG_LEVEL_JWT:DEBUG}
+    org.springframework.web: ${LOG_LEVEL_WEB:DEBUG}
+    org.springframework.cloud.gateway: ${LOG_LEVEL_GATEWAY:DEBUG}

@@ -50,6 +50,15 @@ public class PaymentOrder {
 
     @OneToMany(mappedBy = "paymentOrder", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     private List<ReimbursedLine> reimbursedLines = new ArrayList<>();
+    // ✅ NOUVEAUX CHAMPS POUR DEVISE
+    @Column(name = "display_currency")
+    private String displayCurrency = "TND";  // Devise d'affichage (EUR, USD, etc.)
+
+    @Column(name = "exchange_rate")
+    private Double exchangeRate = 1.0;       // Taux de change par rapport au TND
+
+    @Column(name = "total_amount_original_tnd")
+    private Double totalAmountOriginalTND;   // Montant total original en TND
 
     // Méthode utilitaire pour calculer le total
     public Double calculateTotalAmount() {

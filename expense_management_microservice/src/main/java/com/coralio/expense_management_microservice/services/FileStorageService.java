@@ -16,7 +16,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
+import org.springframework.mock.web.MockMultipartFile;
 @Service
 public class FileStorageService {
 
@@ -220,5 +220,31 @@ public class FileStorageService {
             log.error("Erreur lors de la création du dossier employé: {}", employeeId, e);
             throw new RuntimeException("Erreur lors de la création du dossier pour l'employé: " + employeeId, e);
         }
+    }
+
+
+    public MultipartFile getFileAsMultipart(String employeeId, String filename) {
+        try {
+            Path path = Paths.get("uploads/" + employeeId + "/" + filename);
+            byte[] content = Files.readAllBytes(path);
+
+            return new MockMultipartFile(
+                    filename,
+                    filename,
+                    Files.probeContentType(path),
+                    content
+            );
+        } catch (Exception e) {
+            throw new RuntimeException("Erreur récupération fichier");
+        }
+    }
+
+    // Dans FileStorageService.java
+    public String getFullPath(String employeeId, String filePath) {
+        Path fullPath = uploadRoot
+                .resolve(String.valueOf(employeeId))
+                .resolve(filePath)
+                .normalize();
+        return fullPath.toString();
     }
 }

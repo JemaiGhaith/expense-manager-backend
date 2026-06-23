@@ -20,4 +20,7 @@ public class ReimbursementRequestDTO {
     private String paymentReference;
 
     private String adminComment;
+    // ✅ NOUVEAUX CHAMPS POUR DEVISE
+    private String displayCurrency;     // Devise d'affichage (EUR, USD, etc.)
+    private Double exchangeRate;        // Taux de change (ex: 0.30 pour EUR)
 }

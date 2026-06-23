@@ -1,0 +1,22 @@
+📋 Documentation de test – Chatbot Microservice (Coralio)
+🎯 Objectif
+Tester le chatbot hybride qui permet aux employés, managers et admins d'interagir avec le système de notes de frais via des questions en langage naturel.
+
+📦 Prérequis (à vérifier)
+Logiciel	Version	Vérification
+Java JDK	17+	java -version
+PostgreSQL	14+	psql --version
+Ollama	latest	ollama --version
+Eureka Server	(déjà lancé)	http://localhost:8761
+Gateway	(déjà lancé)	http://localhost:8888
+1️⃣ Installation du modèle Ollama pour le chatbot
+bash
+# Démarrer Ollama
+ollama serve
+
+# Dans un nouveau terminal, télécharger le modèle
+ollama pull qwen3:1.7b
+
+# Vérifier
+ollama list
+# Doit afficher: qwen3:1.7b

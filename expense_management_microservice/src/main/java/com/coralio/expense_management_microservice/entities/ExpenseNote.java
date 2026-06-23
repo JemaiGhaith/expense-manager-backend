@@ -32,6 +32,8 @@ public class ExpenseNote {
     @Column(name = "total_amount")
     private Double totalAmount = 0.0;
 
+    private String noteDescription;
+
     // ✅ NOUVEAU : Commentaire unique (manager OU admin)
     @Column(name = "decision_comment")
     private String decisionComment;
@@ -53,4 +55,17 @@ public class ExpenseNote {
 
     @Column(name = "accord_path")
     private String accordPath;
+
+    @Column(name = "ai_analysis_result", columnDefinition = "TEXT")
+    private String aiAnalysisResult;
+    @Column(name = "reimbursed_amount")
+    private Double reimbursedAmount = 0.0;
+    // Getter et Setter
+    public String getAiAnalysisResult() {
+        return aiAnalysisResult;
+    }
+
+    public void setAiAnalysisResult(String aiAnalysisResult) {
+        this.aiAnalysisResult = aiAnalysisResult;
+    }
 }

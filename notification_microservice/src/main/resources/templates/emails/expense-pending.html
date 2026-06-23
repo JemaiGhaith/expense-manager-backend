@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${notification.title}">Expense Pending</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+        .header .icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        .content {
+            padding: 30px;
+        }
+        .expense-details {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #ffc107;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 30px;
+            background-color: #ffc107;
+            color: #333;
+            text-decoration: none;
+            border-radius: 6px;
+            margin: 20px 0;
+            font-weight: 600;
+            text-align: center;
+        }
+        .footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            border-top: 1px solid #dee2e6;
+            font-size: 12px;
+            color: #6c757d;
+        }
+        @media only screen and (max-width: 600px) {
+            .container { width: 100% !important; margin: 0 !important; }
+            .content { padding: 20px !important; }
+            .button { display: block !important; width: 100% !important; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <div class="icon">⏳</div>
+        <h1 th:text="${notification.title}">Expense Pending</h1>
+        <p th:if="${formattedDate}" th:text="'Date: ' + ${formattedDate}" style="margin-top: 10px; opacity: 0.9;"></p>
+    </div>
+
+    <div class="content">
+        <p>Bonjour,</p>
+        <p th:text="${notification.message}">Your expense is pending approval.</p>
+
+        <div class="expense-details" th:if="${notification.data}">
+            <h3 style="margin-top: 0;">📋 Détails de la note</h3>
+            <table>
+                <tr>
+                    <td>Référence :</td>
+                    <td><strong th:text="${notification.data.expenseReference}">EXP-2024-001</strong></td>
+                </tr>
+                <tr>
+                    <td>Montant :</td>
+                    <td><strong th:text="${notification.data.convertedAmount != null ?
+    #numbers.formatDecimal(notification.data.convertedAmount, 0, 2) + ' ' + notification.data.targetCurrency :
+    #numbers.formatDecimal(notification.data.amount, 0, 2) + ' TND'}">
+                        250.00 TND
+                    </strong></td>                </tr>
+                <tr>
+                    <td>Employé :</td>
+                    <td th:text="${notification.data.employeeName}">John Doe</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="info-box" style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0;">
+            <strong>⏰ En attente de validation :</strong>
+            <p style="margin: 10px 0 0 0;">Votre note de frais est en cours de traitement par votre manager.</p>
+        </div>
+
+        <div style="text-align: center;">
+            <a th:href="${frontendUrl + notification.data.detailsUrl}" class="button" th:text="${buttonText}">Voir la note</a>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>© <span th:text="${currentYear}">2024</span> <span th:text="${companyName}">Coral-io</span>. Tous droits réservés.</p>
+        <p>Cet email a été envoyé automatiquement, merci de ne pas y répondre.</p>
+    </div>
+</div>
+</body>
+</html>
